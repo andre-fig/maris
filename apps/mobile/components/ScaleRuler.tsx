@@ -23,7 +23,7 @@ const MIN_ACTIVATION_RATIO = 1.2;
 const FADE_OUT_DURATION_MS = 400;
 const WEATHER_MAX_SCALE_METRES = 10_000;
 const WEATHER_BADGE_WIDTH = 56;
-const WEATHER_BADGE_LEFT_MARGIN = 16;
+const WEATHER_BADGE_LEFT_MARGIN = 20;
 const SYSTEM_FONT = Platform.select({ ios: 'System', default: 'sans-serif' });
 
 const METRE_SCALES: ScaleDefinition[] = [
@@ -258,7 +258,7 @@ const styles = StyleSheet.create({
   weatherText: {
     color: '#ffffff',
     fontFamily: SYSTEM_FONT,
-    fontSize: 14,
+    fontSize: 18,
     fontWeight: '600',
     fontVariant: ['tabular-nums'],
   },
