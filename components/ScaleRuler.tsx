@@ -15,8 +15,8 @@ type ScaleRulerProps = {
 };
 
 const METRES_PER_PIXEL_AT_EQUATOR = 156543.03392;
-const MAX_SCALE_METRES = 1_000_000;
-const MAX_VISIBLE_SCALE_METRES = 750_000;
+const MAX_SCALE_METRES = 1_500_000;
+const MAX_VISIBLE_SCALE_METRES = 1_000_000;
 const MIN_ACTIVATION_RATIO = 1.2;
 const FADE_OUT_DURATION_MS = 400;
 
@@ -47,6 +47,9 @@ const KILOMETRE_SCALES: ScaleDefinition[] = [1, 10, 100].flatMap(
     { segmentMetres: 1_250 * multiplier, segments: 3, unit: 'km' as const },
     { segmentMetres: 2_500 * multiplier, segments: 2, unit: 'km' as const },
     { segmentMetres: 2_500 * multiplier, segments: 3, unit: 'km' as const },
+    ...(multiplier === 100
+      ? [{ segmentMetres: 5_000 * multiplier, segments: 1, unit: 'km' as const }]
+      : []),
     { segmentMetres: 5_000 * multiplier, segments: 2, unit: 'km' as const },
     { segmentMetres: 5_000 * multiplier, segments: 3, unit: 'km' as const },
   ],
