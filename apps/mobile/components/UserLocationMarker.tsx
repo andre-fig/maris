@@ -1,7 +1,7 @@
 import { Marker } from "@maplibre/maplibre-react-native";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { SymbolView } from "expo-symbols";
-import { Platform, View } from "react-native";
+import { Platform, StyleSheet, View } from "react-native";
 
 type UserLocationMarkerProps = {
   coordinate: [number, number];
@@ -23,11 +23,14 @@ export function UserLocationMarker({
         style={[{ transform: [{ rotate: `${rotation}deg` }] }]}
       >
         {Platform.OS === "android" ? (
-          <MaterialIcons
-            color="#0A84FF"
-            name="assistant-navigation"
-            size={24}
-          />
+          <View style={styles.androidMarker}>
+            <View style={styles.whiteBacking} />
+            <MaterialIcons
+              color="#0A84FF"
+              name="assistant-navigation"
+              size={24}
+            />
+          </View>
         ) : (
           <SymbolView
             colors={["#FFFFFF", "#0A84FF"]}
@@ -41,3 +44,21 @@ export function UserLocationMarker({
     </Marker>
   );
 }
+
+const styles = StyleSheet.create({
+  androidMarker: {
+    width: 24,
+    height: 24,
+  },
+  // The arrow is a cutout in this glyph. Back only the inside of its blue
+  // circle so the arrow is white without filling the transparent outer corners.
+  whiteBacking: {
+    position: "absolute",
+    top: 3,
+    left: 3,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: "#FFFFFF",
+  },
+});
