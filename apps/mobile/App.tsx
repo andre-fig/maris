@@ -13,6 +13,7 @@ import { isWeatherScaleVisible, ScaleRuler } from "./components/ScaleRuler";
 import { CompassPanel } from "./components/CompassPanel";
 import { UserLocationMarker } from "./components/UserLocationMarker";
 import { MapControlsPanel } from "./components/MapControlsPanel";
+import { WindOverlay } from "./components/WindOverlay";
 import { useDeviceLocation } from "./location/use-device-location";
 import {
   type MapCenter,
@@ -199,6 +200,11 @@ export default function App() {
           />
         ) : null}
       </Map>
+      <WindOverlay
+        center={[viewState.longitude, viewState.latitude]}
+        zoom={viewState.zoom}
+        bearing={viewState.bearing}
+      />
       <View style={styles.controlsOverlay}>
         <View style={styles.controlsStack}>
           <CompassPanel
