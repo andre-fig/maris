@@ -1,8 +1,6 @@
-import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
-import { SymbolView } from "expo-symbols";
-import { Animated, Platform } from "react-native";
+import { Animated, StyleSheet, View } from "react-native";
 
-import { BLUR_PANEL_ICON_SIZE, BlurPanel } from "./BlurPanel";
+import { BlurPanel } from "./BlurPanel";
 import { useFadeVisibility } from './use-fade-visibility';
 
 export function CompassPanel({ visible }: { visible: boolean }) {
@@ -12,21 +10,67 @@ export function CompassPanel({ visible }: { visible: boolean }) {
   return (
     <Animated.View style={{ opacity }}>
       <BlurPanel shape="circle">
-        {Platform.OS === "android" ? (
-          <MaterialCommunityIcons
-            color="#FFFFFF"
-            name="compass-outline"
-            size={BLUR_PANEL_ICON_SIZE}
-          />
-        ) : (
-          <SymbolView
-            name="safari"
-            size={BLUR_PANEL_ICON_SIZE}
-            tintColor="#FFFFFF"
-            type="monochrome"
-          />
-        )}
+        <View pointerEvents="none" style={styles.compass}>
+          <View style={[styles.triangle, styles.north]} />
+          <View style={[styles.triangle, styles.east]} />
+          <View style={[styles.triangle, styles.south]} />
+          <View style={[styles.triangle, styles.west]} />
+        </View>
       </BlurPanel>
     </Animated.View>
   );
 }
+
+const styles = StyleSheet.create({
+  compass: {
+    width: 30,
+    height: 30,
+    position: "relative",
+  },
+  triangle: {
+    position: "absolute",
+    width: 0,
+    height: 0,
+    borderStyle: "solid",
+  },
+  north: {
+    top: 0,
+    left: 10,
+    borderLeftWidth: 5,
+    borderRightWidth: 5,
+    borderBottomWidth: 10,
+    borderLeftColor: "transparent",
+    borderRightColor: "transparent",
+    borderBottomColor: "#FF3B30",
+  },
+  east: {
+    top: 10,
+    right: 0,
+    borderTopWidth: 5,
+    borderBottomWidth: 5,
+    borderLeftWidth: 10,
+    borderTopColor: "transparent",
+    borderBottomColor: "transparent",
+    borderLeftColor: "#FFFFFF",
+  },
+  south: {
+    bottom: 0,
+    left: 10,
+    borderLeftWidth: 5,
+    borderRightWidth: 5,
+    borderTopWidth: 10,
+    borderLeftColor: "transparent",
+    borderRightColor: "transparent",
+    borderTopColor: "#FFFFFF",
+  },
+  west: {
+    top: 10,
+    left: 0,
+    borderTopWidth: 5,
+    borderBottomWidth: 5,
+    borderRightWidth: 10,
+    borderTopColor: "transparent",
+    borderBottomColor: "transparent",
+    borderRightColor: "#FFFFFF",
+  },
+});
