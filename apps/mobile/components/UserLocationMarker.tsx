@@ -23,26 +23,12 @@ export function UserLocationMarker({
         style={[styles.marker, { transform: [{ rotate: `${rotation}deg` }] }]}
       >
         {Platform.OS === 'android' ? (
-          <>
-            <MaterialIcons
-              color="#0A84FF"
-              name="circle"
-              size={36}
-              style={styles.circle}
-            />
-            <MaterialIcons
-              color="#FFFFFF"
-              name="radio-button-unchecked"
-              size={36}
-              style={styles.circle}
-            />
-            <MaterialIcons
-              color="#FFFFFF"
-              name="assistant-navigation"
-              size={20}
-              style={styles.navigation}
-            />
-          </>
+          <MaterialIcons
+            color="#0A84FF"
+            name="assistant-navigation"
+            size={30}
+            style={styles.navigation}
+          />
         ) : (
           <SymbolView
             colors={['#FFFFFF', '#0A84FF']}
