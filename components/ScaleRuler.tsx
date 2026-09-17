@@ -1,5 +1,5 @@
-import { useMemo } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { useEffect, useMemo, useRef } from 'react';
+import { Animated, StyleSheet, Text, View } from 'react-native';
 
 type ScaleDefinition = {
   segmentMetres: number;
@@ -15,7 +15,9 @@ type ScaleRulerProps = {
 
 const METRES_PER_PIXEL_AT_EQUATOR = 156543.03392;
 const MAX_SCALE_METRES = 1_000_000;
+const MAX_VISIBLE_SCALE_METRES = 750_000;
 const MIN_ACTIVATION_RATIO = 1.2;
+const FADE_OUT_DURATION_MS = 180;
 
 const METRE_SCALES: ScaleDefinition[] = [
   { segmentMetres: 2, segments: 3, unit: 'm' },
@@ -51,6 +53,13 @@ const KILOMETRE_SCALES: ScaleDefinition[] = [1, 10, 100].flatMap(
 
 const SCALES = [...METRE_SCALES, ...KILOMETRE_SCALES]
   .filter(({ segmentMetres, segments }) => segmentMetres * segments <= MAX_SCALE_METRES);
+
+const LAST_VISIBLE_SCALE = [...SCALES]
+  .reverse()
+  .find(
+    ({ segmentMetres, segments }) =>
+      segmentMetres * segments <= MAX_VISIBLE_SCALE_METRES,
+  ) ?? SCALES[0];
 
 const SCALE_STEPS = SCALES.reduce<
   Array<{ activationMetres: number; scale: ScaleDefinition }>
@@ -88,11 +97,16 @@ function formatValue(valueMetres: number, unit: ScaleDefinition['unit']) {
 }
 
 export function ScaleRuler({ latitude, maxWidth, zoom }: ScaleRulerProps) {
-  const { labels, segments, width } = useMemo(() => {
+  const opacity = useRef(new Animated.Value(1)).current;
+  const { hidden, labels, segments, width } = useMemo(() => {
     const metresPerPoint =
       (METRES_PER_PIXEL_AT_EQUATOR * Math.cos((latitude * Math.PI) / 180)) /
       2 ** zoom;
-    const scale = selectScale(metresPerPoint * maxWidth);
+    const selectedScale = selectScale(metresPerPoint * maxWidth);
+    const selectedTotalMetres =
+      selectedScale.segmentMetres * selectedScale.segments;
+    const hidden = selectedTotalMetres > MAX_VISIBLE_SCALE_METRES;
+    const scale = hidden ? LAST_VISIBLE_SCALE : selectedScale;
     const totalMetres = scale.segmentMetres * scale.segments;
     const values = Array.from(
       { length: scale.segments + 1 },
@@ -100,6 +114,7 @@ export function ScaleRuler({ latitude, maxWidth, zoom }: ScaleRulerProps) {
     );
 
     return {
+      hidden,
       labels: values.map((value, index) => {
         const formatted = formatValue(value, scale.unit);
         return index === values.length - 1 ? `${formatted} ${scale.unit}` : formatted;
@@ -109,8 +124,23 @@ export function ScaleRuler({ latitude, maxWidth, zoom }: ScaleRulerProps) {
     };
   }, [latitude, maxWidth, zoom]);
 
+  useEffect(() => {
+    opacity.stopAnimation();
+
+    if (hidden) {
+      Animated.timing(opacity, {
+        toValue: 0,
+        duration: FADE_OUT_DURATION_MS,
+        useNativeDriver: true,
+      }).start();
+      return;
+    }
+
+    opacity.setValue(1);
+  }, [hidden, opacity]);
+
   return (
-    <View style={styles.panel}>
+    <Animated.View style={[styles.panel, { opacity }]}>
       <View style={[styles.ruler, { width }]}>
         <View style={styles.labels}>
           {labels.map((label) => (
@@ -141,7 +171,7 @@ export function ScaleRuler({ latitude, maxWidth, zoom }: ScaleRulerProps) {
           ))}
         </View>
       </View>
-    </View>
+    </Animated.View>
   );
 }
 
