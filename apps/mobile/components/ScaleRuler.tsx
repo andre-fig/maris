@@ -168,11 +168,12 @@ export function ScaleRuler({
     };
   }, [latitude, maxWidth, zoom]);
   const showImmediately = visible && !hidden;
+  const displayWeather = showWeather && weather !== undefined;
   const weatherText = weather
     ? `${WEATHER_EMOJIS[weather.icon_code] ?? '🌡️'} ${Math.round(
         weather.temperature_celsius,
       )}°`
-    : '…';
+    : '';
 
   useEffect(() => {
     opacity.stopAnimation();
@@ -190,7 +191,7 @@ export function ScaleRuler({
   }, [opacity, showImmediately]);
 
   useEffect(() => {
-    if (showWeather) {
+    if (displayWeather) {
       weatherOpacity.stopAnimation();
       weatherOpacity.setValue(1);
       return;
@@ -205,7 +206,7 @@ export function ScaleRuler({
     fadeOut.start();
 
     return () => fadeOut.stop();
-  }, [showWeather, weatherOpacity]);
+  }, [displayWeather, weatherOpacity]);
 
   return (
     <View style={[styles.container, { width: viewportWidth }]}>
@@ -223,7 +224,7 @@ export function ScaleRuler({
               ? `${weather.condition}, ${Math.round(
                   weather.temperature_celsius,
                 )} graus, umidade ${weather.humidity_percent} por cento, vento ${weather.wind_speed_metres_per_second} metros por segundo, precipitação ${weather.precipitation_millimetres_last_hour} milímetros na última hora`
-              : 'Carregando clima atual'
+              : undefined
           }
           style={styles.weatherText}
         >
