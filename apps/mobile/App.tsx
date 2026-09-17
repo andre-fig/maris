@@ -180,7 +180,7 @@ const styles = StyleSheet.create({
   },
   controlsOverlay: {
     position: 'absolute',
-    right: 16,
-    bottom: 28,
+    right: 28,
+    bottom: 72,
   },
 });

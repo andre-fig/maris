@@ -17,7 +17,12 @@ export function UserLocationMarker({
   const rotation = heading === null ? 0 : heading - mapBearing;
 
   return (
-    <Marker id="device-location" lngLat={coordinate} anchor="center">
+    <Marker
+      id="device-location"
+      lngLat={coordinate}
+      anchor="center"
+      style={styles.annotation}
+    >
       <View
         pointerEvents="none"
         style={[styles.marker, { transform: [{ rotate: `${rotation}deg` }] }]}
@@ -45,16 +50,15 @@ export function UserLocationMarker({
 }
 
 const styles = StyleSheet.create({
+  annotation: {
+    zIndex: 10000,
+    elevation: 10000,
+  },
   marker: {
     width: 42,
     height: 42,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  circle: {
-    position: 'absolute',
-    width: 36,
-    height: 36,
   },
   navigation: {
     position: 'absolute',
