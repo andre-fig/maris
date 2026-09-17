@@ -198,7 +198,7 @@ export default function App() {
       </Map>
       <View style={styles.controlsOverlay}>
         <View style={styles.controlsStack}>
-          {courseUp ? <CompassPanel /> : null}
+          <CompassPanel visible={courseUp} />
           <MapControlsPanel
             locationActive={locationActive}
             courseUp={courseUp}

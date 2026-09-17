@@ -1,13 +1,14 @@
-import { useEffect, useMemo, useRef } from 'react';
-import { Animated, Platform, StyleSheet, Text, View } from 'react-native';
+import { useMemo } from "react";
+import { Animated, Platform, StyleSheet, Text, View } from "react-native";
 
-import type { CurrentWeather } from '../weather/current-weather';
-import { WeatherPanel } from './WeatherPanel';
+import type { CurrentWeather } from "../weather/current-weather";
+import { WeatherPanel } from "./WeatherPanel";
+import { useFadeVisibility } from './use-fade-visibility';
 
 type ScaleDefinition = {
   segmentMetres: number;
   segments: number;
-  unit: 'm' | 'km';
+  unit: "m" | "km";
 };
 
 type ScaleRulerProps = {
@@ -23,54 +24,61 @@ const METRES_PER_PIXEL_AT_EQUATOR = 156543.03392;
 const MAX_SCALE_METRES = 1_500_000;
 const MAX_VISIBLE_SCALE_METRES = 1_000_000;
 const MIN_ACTIVATION_RATIO = 1.2;
-const FADE_OUT_DURATION_MS = 400;
 const WEATHER_MAX_SCALE_METRES = 10_000;
-const SYSTEM_FONT = Platform.select({ ios: 'System', default: 'sans-serif' });
+const SYSTEM_FONT = Platform.select({ ios: "System", default: "sans-serif" });
 
 const METRE_SCALES: ScaleDefinition[] = [
-  { segmentMetres: 2, segments: 3, unit: 'm' },
-  { segmentMetres: 5, segments: 2, unit: 'm' },
-  { segmentMetres: 5, segments: 3, unit: 'm' },
-  { segmentMetres: 12, segments: 1, unit: 'm' },
-  { segmentMetres: 12, segments: 2, unit: 'm' },
-  { segmentMetres: 12, segments: 3, unit: 'm' },
-  { segmentMetres: 25, segments: 2, unit: 'm' },
-  { segmentMetres: 25, segments: 3, unit: 'm' },
-  { segmentMetres: 50, segments: 2, unit: 'm' },
-  { segmentMetres: 50, segments: 3, unit: 'm' },
-  { segmentMetres: 125, segments: 1, unit: 'm' },
-  { segmentMetres: 125, segments: 2, unit: 'm' },
-  { segmentMetres: 125, segments: 3, unit: 'm' },
-  { segmentMetres: 250, segments: 2, unit: 'm' },
-  { segmentMetres: 250, segments: 3, unit: 'm' },
-  { segmentMetres: 500, segments: 2, unit: 'm' },
-  { segmentMetres: 500, segments: 3, unit: 'm' },
+  { segmentMetres: 2, segments: 3, unit: "m" },
+  { segmentMetres: 5, segments: 2, unit: "m" },
+  { segmentMetres: 5, segments: 3, unit: "m" },
+  { segmentMetres: 12, segments: 1, unit: "m" },
+  { segmentMetres: 12, segments: 2, unit: "m" },
+  { segmentMetres: 12, segments: 3, unit: "m" },
+  { segmentMetres: 25, segments: 2, unit: "m" },
+  { segmentMetres: 25, segments: 3, unit: "m" },
+  { segmentMetres: 50, segments: 2, unit: "m" },
+  { segmentMetres: 50, segments: 3, unit: "m" },
+  { segmentMetres: 125, segments: 1, unit: "m" },
+  { segmentMetres: 125, segments: 2, unit: "m" },
+  { segmentMetres: 125, segments: 3, unit: "m" },
+  { segmentMetres: 250, segments: 2, unit: "m" },
+  { segmentMetres: 250, segments: 3, unit: "m" },
+  { segmentMetres: 500, segments: 2, unit: "m" },
+  { segmentMetres: 500, segments: 3, unit: "m" },
 ];
 
 const KILOMETRE_SCALES: ScaleDefinition[] = [1, 10, 100].flatMap(
   (multiplier) => [
-    { segmentMetres: 1_250 * multiplier, segments: 1, unit: 'km' as const },
-    { segmentMetres: 1_250 * multiplier, segments: 2, unit: 'km' as const },
-    { segmentMetres: 1_250 * multiplier, segments: 3, unit: 'km' as const },
-    { segmentMetres: 2_500 * multiplier, segments: 2, unit: 'km' as const },
-    { segmentMetres: 2_500 * multiplier, segments: 3, unit: 'km' as const },
+    { segmentMetres: 1_250 * multiplier, segments: 1, unit: "km" as const },
+    { segmentMetres: 1_250 * multiplier, segments: 2, unit: "km" as const },
+    { segmentMetres: 1_250 * multiplier, segments: 3, unit: "km" as const },
+    { segmentMetres: 2_500 * multiplier, segments: 2, unit: "km" as const },
+    { segmentMetres: 2_500 * multiplier, segments: 3, unit: "km" as const },
     ...(multiplier === 100
-      ? [{ segmentMetres: 5_000 * multiplier, segments: 1, unit: 'km' as const }]
+      ? [
+          {
+            segmentMetres: 5_000 * multiplier,
+            segments: 1,
+            unit: "km" as const,
+          },
+        ]
       : []),
-    { segmentMetres: 5_000 * multiplier, segments: 2, unit: 'km' as const },
-    { segmentMetres: 5_000 * multiplier, segments: 3, unit: 'km' as const },
+    { segmentMetres: 5_000 * multiplier, segments: 2, unit: "km" as const },
+    { segmentMetres: 5_000 * multiplier, segments: 3, unit: "km" as const },
   ],
 );
 
-const SCALES = [...METRE_SCALES, ...KILOMETRE_SCALES]
-  .filter(({ segmentMetres, segments }) => segmentMetres * segments <= MAX_SCALE_METRES);
+const SCALES = [...METRE_SCALES, ...KILOMETRE_SCALES].filter(
+  ({ segmentMetres, segments }) => segmentMetres * segments <= MAX_SCALE_METRES,
+);
 
-const LAST_VISIBLE_SCALE = [...SCALES]
-  .reverse()
-  .find(
-    ({ segmentMetres, segments }) =>
-      segmentMetres * segments <= MAX_VISIBLE_SCALE_METRES,
-  ) ?? SCALES[0];
+const LAST_VISIBLE_SCALE =
+  [...SCALES]
+    .reverse()
+    .find(
+      ({ segmentMetres, segments }) =>
+        segmentMetres * segments <= MAX_VISIBLE_SCALE_METRES,
+    ) ?? SCALES[0];
 
 const SCALE_STEPS = SCALES.reduce<
   Array<{ activationMetres: number; scale: ScaleDefinition }>
@@ -89,7 +97,7 @@ const SCALE_STEPS = SCALES.reduce<
   return steps;
 }, []);
 
-const numberFormatter = new Intl.NumberFormat('pt-BR', {
+const numberFormatter = new Intl.NumberFormat("pt-BR", {
   maximumFractionDigits: 2,
 });
 
@@ -114,8 +122,8 @@ export function isWeatherScaleVisible(
   return scale.segmentMetres * scale.segments <= WEATHER_MAX_SCALE_METRES;
 }
 
-function formatValue(valueMetres: number, unit: ScaleDefinition['unit']) {
-  const value = unit === 'km' ? valueMetres / 1_000 : valueMetres;
+function formatValue(valueMetres: number, unit: ScaleDefinition["unit"]) {
+  const value = unit === "km" ? valueMetres / 1_000 : valueMetres;
   return numberFormatter.format(value);
 }
 
@@ -127,7 +135,6 @@ export function ScaleRuler({
   weather,
   zoom,
 }: ScaleRulerProps) {
-  const opacity = useRef(new Animated.Value(0)).current;
   const { hidden, labels, segments, showWeather, width } = useMemo(() => {
     const metresPerPoint =
       (METRES_PER_PIXEL_AT_EQUATOR * Math.cos((latitude * Math.PI) / 180)) /
@@ -147,7 +154,9 @@ export function ScaleRuler({
       hidden,
       labels: values.map((value, index) => {
         const formatted = formatValue(value, scale.unit);
-        return index === values.length - 1 ? `${formatted} ${scale.unit}` : formatted;
+        return index === values.length - 1
+          ? `${formatted} ${scale.unit}`
+          : formatted;
       }),
       segments: scale.segments,
       showWeather: isWeatherScaleVisible(latitude, maxWidth, zoom),
@@ -156,25 +165,10 @@ export function ScaleRuler({
   }, [latitude, maxWidth, zoom]);
   const showImmediately = visible && !hidden;
 
-  useEffect(() => {
-    opacity.stopAnimation();
-
-    if (!showImmediately) {
-      Animated.timing(opacity, {
-        toValue: 0,
-        duration: FADE_OUT_DURATION_MS,
-        useNativeDriver: true,
-      }).start();
-      return;
-    }
-
-    opacity.setValue(1);
-  }, [opacity, showImmediately]);
+  const { opacity } = useFadeVisibility(showImmediately);
 
   return (
-    <View
-      style={[styles.container, { width: viewportWidth }]}
-    >
+    <View style={[styles.container, { width: viewportWidth }]}>
       <WeatherPanel
         style={styles.weatherBadge}
         visible={showWeather}
@@ -230,59 +224,59 @@ const styles = StyleSheet.create({
     height: 32,
   },
   rulerContainer: {
-    position: 'absolute',
+    position: "absolute",
     top: 0,
   },
   weatherBadge: {
     top: 0,
-    left: 48,
+    left: 38,
   },
   ruler: {
     height: 26,
   },
   labels: {
     height: 18,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
   },
   label: {
-    color: '#ffffff',
+    color: "#ffffff",
     fontFamily: SYSTEM_FONT,
     fontSize: 11,
-    fontWeight: '700',
-    fontVariant: ['tabular-nums'],
+    fontWeight: "700",
+    fontVariant: ["tabular-nums"],
   },
   labelOutline: {
-    position: 'absolute',
-    color: '#000000',
-    textShadowColor: '#000000',
+    position: "absolute",
+    color: "#000000",
+    textShadowColor: "#000000",
     textShadowOffset: { width: 0, height: 0 },
     textShadowRadius: 2.5,
   },
   bar: {
     height: 7,
-    flexDirection: 'row',
-    overflow: 'hidden',
-    backgroundColor: '#7fa9a1',
+    flexDirection: "row",
+    overflow: "hidden",
+    backgroundColor: "#7fa9a1",
     borderWidth: 1,
-    borderColor: '#000000',
+    borderColor: "#000000",
     borderRadius: 3.5,
   },
   segment: {
     flex: 1,
   },
   segmentLight: {
-    backgroundColor: '#7fa9a1',
+    backgroundColor: "#7fa9a1",
   },
   segmentDark: {
-    backgroundColor: '#28403e',
+    backgroundColor: "#28403e",
   },
   segmentDivider: {
-    position: 'absolute',
+    position: "absolute",
     top: 0,
     bottom: 0,
     width: 1,
-    backgroundColor: '#000000',
+    backgroundColor: "#000000",
   },
 });

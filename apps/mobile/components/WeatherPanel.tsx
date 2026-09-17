@@ -1,5 +1,5 @@
 import { SymbolView } from "expo-symbols";
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { Animated, StyleProp, StyleSheet, ViewStyle } from "react-native";
 
 import type { CurrentWeather } from "../weather/current-weather";
@@ -10,6 +10,7 @@ import {
 } from "../weather/weather-icons";
 import { BLUR_PANEL_ICON_SIZE, BlurPanel } from "./BlurPanel";
 import { BlurText } from './BlurText';
+import { useFadeVisibility } from './use-fade-visibility';
 
 type WeatherPanelProps = {
   weather?: CurrentWeather;
@@ -18,28 +19,13 @@ type WeatherPanelProps = {
 };
 
 export function WeatherPanel({ weather, visible, style }: WeatherPanelProps) {
-  const opacity = useRef(new Animated.Value(0)).current;
   const displayWeather = visible && weather !== undefined;
+  const { mounted, opacity } = useFadeVisibility(displayWeather);
   const weatherIcon = weather
     ? openWeatherIconMap[weather.icon_code]
     : undefined;
 
-  useEffect(() => {
-    opacity.stopAnimation();
-    if (displayWeather) {
-      opacity.setValue(1);
-      return;
-    }
-
-    const fadeOut = Animated.timing(opacity, {
-      toValue: 0,
-      duration: 400,
-      useNativeDriver: true,
-    });
-    fadeOut.start();
-    return () => fadeOut.stop();
-  }, [displayWeather, opacity]);
-
+  if (!mounted) return null;
   return (
     <Animated.View style={[{ opacity }, style]}>
       <BlurPanel
