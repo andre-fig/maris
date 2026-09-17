@@ -79,8 +79,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   directionLabel: {
-    fontSize: 12,
-    lineHeight: 14,
+    fontSize: 18,
+    lineHeight: 22,
     fontWeight: "700",
   },
 });
