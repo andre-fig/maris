@@ -18,12 +18,11 @@ import {
   useCurrentViewportWeather,
 } from "./weather/current-weather";
 
-const MIAMI: [number, number] = [-80.1918, 25.7617];
 const BASE_MAP_STYLE = "https://tiles.openfreemap.org/styles/bright";
 const API_URL =
   process.env.EXPO_PUBLIC_API_URL ??
   "https://api-production-7dc7.up.railway.app";
-const DEFAULT_MAP_ZOOM = 16;
+const DEFAULT_MAP_ZOOM = 14;
 const LOCATION_MATCH_THRESHOLD_KM = 0.08;
 
 function distanceKm(a: [number, number], b: [number, number]) {
@@ -39,16 +38,16 @@ function distanceKm(a: [number, number], b: [number, number]) {
 
 export default function App() {
   const { width } = useWindowDimensions();
+  const deviceLocation = useDeviceLocation();
+  const initialCenter: MapCenter = deviceLocation?.coordinate ?? [0, 0];
   const [viewState, setViewState] = useState({
-    latitude: MIAMI[1],
+    latitude: initialCenter[1],
     zoom: DEFAULT_MAP_ZOOM,
     bearing: 0,
   });
   const [isZooming, setIsZooming] = useState(false);
   const lastZoom = useRef(DEFAULT_MAP_ZOOM);
   const cameraRef = useRef<CameraRef>(null);
-  const deviceLocation = useDeviceLocation();
-  const initialCenter: MapCenter = deviceLocation?.coordinate ?? MIAMI;
   const [locationActive, setLocationActive] = useState(false);
   const locationTarget = useRef(false);
   const initialLocationApplied = useRef(false);
@@ -63,12 +62,17 @@ export default function App() {
   const currentWeather = useCurrentViewportWeather(
     API_URL,
     initialCenter,
-    isWeatherScaleVisible(viewState.latitude, scaleMaxWidth, viewState.zoom),
+    Boolean(deviceLocation) &&
+      isWeatherScaleVisible(viewState.latitude, scaleMaxWidth, viewState.zoom),
   );
 
   useEffect(() => {
     void OfflineManager.setMaximumAmbientCacheSize(256 * 1024 * 1024);
   }, []);
+
+  if (!deviceLocation) {
+    return <View style={styles.container} />;
+  }
 
   return (
     <View style={styles.container}>
@@ -127,9 +131,9 @@ export default function App() {
       >
         <Camera
           ref={cameraRef}
-          key={deviceLocation ? "gps-camera" : "fallback-camera"}
+          key="gps-camera"
           initialViewState={{
-            center: deviceLocation?.coordinate ?? MIAMI,
+            center: deviceLocation.coordinate,
             zoom: DEFAULT_MAP_ZOOM,
           }}
         />
