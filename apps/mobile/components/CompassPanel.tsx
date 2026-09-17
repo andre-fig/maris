@@ -2,7 +2,11 @@ import { StyleSheet, View } from "react-native";
 import Svg, { Path } from "react-native-svg";
 
 import { BlurPanel } from "./BlurPanel";
-import { BlurText } from './BlurText';
+import {
+  BLUR_TEXT_FONT_SIZE,
+  BLUR_TEXT_LINE_HEIGHT,
+  BlurText,
+} from './BlurText';
 
 function getCardinalDirection(heading: number | null) {
   if (heading === null) return '';
@@ -79,8 +83,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   directionLabel: {
-    fontSize: 18,
-    lineHeight: 22,
+    fontSize: BLUR_TEXT_FONT_SIZE,
+    lineHeight: BLUR_TEXT_LINE_HEIGHT,
     fontWeight: "700",
   },
 });
