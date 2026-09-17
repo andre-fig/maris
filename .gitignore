@@ -14,5 +14,8 @@ android/
 apps/mobile/native-wind/android/build/
 apps/mobile/native-wind/android/.cxx/
 apps/mobile/native-wind/android/.gradle/
+!apps/mobile/native-offline/android/
+apps/mobile/native-offline/android/build/
+apps/mobile/native-offline/android/.gradle/
 *.log
 .DS_Store

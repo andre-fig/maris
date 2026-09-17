@@ -1,0 +1,7 @@
+apply plugin: 'com.android.library'
+android { namespace 'com.maris.offline'; compileSdk rootProject.ext.compileSdkVersion; defaultConfig { minSdk 24 } }
+dependencies {
+  implementation 'com.facebook.react:react-android'
+  implementation 'org.maplibre.gl:android-sdk-opengl:13.2.0'
+  implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+}
