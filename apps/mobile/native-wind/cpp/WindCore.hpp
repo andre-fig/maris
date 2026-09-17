@@ -136,7 +136,7 @@ struct Vertex {
 struct ClipVertex {
   float x, y, z, w, u, v;
 };
-inline constexpr float trailWidthPixels = 4.f;
+inline constexpr float trailWidthPixels = 5.f;
 inline constexpr size_t maximumParticleCount = 1000;
 // Expand in screen space: Metal lines are fixed-width and GLES wide-line
 // support varies by device. Triangles give both backends the same thickness.
