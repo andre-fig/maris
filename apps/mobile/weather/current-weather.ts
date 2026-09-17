@@ -73,6 +73,7 @@ export function predictInertialCenter(samples: CameraSample[]): MapCenter {
 export function useCurrentViewportWeather(
   apiUrl: string,
   initialCenter: MapCenter,
+  enabled: boolean,
 ) {
   const [weather, setWeather] = useState<CurrentWeather>();
   const [error, setError] = useState<string>();
@@ -86,10 +87,11 @@ export function useCurrentViewportWeather(
   const activeRequestPoint = useRef<MapCenter | undefined>(undefined);
   const lastRequestedPoint = useRef<MapCenter | undefined>(undefined);
   const requestGeneration = useRef(0);
+  const enabledRef = useRef(enabled);
 
   const fetchWeather = useCallback(
     async (center: MapCenter) => {
-      if (touching.current) return;
+      if (touching.current || !enabledRef.current) return;
       if (
         lastRequestedPoint.current &&
         distanceMetres(lastRequestedPoint.current, center) <
@@ -140,6 +142,7 @@ export function useCurrentViewportWeather(
   const scheduleFetch = useCallback(
     (center: MapCenter) => {
       pendingTarget.current = center;
+      if (!enabledRef.current) return;
 
       if (
         activeRequestPoint.current &&
@@ -174,7 +177,11 @@ export function useCurrentViewportWeather(
   const onCameraChanging = useCallback(
     (center: MapCenter) => {
       recordCameraCenter(center);
-      if (!touching.current && debounceTimer.current) {
+      if (
+        enabledRef.current &&
+        !touching.current &&
+        debounceTimer.current
+      ) {
         pendingTarget.current = predictInertialCenter(samples.current);
       }
     },
@@ -184,9 +191,9 @@ export function useCurrentViewportWeather(
   const onCameraDidChange = useCallback(
     (center: MapCenter) => {
       recordCameraCenter(center);
-      if (touching.current) return;
-
       pendingTarget.current = center;
+      if (touching.current || !enabledRef.current) return;
+
       if (!debounceTimer.current) scheduleFetch(center);
     },
     [recordCameraCenter, scheduleFetch],
@@ -205,19 +212,46 @@ export function useCurrentViewportWeather(
     (remainingTouches: number) => {
       if (remainingTouches > 0) return;
       touching.current = false;
+      if (!enabledRef.current) return;
       scheduleFetch(predictInertialCenter(samples.current));
     },
     [scheduleFetch],
   );
 
   useEffect(() => {
-    scheduleFetch(initialCenter);
+    enabledRef.current = enabled;
+
+    if (!enabled) {
+      if (debounceTimer.current) {
+        clearTimeout(debounceTimer.current);
+        debounceTimer.current = undefined;
+      }
+      activeRequest.current?.abort();
+      activeRequest.current = undefined;
+      activeRequestPoint.current = undefined;
+      requestGeneration.current += 1;
+      return;
+    }
+
+    if (
+      lastRequestedPoint.current &&
+      distanceMetres(lastRequestedPoint.current, pendingTarget.current) >=
+        MINIMUM_FETCH_DISTANCE_METRES
+    ) {
+      setWeather(undefined);
+    }
+
+    scheduleFetch(pendingTarget.current);
+  }, [enabled, scheduleFetch]);
+
+  useEffect(() => {
+    pendingTarget.current = initialCenter;
 
     return () => {
       if (debounceTimer.current) clearTimeout(debounceTimer.current);
       activeRequest.current?.abort();
     };
-  }, [initialCenter, scheduleFetch]);
+  }, [initialCenter]);
 
   return {
     error,

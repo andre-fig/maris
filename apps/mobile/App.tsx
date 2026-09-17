@@ -8,7 +8,10 @@ import {
 import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, useWindowDimensions, View } from 'react-native';
 
-import { ScaleRuler } from './components/ScaleRuler';
+import {
+  isWeatherScaleVisible,
+  ScaleRuler,
+} from './components/ScaleRuler';
 import {
   type MapCenter,
   useCurrentViewportWeather,
@@ -26,7 +29,12 @@ export default function App() {
   const [viewState, setViewState] = useState({ latitude: MIAMI[1], zoom: 11 });
   const [isZooming, setIsZooming] = useState(false);
   const lastZoom = useRef(11);
-  const currentWeather = useCurrentViewportWeather(API_URL, INITIAL_CENTER);
+  const scaleMaxWidth = Math.min(width - 96, 175);
+  const currentWeather = useCurrentViewportWeather(
+    API_URL,
+    INITIAL_CENTER,
+    isWeatherScaleVisible(viewState.latitude, scaleMaxWidth, viewState.zoom),
+  );
 
   useEffect(() => {
     void OfflineManager.setMaximumAmbientCacheSize(256 * 1024 * 1024);
@@ -111,7 +119,7 @@ export default function App() {
       <View pointerEvents="none" style={styles.scaleOverlay}>
         <ScaleRuler
           latitude={viewState.latitude}
-          maxWidth={Math.min(width - 96, 175)}
+          maxWidth={scaleMaxWidth}
           viewportWidth={width}
           visible={isZooming}
           weather={currentWeather.weather}

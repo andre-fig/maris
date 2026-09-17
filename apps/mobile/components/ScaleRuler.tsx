@@ -111,6 +111,18 @@ function selectScale(maxMetres: number) {
   );
 }
 
+export function isWeatherScaleVisible(
+  latitude: number,
+  maxWidth: number,
+  zoom: number,
+) {
+  const metresPerPoint =
+    (METRES_PER_PIXEL_AT_EQUATOR * Math.cos((latitude * Math.PI) / 180)) /
+    2 ** zoom;
+  const scale = selectScale(metresPerPoint * maxWidth);
+  return scale.segmentMetres * scale.segments <= WEATHER_MAX_SCALE_METRES;
+}
+
 function formatValue(valueMetres: number, unit: ScaleDefinition['unit']) {
   const value = unit === 'km' ? valueMetres / 1_000 : valueMetres;
   return numberFormatter.format(value);
@@ -148,7 +160,7 @@ export function ScaleRuler({
         return index === values.length - 1 ? `${formatted} ${scale.unit}` : formatted;
       }),
       segments: scale.segments,
-      showWeather: selectedTotalMetres <= WEATHER_MAX_SCALE_METRES,
+      showWeather: isWeatherScaleVisible(latitude, maxWidth, zoom),
       width: Math.min(maxWidth, totalMetres / metresPerPoint),
     };
   }, [latitude, maxWidth, zoom]);
