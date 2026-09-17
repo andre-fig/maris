@@ -1,23 +1,17 @@
-import { Animated, StyleSheet, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 
 import { BlurPanel } from "./BlurPanel";
-import { useFadeVisibility } from './use-fade-visibility';
 
-export function CompassPanel({ visible }: { visible: boolean }) {
-  const { mounted, opacity } = useFadeVisibility(visible);
-  if (!mounted) return null;
-
+export function CompassPanel() {
   return (
-    <Animated.View style={{ opacity }}>
-      <BlurPanel shape="circle">
+    <BlurPanel shape="circle">
         <View pointerEvents="none" style={styles.compass}>
           <View style={[styles.triangle, styles.north]} />
           <View style={[styles.triangle, styles.east]} />
           <View style={[styles.triangle, styles.south]} />
           <View style={[styles.triangle, styles.west]} />
         </View>
-      </BlurPanel>
-    </Animated.View>
+    </BlurPanel>
   );
 }
 
