@@ -4,3 +4,4 @@
 - [ ] GPS — a fazer
 - [ ] Rotas — a fazer
 - [ ] Tempo — a fazer
+- [x] Ícone — concluído
