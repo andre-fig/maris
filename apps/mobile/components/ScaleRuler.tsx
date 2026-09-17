@@ -199,6 +199,7 @@ export function ScaleRuler({
       >
         <BlurView
           intensity={6}
+          key={displayWeather ? 'weather-blur-visible' : 'weather-blur-hidden'}
           tint="systemMaterialDark"
           style={StyleSheet.absoluteFill}
         />
