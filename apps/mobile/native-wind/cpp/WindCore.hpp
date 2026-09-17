@@ -185,7 +185,7 @@ inline std::array<ClipVertex, 4> quad(const Plan &p, const double *m,
           project((p.right + 1) / n, (p.bottom + 1) / n, 1, 1, m, zoom)};
 }
 struct Particle {
-  static constexpr size_t trailCapacity = 100;
+  static constexpr size_t trailCapacity = 75;
   double x = 0, y = 0;
   float age = 100, lifetime = 4;
   std::array<std::array<double, 2>, trailCapacity> trail{};
