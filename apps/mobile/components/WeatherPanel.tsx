@@ -1,5 +1,4 @@
 import { SymbolView } from "expo-symbols";
-import { useEffect } from "react";
 import { Animated, StyleProp, StyleSheet, ViewStyle } from "react-native";
 
 import type { CurrentWeather } from "../weather/current-weather";
@@ -9,8 +8,8 @@ import {
   openWeatherIconMap,
 } from "../weather/weather-icons";
 import { BLUR_PANEL_ICON_SIZE, BlurPanel } from "./BlurPanel";
-import { BlurText } from './BlurText';
-import { useFadeVisibility } from './use-fade-visibility';
+import { BlurText } from "./BlurText";
+import { useFadeVisibility } from "./use-fade-visibility";
 
 type WeatherPanelProps = {
   weather?: CurrentWeather;
@@ -62,6 +61,6 @@ export function WeatherPanel({ weather, visible, style }: WeatherPanelProps) {
 
 const styles = StyleSheet.create({
   wrapper: {
-    position: 'absolute',
+    position: "absolute",
   },
 });

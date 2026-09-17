@@ -11,7 +11,8 @@ export type WeatherIcon =
   | 'RAIN'
   | 'THUNDERSTORM'
   | 'SNOW'
-  | 'MIST';
+  | 'MIST'
+  | 'MIXED_PRECIP';
 
 export const openWeatherIconMap: Record<string, WeatherIcon> = {
   '01d': 'CLEAR_DAY',
@@ -32,6 +33,18 @@ export const openWeatherIconMap: Record<string, WeatherIcon> = {
   '13n': 'SNOW',
   '50d': 'MIST',
   '50n': 'MIST',
+  CLEAR_DAY: 'CLEAR_DAY',
+  CLEAR_NIGHT: 'CLEAR_NIGHT',
+  FEW_CLOUDS_DAY: 'FEW_CLOUDS_DAY',
+  FEW_CLOUDS_NIGHT: 'FEW_CLOUDS_NIGHT',
+  SCATTERED_CLOUDS: 'SCATTERED_CLOUDS',
+  BROKEN_CLOUDS: 'BROKEN_CLOUDS',
+  SHOWER_RAIN: 'SHOWER_RAIN',
+  RAIN: 'RAIN',
+  THUNDERSTORM: 'THUNDERSTORM',
+  SNOW: 'SNOW',
+  MIST: 'MIST',
+  MIXED_PRECIP: 'MIXED_PRECIP',
 };
 
 export const iosWeatherIcons: Record<WeatherIcon, SFSymbol> = {
@@ -46,6 +59,7 @@ export const iosWeatherIcons: Record<WeatherIcon, SFSymbol> = {
   THUNDERSTORM: 'cloud.bolt',
   SNOW: 'cloud.snow',
   MIST: 'cloud.fog',
+  MIXED_PRECIP: 'cloud.sleet',
 };
 
 export const androidWeatherIcons: Record<WeatherIcon, string> = {
@@ -60,6 +74,7 @@ export const androidWeatherIcons: Record<WeatherIcon, string> = {
   THUNDERSTORM: 'thunderstorm',
   SNOW: 'weather_snowy',
   MIST: 'foggy',
+  MIXED_PRECIP: 'weather_mix',
 };
 
 export function getAndroidWeatherSymbol(icon: WeatherIcon): AndroidSymbol {
