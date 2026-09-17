@@ -3,6 +3,7 @@ node_modules/
 artifacts/
 dist/
 /data/
+apps/api/data/
 .storage/
 .env
 *.zip

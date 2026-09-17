@@ -5,17 +5,22 @@ set -euo pipefail
 api_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 repository_dir="$(cd "${api_dir}/../.." && pwd)"
 source_root="${repository_dir}/data/ENC_ROOT"
-output_dir="${api_dir}/data"
-output_file="${output_dir}/miami-soundg.json"
+storage_dir="${CHART_STORAGE_DIR:-${repository_dir}/.storage/chart-data}"
+version="${1:-${TILESET_VERSION:-}}"
 work_dir="$(mktemp -d)"
 geopackage="${work_dir}/soundings.gpkg"
+output_file="${work_dir}/miami-soundg.json"
+
+if [[ -z "${version}" ]]; then
+  echo "Usage: $0 <immutable-version>" >&2
+  exit 1
+fi
 
 cleanup() {
   rm -rf "${work_dir}"
 }
 
 trap cleanup EXIT
-mkdir -p "${output_dir}"
 
 first_cell=true
 for cell in "${source_root}"/US5MIA*/US5MIA*.000; do
@@ -39,3 +44,9 @@ ogr2ogr -f GeoJSON "${output_file}" "${geopackage}" soundings \
   -select DEPTH,RCID,LNAM,SORDAT,SORIND,SOURCE_CELL \
   -lco RFC7946=YES \
   -lco COORDINATE_PRECISION=6
+
+pnpm --dir "${api_dir}" exec tsx scripts/build-soundg-tiles.ts \
+  --input "${output_file}" \
+  --storage-dir "${storage_dir}" \
+  --version "${version}" \
+  --publish

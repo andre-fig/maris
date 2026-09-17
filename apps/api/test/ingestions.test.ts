@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { after, before, test } from 'node:test';
@@ -9,26 +9,73 @@ import { Test } from '@nestjs/testing';
 import { zipSync } from 'fflate';
 import request from 'supertest';
 
-import { AppModule } from '../src/app.module.js';
-
-let storageDirectory: string;
+let testStorageDirectory: string;
 let app: INestApplication;
 
 before(async () => {
-  storageDirectory = await mkdtemp(path.join(tmpdir(), 'maris-api-test-'));
-  process.env.STORAGE_DIR = storageDirectory;
+  testStorageDirectory = await mkdtemp(
+    path.join(tmpdir(), 'maris-api-test-'),
+  );
+  process.env.STORAGE_DIR = testStorageDirectory;
+  process.env.CHART_STORAGE_DIR = path.join(
+    testStorageDirectory,
+    'chart-data',
+  );
   process.env.MAX_ARCHIVE_ENTRIES = '100';
   process.env.MAX_UNCOMPRESSED_BYTES = `${10 * 1024 * 1024}`;
   process.env.MAX_UPLOAD_BYTES = `${5 * 1024 * 1024}`;
 
-  const module = await Test.createTestingModule({ imports: [AppModule] }).compile();
+  const chartRoot = path.join(testStorageDirectory, 'chart-data', 'soundg');
+  const manifest = {
+    bounds: [-80.265019, 25.650179, -80.026909, 25.949411],
+    createdAt: '2026-09-17T00:00:00.000Z',
+    dataset: 'soundg',
+    format: 'mvt',
+    maxzoom: 16,
+    minzoom: 8,
+    name: 'Miami SOUNDG',
+    tilePathTemplate:
+      'soundg/versions/miami-soundg-v2/{z}/{x}/{y}.pbf',
+    vectorLayers: [
+      {
+        fields: { DEPTH: 'Number' },
+        id: 'soundings',
+        maxzoom: 16,
+        minzoom: 8,
+      },
+    ],
+    version: 'miami-soundg-v2',
+  };
+  for (const version of ['miami-soundg-v1', 'miami-soundg-v2']) {
+    const versionDirectory = path.join(chartRoot, 'versions', version);
+    await mkdir(versionDirectory, { recursive: true });
+    await writeFile(
+      path.join(versionDirectory, 'manifest.json'),
+      JSON.stringify({
+        ...manifest,
+        tilePathTemplate: `soundg/versions/${version}/{z}/{x}/{y}.pbf`,
+        version,
+      }),
+    );
+  }
+  await writeFile(
+    path.join(chartRoot, 'active.json'),
+    JSON.stringify({ dataset: 'soundg', version: 'miami-soundg-v2' }),
+  );
+
+  const { AppModule } = await import('../src/app.module.js');
+  const module = await Test.createTestingModule({
+    imports: [AppModule],
+  }).compile();
   app = module.createNestApplication();
   await app.init();
 });
 
 after(async () => {
   await app?.close();
-  await rm(storageDirectory, { force: true, recursive: true });
+  const expectedPrefix = `${tmpdir()}${path.sep}maris-api-test-`;
+  assert.ok(testStorageDirectory.startsWith(expectedPrefix));
+  await rm(testStorageDirectory, { force: true, recursive: true });
 });
 
 test('receives a NOAA-style S-57 ZIP', async () => {
@@ -65,25 +112,35 @@ test('uses Nest exceptions for invalid ENC archives', async () => {
   assert.equal(response.body.code, 'NO_S57_CELLS');
 });
 
-test('publishes versioned MapLibre vector tiles on demand', async () => {
+test('publishes TileJSON from the active immutable artifact manifest', async () => {
   const metadata = await request(app.getHttpServer()).get('/tiles/soundg.json');
 
-  assert.equal(metadata.statusCode, 200);
+  assert.equal(metadata.statusCode, 200, JSON.stringify(metadata.body));
   assert.equal(metadata.body.tilejson, '3.0.0');
   assert.equal(metadata.body.version, 'miami-soundg-v2');
-  assert.match(metadata.body.tiles[0], /\{z\}\/\{x\}\/\{y\}\.pbf$/);
+  assert.match(
+    metadata.body.tiles[0],
+    /^http:\/\/127\.0\.0\.1:\d+\/tiles\/soundg\/miami-soundg-v2\/\{z\}\/\{x\}\/\{y\}\.pbf$/,
+  );
 
+  const oldManifest = JSON.parse(
+    await readFile(
+      path.join(
+        testStorageDirectory,
+        'chart-data',
+        'soundg',
+        'versions',
+        'miami-soundg-v1',
+        'manifest.json',
+      ),
+      'utf8',
+    ),
+  ) as { version: string };
+  assert.equal(oldManifest.version, 'miami-soundg-v1');
+
+  // Static artifacts are deliberately outside the NestJS request path.
   const tile = await request(app.getHttpServer()).get(
     '/tiles/soundg/miami-soundg-v2/11/567/872.pbf',
   );
-
-  assert.equal(tile.statusCode, 200);
-  assert.match(tile.headers['content-type'], /mapbox-vector-tile/);
-  assert.match(tile.headers['cache-control'], /immutable/);
-  assert.ok(Number(tile.headers['content-length']) > 0);
-
-  const cached = await request(app.getHttpServer())
-    .get('/tiles/soundg/miami-soundg-v2/11/567/872.pbf')
-    .set('if-none-match', tile.headers.etag);
-  assert.equal(cached.statusCode, 304);
+  assert.equal(tile.statusCode, 404);
 });
