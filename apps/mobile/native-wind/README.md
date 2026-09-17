@@ -54,7 +54,7 @@ shared state reference, never deletes the host twice.
    Simulation is **CPU native**, drawing is GPU; this is
    not a GPU-compute implementation. Speed is visual (4 map pixels/s per m/s
    at animationSpeed 1), not physical parcel travel time. Density adapts down
-   when render intervals exceed 35 ms; the app uses density 1 (up to 1,000 particles).
+   when render intervals exceed 35 ms; the app uses density 0.75 (up to 750 particles).
 
 The layer is inserted below the existing SOUNDG text layer when available.
 `components/WindPanel.tsx` adds the wind toggle above the compass, using the
