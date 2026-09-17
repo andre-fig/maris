@@ -156,3 +156,48 @@ test('weather hook TTL, failed request retry, hidden/background/touch guards', a
     delete globals.IS_REACT_ACT_ENVIRONMENT;
   }
 });
+
+test('ignores an obsolete in-flight destination after a 5 km viewport move', async (t) => {
+  t.mock.timers.enable({apis:['Date','setTimeout','setInterval'], now: 1_000_000});
+  const native = {currentState:'active', addEventListener: () => ({remove() {}})};
+  const globals = globalThis as typeof globalThis & {__weatherAppState?:typeof native; IS_REACT_ACT_ENVIRONMENT?:boolean};
+  globals.__weatherAppState = native;
+  globals.IS_REACT_ACT_ENVIRONMENT = true;
+  const useWeather = testRequire(compiled).useCurrentViewportWeather as typeof useCurrentViewportWeather;
+  let hook!: ReturnType<typeof useWeather>;
+  let calls = 0;
+  const previous = globalThis.fetch;
+  globalThis.fetch = async (_input, options) => {
+    calls++;
+    const response = (longitude: number) => new Response(JSON.stringify({
+      temperature_celsius: longitude === -79 ? 26 : 25,
+      latitude: 25,
+      longitude,
+    }));
+    if (calls === 1) {
+      return new Promise<Response>((_resolve, reject) => {
+        options?.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')), { once: true });
+      });
+    }
+    return response(-79);
+  };
+  function Harness() {
+    hook = useWeather('https://test.invalid', [-80, 25], true);
+    return null;
+  }
+  let renderer!: ReactTestRenderer;
+  try {
+    await act(async () => { renderer = create(React.createElement(Harness)); });
+    await act(async () => { t.mock.timers.tick(1_000); });
+    assert.equal(calls, 1);
+    await act(async () => hook.onCameraDidChange([-79, 25]));
+    await act(async () => { t.mock.timers.tick(1_000); });
+    assert.equal(calls, 2);
+    assert.equal(hook.weather?.longitude, -79);
+  } finally {
+    if (renderer) await act(async () => renderer.unmount());
+    globalThis.fetch = previous;
+    delete globals.__weatherAppState;
+    delete globals.IS_REACT_ACT_ENVIRONMENT;
+  }
+});

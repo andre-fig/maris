@@ -87,7 +87,9 @@ export function useCurrentViewportWeather(
   );
   const activeRequest = useRef<AbortController | undefined>(undefined);
   const activeRequestPoint = useRef<MapCenter | undefined>(undefined);
-  const lastRequestedPoint = useRef<MapCenter | undefined>(undefined);
+  // This point is advanced only after a successful response. Failed requests
+  // must remain retryable at the same location.
+  const lastSuccessfulPoint = useRef<MapCenter | undefined>(undefined);
   // Keep the successful payload independently from the visible card, which
   // can be cleared when zooming back into a different part of the map.
   const lastSuccessfulWeather = useRef<CurrentWeather | undefined>(undefined);
@@ -104,9 +106,9 @@ export function useCurrentViewportWeather(
       if (activeRequestPoint.current && distanceMetres(activeRequestPoint.current, center) < MINIMUM_FETCH_DISTANCE_METRES) return;
       if (
         lastSuccessfulWeather.current &&
-        lastRequestedPoint.current &&
+        lastSuccessfulPoint.current &&
         isWeatherFresh(lastSuccessAt.current, Date.now()) &&
-        distanceMetres(lastRequestedPoint.current, center) <
+        distanceMetres(lastSuccessfulPoint.current, center) <
           MINIMUM_FETCH_DISTANCE_METRES
       ) {
         setWeather(lastSuccessfulWeather.current);
@@ -139,7 +141,7 @@ export function useCurrentViewportWeather(
 
         if (generation === requestGeneration.current) {
           lastSuccessfulWeather.current = payload;
-          lastRequestedPoint.current = center;
+          lastSuccessfulPoint.current = center;
           lastSuccessAt.current = Date.now();
           retryAt.current = 0;
           setWeather(payload);
@@ -169,11 +171,11 @@ export function useCurrentViewportWeather(
       pendingTarget.current = center;
       if (!enabledRef.current) return;
 
-      if (
-        activeRequestPoint.current &&
-        distanceMetres(activeRequestPoint.current, center) >=
-          MINIMUM_FETCH_DISTANCE_METRES
-      ) {
+      // A new destination only invalidates an in-flight request when it is a
+      // new weather destination (5 km rule). The old response is ignored by
+      // generation even if abort delivery races with the new request.
+      if (activeRequestPoint.current &&
+          distanceMetres(activeRequestPoint.current, center) >= MINIMUM_FETCH_DISTANCE_METRES) {
         activeRequest.current?.abort();
         requestGeneration.current += 1;
         activeRequest.current = undefined;
@@ -260,8 +262,8 @@ export function useCurrentViewportWeather(
     }
 
     if (
-      lastRequestedPoint.current &&
-      distanceMetres(lastRequestedPoint.current, pendingTarget.current) >=
+      lastSuccessfulPoint.current &&
+      distanceMetres(lastSuccessfulPoint.current, pendingTarget.current) >=
         MINIMUM_FETCH_DISTANCE_METRES
     ) {
       setWeather(undefined);
