@@ -46,9 +46,11 @@ int main() {
   auto bounds = maris::viewport(screen, 0);
   assert(std::abs(bounds[0]) < 1e-10 && std::abs(bounds[3] - 1) < 1e-10);
   maris::Particles particles;
+  bool exceedsPreviousTrailCapacity = false;
   for (int frame = 0; frame < 300; frame++) {
     const auto &lines = particles.update(global, screen, 0, 1. / 60, .6, 1);
-    assert(lines.size() <= 300 * 62);
+    assert(lines.size() <= 300 * (maris::Particle::trailCapacity - 1) * 2);
+    exceedsPreviousTrailCapacity |= lines.size() > 300 * (32 - 1) * 2;
     for (size_t i = 0; i + 1 < lines.size(); i += 2) {
       assert(std::isfinite(lines[i].x) && std::isfinite(lines[i].y));
       // R positive moves east; G positive moves north (up in this clip matrix).
@@ -56,6 +58,7 @@ int main() {
       assert(lines[i].u >= 0 && lines[i].u <= 1);
     }
   }
+  assert(exceedsPreviousTrailCapacity);
   assert(particles.update(global, screen, 0, .016, 0, 1).empty());
   maris::Field absent({0, 0, 0, 0, 0});
   assert(particles.update(absent, screen, 0, .016, 1, 1).empty());

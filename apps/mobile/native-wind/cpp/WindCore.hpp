@@ -157,9 +157,10 @@ inline std::array<ClipVertex, 4> quad(const Plan &p, const double *m,
           project((p.right + 1) / n, (p.bottom + 1) / n, 1, 1, m, zoom)};
 }
 struct Particle {
+  static constexpr size_t trailCapacity = 64;
   double x = 0, y = 0;
   float age = 100, lifetime = 4;
-  std::array<std::array<double, 2>, 32> trail{};
+  std::array<std::array<double, 2>, trailCapacity> trail{};
   size_t head = 0, size = 0;
 };
 inline std::array<double, 4> viewport(const double *m, double zoom) {
@@ -199,7 +200,7 @@ public:
     size_t count = size_t(std::clamp(density, 0.f, 1.f) * 500);
     particles.resize(count);
     lines.clear();
-    lines.reserve(count * 62);
+    lines.reserve(count * (Particle::trailCapacity - 1) * 2);
     const auto bounds = viewport(m, zoom);
     for (auto &p : particles) {
       float u, v;
@@ -226,14 +227,16 @@ public:
       p.y -= midV * k;
       p.age += float(dt);
       p.trail[p.head] = {p.x, p.y};
-      p.head = (p.head + 1) % 32;
-      p.size = std::min(size_t(32), p.size + 1);
+      p.head = (p.head + 1) % Particle::trailCapacity;
+      p.size = std::min(Particle::trailCapacity, p.size + 1);
       for (size_t i = 1; i < p.size; i++) {
         float alpha = float(i) / p.size *
                       std::clamp((p.lifetime - p.age) * 2, 0.f, 1.f) *
                       std::min(1.f, p.age * 3);
-        auto &a = p.trail[(p.head + 32 - p.size + i - 1) % 32];
-        auto &b = p.trail[(p.head + 32 - p.size + i) % 32];
+        auto &a = p.trail[(p.head + Particle::trailCapacity - p.size + i - 1) %
+                         Particle::trailCapacity];
+        auto &b = p.trail[(p.head + Particle::trailCapacity - p.size + i) %
+                         Particle::trailCapacity];
         lines.push_back(project(a[0], a[1], alpha, 0, m, zoom));
         lines.push_back(project(b[0], b[1], alpha, 0, m, zoom));
       }
