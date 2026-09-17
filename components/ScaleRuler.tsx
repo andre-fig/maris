@@ -128,7 +128,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 2,
   },
   ruler: {
-    height: 29,
+    height: 26,
   },
   labels: {
     height: 18,
@@ -150,12 +150,12 @@ const styles = StyleSheet.create({
     textShadowRadius: 1.5,
   },
   bar: {
-    height: 11,
+    height: 8,
     flexDirection: 'row',
     overflow: 'hidden',
-    borderWidth: 2,
+    borderWidth: 1,
     borderColor: '#000000',
-    borderRadius: 5.5,
+    borderRadius: 4,
   },
   segment: {
     flex: 1,
@@ -167,7 +167,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#28403e',
   },
   segmentDivider: {
-    borderLeftWidth: 2,
+    borderLeftWidth: 1,
     borderLeftColor: '#000000',
   },
 });
