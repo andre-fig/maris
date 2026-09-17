@@ -48,7 +48,7 @@ shared state reference, never deletes the host twice.
    The RN bridge does not synchronize camera frames.
 8. Shared C++ particles bilinearly sample the same raw atlas, integrate with
    midpoint/RK2, respawn in the visible geographic envelope, and fade with a
-   randomized 2–5 second lifetime. Trails retain 96 geographic positions in
+   randomized 2–5 second lifetime. Trails retain 100 geographic positions in
    fixed ring buffers. Trails use screen-space triangle ribbons, 5 physical
    pixels wide on both platforms (`trailWidthPixels`), independent of zoom/pitch.
    Simulation is **CPU native**, drawing is GPU; this is
