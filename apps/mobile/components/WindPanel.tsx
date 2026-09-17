@@ -82,7 +82,7 @@ export function WindPanel({
         >
           <SymbolView
             name={{ ios: "wind", android: "air", web: "air" }}
-            size={18}
+            size={enabled ? 18 : BLUR_PANEL_ICON_SIZE}
             tintColor="#FFFFFF"
             type="monochrome"
           />
