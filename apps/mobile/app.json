@@ -21,7 +21,13 @@
       "package": "com.maris.navigation"
     },
     "plugins": [
-      "@maplibre/maplibre-react-native"
+      "@maplibre/maplibre-react-native",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "O Maris usa sua localização para mostrar sua posição e direção no mapa."
+        }
+      ]
     ]
   }
 }

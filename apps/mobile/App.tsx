@@ -12,6 +12,8 @@ import {
   isWeatherScaleVisible,
   ScaleRuler,
 } from './components/ScaleRuler';
+import { UserLocationMarker } from './components/UserLocationMarker';
+import { useDeviceLocation } from './location/use-device-location';
 import {
   type MapCenter,
   useCurrentViewportWeather,
@@ -26,9 +28,14 @@ const INITIAL_CENTER: MapCenter = MIAMI;
 
 export default function App() {
   const { width } = useWindowDimensions();
-  const [viewState, setViewState] = useState({ latitude: MIAMI[1], zoom: 11 });
+  const [viewState, setViewState] = useState({
+    latitude: MIAMI[1],
+    zoom: 11,
+    bearing: 0,
+  });
   const [isZooming, setIsZooming] = useState(false);
   const lastZoom = useRef(11);
+  const deviceLocation = useDeviceLocation();
   const scaleMaxWidth = Math.min(width - 96, 175);
   const currentWeather = useCurrentViewportWeather(
     API_URL,
@@ -65,6 +72,7 @@ export default function App() {
           setViewState({
             latitude: nativeEvent.center[1],
             zoom: nativeEvent.zoom,
+            bearing: nativeEvent.bearing,
           });
           currentWeather.onCameraChanging(nativeEvent.center);
         }}
@@ -73,6 +81,7 @@ export default function App() {
           setViewState({
             latitude: nativeEvent.center[1],
             zoom: nativeEvent.zoom,
+            bearing: nativeEvent.bearing,
           });
           currentWeather.onCameraDidChange(nativeEvent.center);
           setIsZooming(false);
@@ -115,6 +124,13 @@ export default function App() {
             }}
           />
         </VectorSource>
+        {deviceLocation ? (
+          <UserLocationMarker
+            coordinate={deviceLocation.coordinate}
+            heading={deviceLocation.heading}
+            mapBearing={viewState.bearing}
+          />
+        ) : null}
       </Map>
       <View pointerEvents="none" style={styles.scaleOverlay}>
         <ScaleRuler
