@@ -11,16 +11,24 @@ type WindOverlayProps = {
 };
 
 type Particle = { longitude: number; latitude: number; east: number; north: number; age: number; opacity: number };
-type Segment = { x1: number; y1: number; x2: number; y2: number; opacity: number };
+type Segment = { x1: number; y1: number; x2: number; y2: number; opacity: number; speed: number };
 
 const PARTICLE_COUNT = 180;
 const MAX_TILE_ZOOM = 6;
 const METERS_PER_DEGREE = 111_320;
 
 function project(coordinate: [number, number], center: [number, number], zoom: number, bearing: number, width: number, height: number) {
-  const scale = 2 ** Math.max(0, zoom - 3);
-  const x = (coordinate[0] - center[0]) * Math.cos((center[1] * Math.PI) / 180) * (width / 360) * scale + width / 2;
-  const y = -(coordinate[1] - center[1]) * (height / 180) * scale + height / 2;
+  const world = 256 * 2 ** Math.max(0, zoom);
+  const latitudeY = (latitude: number) => {
+    const clamped = Math.max(-85.051129, Math.min(85.051129, latitude));
+    const phi = (clamped * Math.PI) / 180;
+    return ((1 - Math.log(Math.tan(phi) + 1 / Math.cos(phi)) / Math.PI) / 2) * world;
+  };
+  let deltaLongitude = coordinate[0] - center[0];
+  if (deltaLongitude > 180) deltaLongitude -= 360;
+  if (deltaLongitude < -180) deltaLongitude += 360;
+  const x = (deltaLongitude * world) / 360 + width / 2;
+  const y = latitudeY(coordinate[1]) - latitudeY(center[1]) + height / 2;
   const angle = (-bearing * Math.PI) / 180;
   const dx = x - width / 2;
   const dy = y - height / 2;
@@ -100,7 +108,7 @@ export function WindOverlay({ center, zoom, bearing, enabled = true }: WindOverl
             particle.longitude = frame.center[0] + (Math.random() - 0.5) * 30;
             particle.latitude = frame.center[1] + (Math.random() - 0.5) * 20;
             particle.age = 0;
-          } else if (meters > 0.05 && nextVector) next.push({ x1: old.x, y1: old.y, x2: current.x, y2: current.y, opacity: particle.opacity });
+          } else if (meters > 0.05 && nextVector) next.push({ x1: old.x, y1: old.y, x2: current.x, y2: current.y, opacity: particle.opacity, speed: Math.hypot(particle.east, particle.north) });
         }
         setSegments(next);
       }
@@ -111,5 +119,12 @@ export function WindOverlay({ center, zoom, bearing, enabled = true }: WindOverl
   }, [enabled, tiles, frame]);
 
   if (!enabled || !tiles.length) return null;
-  return <View pointerEvents="none" style={StyleSheet.absoluteFill}><Canvas style={StyleSheet.absoluteFill}><>{segments.map((segment, index) => <Line key={index} p1={{ x: segment.x1, y: segment.y1 }} p2={{ x: segment.x2, y: segment.y2 }} color={`rgba(255,255,255,${segment.opacity})`} strokeWidth={1.2} />)}{segments.map((segment, index) => <Circle key={`dot-${index}`} cx={segment.x2} cy={segment.y2} r={1.3} color={`rgba(191,231,225,${segment.opacity})`} />)}</></Canvas></View>;
+  return <View pointerEvents="none" style={StyleSheet.absoluteFill}><Canvas style={StyleSheet.absoluteFill}><>{segments.map((segment, index) => {
+    const normalized = Math.max(0, Math.min(1, segment.speed / 20));
+    const red = Math.round(70 + 180 * normalized);
+    const green = Math.round(205 - 125 * normalized);
+    const blue = Math.round(225 - 150 * normalized);
+    const color = `rgba(${red},${green},${blue},${Math.min(0.95, segment.opacity + 0.25)})`;
+    return <Line key={index} p1={{ x: segment.x1, y: segment.y1 }} p2={{ x: segment.x2, y: segment.y2 }} color={color} strokeWidth={1.4 + normalized * 1.4} />;
+  })}{segments.map((segment, index) => <Circle key={`dot-${index}`} cx={segment.x2} cy={segment.y2} r={1.1} color="rgba(255,255,255,0.7)" />)}</></Canvas></View>;
 }
