@@ -50,7 +50,8 @@ export function CompassPanel({ heading }: { heading: number | null }) {
 
 const NORTH_TRIANGLE_PATH =
   "M18 1 Q18.4 1 18.6 2 L21.25 5 Q21.45 6 20.35 6 H15.65 Q14.55 6 14.75 5 L17.4 2 Q17.6 1 18 1 Z";
-const GRAY_TICK_PATH = "M18 7 L19 9 H17 Z";
+const GRAY_TICK_PATH =
+  "M18 1 Q18.2 1 18.3 2 L19 5 Q19.1 6 18.5 6 H17.5 Q16.9 6 17 5 L17.7 2 Q17.8 1 18 1 Z";
 const GRAY_DIRECTIONS = [
   22.5, 45, 67.5, 112.5, 135, 157.5, 202.5, 225, 247.5, 292.5, 315,
   337.5,
