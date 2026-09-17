@@ -1,4 +1,5 @@
 import { StyleSheet, View } from "react-native";
+import Svg, { Path } from "react-native-svg";
 
 import { BlurPanel } from "./BlurPanel";
 
@@ -12,65 +13,24 @@ export function CompassPanel({ heading }: { heading: number | null }) {
             { transform: [{ rotate: `${-(heading ?? 0)}deg` }] },
           ]}
         >
-          <View style={[styles.triangle, styles.north]} />
-          <View style={[styles.triangle, styles.east]} />
-          <View style={[styles.triangle, styles.south]} />
-          <View style={[styles.triangle, styles.west]} />
+          <Svg height="36" width="36" viewBox="0 0 36 36">
+            <Path d={TRIANGLE_PATH} fill="#FF3B30" />
+            <Path d={TRIANGLE_PATH} fill="#FFFFFF" rotation={90} origin="18, 18" />
+            <Path d={TRIANGLE_PATH} fill="#FFFFFF" rotation={180} origin="18, 18" />
+            <Path d={TRIANGLE_PATH} fill="#FFFFFF" rotation={270} origin="18, 18" />
+          </Svg>
         </View>
     </BlurPanel>
   );
 }
+
+const TRIANGLE_PATH =
+  "M18 1 Q18.8 1 19.2 2 L23 10 Q23.5 11 22 11 H14 Q12.5 11 13 10 L16.8 2 Q17.2 1 18 1 Z";
 
 const styles = StyleSheet.create({
   compass: {
     width: 36,
     height: 36,
     position: "relative",
-  },
-  triangle: {
-    position: "absolute",
-    width: 0,
-    height: 0,
-    borderStyle: "solid",
-  },
-  north: {
-    top: 0,
-    left: 14,
-    borderLeftWidth: 4,
-    borderRightWidth: 4,
-    borderBottomWidth: 9,
-    borderLeftColor: "transparent",
-    borderRightColor: "transparent",
-    borderBottomColor: "#FF3B30",
-  },
-  east: {
-    top: 14,
-    right: 0,
-    borderTopWidth: 2,
-    borderBottomWidth: 2,
-    borderLeftWidth: 8,
-    borderTopColor: "transparent",
-    borderBottomColor: "transparent",
-    borderLeftColor: "#FFFFFF",
-  },
-  south: {
-    bottom: 0,
-    left: 14,
-    borderLeftWidth: 2,
-    borderRightWidth: 2,
-    borderTopWidth: 8,
-    borderLeftColor: "transparent",
-    borderRightColor: "transparent",
-    borderTopColor: "#FFFFFF",
-  },
-  west: {
-    top: 14,
-    left: 0,
-    borderTopWidth: 2,
-    borderBottomWidth: 2,
-    borderRightWidth: 8,
-    borderTopColor: "transparent",
-    borderBottomColor: "transparent",
-    borderRightColor: "#FFFFFF",
   },
 });
