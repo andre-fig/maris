@@ -53,6 +53,14 @@ export default function App() {
   const deviceLocation = useDeviceLocation();
   const [locationActive, setLocationActive] = useState(false);
   const locationTarget = useRef(false);
+  const initialLocationApplied = useRef(false);
+
+  useEffect(() => {
+    if (deviceLocation && !initialLocationApplied.current) {
+      initialLocationApplied.current = true;
+      setLocationActive(true);
+    }
+  }, [deviceLocation]);
   const scaleMaxWidth = Math.min(width - 96, 175);
   const currentWeather = useCurrentViewportWeather(
     API_URL,
@@ -121,8 +129,9 @@ export default function App() {
       >
         <Camera
           ref={cameraRef}
+          key={deviceLocation ? 'gps-camera' : 'fallback-camera'}
           initialViewState={{
-            center: MIAMI,
+            center: deviceLocation?.coordinate ?? MIAMI,
             zoom: 11,
           }}
         />
