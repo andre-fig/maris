@@ -3,3 +3,4 @@
 - [x] Régua — concluído
 - [ ] GPS — a fazer
 - [ ] Rotas — a fazer
+- [ ] Tempo — a fazer
