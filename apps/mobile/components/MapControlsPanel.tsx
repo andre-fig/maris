@@ -1,8 +1,8 @@
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import { SymbolView } from 'expo-symbols';
-import { Platform, Pressable, StyleSheet, View } from 'react-native';
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
+import { SymbolView } from "expo-symbols";
+import { Platform, Pressable, View } from "react-native";
 
-import { BlurPanel } from './BlurPanel';
+import { BlurPanel } from "./BlurPanel";
 
 type MapControlsPanelProps = {
   locationActive: boolean;
@@ -13,21 +13,21 @@ export function MapControlsPanel({
   locationActive,
   onLocate,
 }: MapControlsPanelProps) {
-  const isAndroid = Platform.OS === 'android';
+  const isAndroid = Platform.OS === "android";
 
   return (
-    <BlurPanel style={styles.panel}>
-      <View style={styles.section}>
+    <BlurPanel>
+      <View>
         {isAndroid ? (
           <MaterialCommunityIcons
             color="#FFFFFF"
             name="map-outline"
-            size={20}
+            size={24}
           />
         ) : (
           <SymbolView
             name="map"
-            size={20}
+            size={24}
             tintColor="#FFFFFF"
             type="monochrome"
           />
@@ -37,18 +37,13 @@ export function MapControlsPanel({
         accessibilityLabel="Centralizar na minha localização"
         accessibilityRole="button"
         onPress={onLocate}
-        style={({ pressed }) => [styles.section, pressed && styles.pressed]}
       >
         {isAndroid ? (
-          <MaterialCommunityIcons
-            color="#FFFFFF"
-            name="near-me"
-            size={20}
-          />
+          <MaterialCommunityIcons color="#FFFFFF" name="near-me" size={24} />
         ) : (
           <SymbolView
-            name={locationActive ? 'location.fill' : 'location'}
-            size={23}
+            name={locationActive ? "location.fill" : "location"}
+            size={24}
             tintColor="#FFFFFF"
             type="monochrome"
           />
@@ -57,19 +52,3 @@ export function MapControlsPanel({
     </BlurPanel>
   );
 }
-
-const styles = StyleSheet.create({
-  panel: {
-    width: 46,
-    borderRadius: 16,
-  },
-  section: {
-    width: 38,
-    height: 38,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  pressed: {
-    backgroundColor: 'rgba(255, 255, 255, 0.14)',
-  },
-});
