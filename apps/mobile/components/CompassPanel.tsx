@@ -19,9 +19,11 @@ function getCardinalDirection(heading: number | null) {
 
 export function CompassPanel({
   heading,
+  mapBearing,
   onPress,
 }: {
   heading: number | null;
+  mapBearing: number;
   onPress: () => void;
 }) {
   return (
@@ -36,7 +38,8 @@ export function CompassPanel({
           pointerEvents="none"
           style={[
             styles.compass,
-            { transform: [{ rotate: `${-(heading ?? 0)}deg` }] },
+            // The red north triangle follows the map, not the device heading.
+            { transform: [{ rotate: `${-mapBearing}deg` }] },
           ]}
         >
           <Svg height="36" width="36" viewBox="0 0 36 36">

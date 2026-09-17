@@ -222,7 +222,8 @@ export default function App() {
             </BlurPanel>
           ) : null}
           <CompassPanel
-            heading={deviceLocation.heading}
+            heading={deviceLocation?.heading ?? null}
+            mapBearing={viewState.bearing}
             onPress={() => {
               locationTarget.current = false;
               setCourseUp(false);
