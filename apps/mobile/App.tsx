@@ -198,7 +198,19 @@ export default function App() {
       </Map>
       <View style={styles.controlsOverlay}>
         <View style={styles.controlsStack}>
-          <CompassPanel heading={deviceLocation.heading} />
+          <CompassPanel
+            heading={deviceLocation.heading}
+            onPress={() => {
+              locationTarget.current = true;
+              setCourseUp(false);
+              cameraRef.current?.flyTo({
+                center: deviceLocation.coordinate,
+                zoom: viewState.zoom,
+                bearing: 0,
+                duration: 500,
+              });
+            }}
+          />
           <MapControlsPanel
             locationActive={locationActive}
             courseUp={courseUp}

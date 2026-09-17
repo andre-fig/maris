@@ -1,4 +1,4 @@
-import { StyleSheet, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
 import Svg, { Path } from "react-native-svg";
 
 import { BlurPanel } from "./BlurPanel";
@@ -17,9 +17,21 @@ function getCardinalDirection(heading: number | null) {
   return 'O';
 }
 
-export function CompassPanel({ heading }: { heading: number | null }) {
+export function CompassPanel({
+  heading,
+  onPress,
+}: {
+  heading: number | null;
+  onPress: () => void;
+}) {
   return (
-    <BlurPanel shape="circle">
+    <Pressable
+      accessibilityLabel="Orientar mapa para o norte"
+      accessibilityRole="button"
+      onPress={onPress}
+      style={({ pressed }) => [styles.button, pressed && styles.pressed]}
+    >
+      <BlurPanel shape="circle">
         <View
           pointerEvents="none"
           style={[
@@ -48,7 +60,8 @@ export function CompassPanel({ heading }: { heading: number | null }) {
             {getCardinalDirection(heading)}
           </BlurText>
         </View>
-    </BlurPanel>
+      </BlurPanel>
+    </Pressable>
   );
 }
 
@@ -68,6 +81,13 @@ const WEST_TRIANGLE_PATH =
   "M1 18 Q1 17.7 2 17.5 L5 17 Q6 16.8 6 17.5 V18.5 Q6 19.2 5 19 L2 18.5 Q1 18.3 1 18 Z";
 
 const styles = StyleSheet.create({
+  button: {
+    borderRadius: 22,
+  },
+  pressed: {
+    opacity: 0.62,
+    transform: [{ scale: 0.94 }],
+  },
   compass: {
     width: 36,
     height: 36,
