@@ -6,11 +6,13 @@ import { BLUR_PANEL_ICON_SIZE, BlurPanel } from "./BlurPanel";
 
 type MapControlsPanelProps = {
   locationActive: boolean;
+  courseUp: boolean;
   onLocate: () => void;
 };
 
 export function MapControlsPanel({
   locationActive,
+  courseUp,
   onLocate,
 }: MapControlsPanelProps) {
   const isAndroid = Platform.OS === "android";
@@ -42,12 +44,12 @@ export function MapControlsPanel({
         {isAndroid ? (
           <MaterialCommunityIcons
             color="#FFFFFF"
-            name="near-me"
+            name={courseUp ? "navigation" : "near-me"}
             size={BLUR_PANEL_ICON_SIZE}
           />
         ) : (
           <SymbolView
-            name={locationActive ? "location.fill" : "location"}
+            name={courseUp ? "location.north.line.fill" : locationActive ? "location.fill" : "location"}
             size={BLUR_PANEL_ICON_SIZE}
             tintColor="#FFFFFF"
             type="monochrome"

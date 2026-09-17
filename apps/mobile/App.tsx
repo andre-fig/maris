@@ -49,6 +49,7 @@ export default function App() {
   const lastZoom = useRef(DEFAULT_MAP_ZOOM);
   const cameraRef = useRef<CameraRef>(null);
   const [locationActive, setLocationActive] = useState(false);
+  const [courseUp, setCourseUp] = useState(false);
   const locationTarget = useRef(false);
   const initialLocationApplied = useRef(false);
 
@@ -103,6 +104,7 @@ export default function App() {
               LOCATION_MATCH_THRESHOLD_KM
           ) {
             setLocationActive(false);
+            setCourseUp(false);
           }
           setViewState({
             latitude: nativeEvent.center[1],
@@ -168,15 +170,21 @@ export default function App() {
       <View style={styles.controlsOverlay}>
         <MapControlsPanel
           locationActive={locationActive}
+          courseUp={courseUp}
           onLocate={() => {
             if (!deviceLocation) return;
             locationTarget.current = true;
+            const shouldEnableCourseUp = locationActive && deviceLocation.heading !== null;
             cameraRef.current?.flyTo({
               center: deviceLocation.coordinate,
-              zoom: DEFAULT_MAP_ZOOM,
+              zoom: shouldEnableCourseUp ? viewState.zoom : DEFAULT_MAP_ZOOM,
+              ...(shouldEnableCourseUp
+                ? { bearing: deviceLocation.heading ?? 0 }
+                : {}),
               duration: 500,
             });
             setLocationActive(true);
+            setCourseUp(shouldEnableCourseUp);
           }}
         />
       </View>
