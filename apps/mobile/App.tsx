@@ -205,7 +205,7 @@ export default function App() {
       </Map>
       <NativeWindLayer
         enabled={windEnabled}
-        opacity={1}
+        opacity={0.8}
         density={0.75}
         animationSpeed={1}
         style={{ width: 0, height: 0, position: "absolute" }}
