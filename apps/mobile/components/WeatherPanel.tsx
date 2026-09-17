@@ -86,13 +86,12 @@ export function WeatherPanel({ weather, visible, style }: WeatherPanelProps) {
 
 const styles = StyleSheet.create({
   wrapper: {
-    position: 'absolute',
+    position: "absolute",
   },
   panel: {
-    flexDirection: 'row',
-    columnGap: 3,
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     borderRadius: 16,
   },
   icon: {
@@ -100,11 +99,11 @@ const styles = StyleSheet.create({
     height: 20,
   },
   text: {
-    color: '#ffffff',
+    color: "#ffffff",
     fontFamily: SYSTEM_FONT,
     fontSize: 18,
-    fontWeight: '600',
-    fontVariant: ['tabular-nums'],
+    fontWeight: "600",
+    fontVariant: ["tabular-nums"],
     lineHeight: 22,
   },
 });
