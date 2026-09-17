@@ -11,11 +11,6 @@ import { ConfigService } from '@nestjs/config';
 
 import type { ChartStorage, TilesetManifest } from './chart-storage.js';
 
-type ActiveVersion = {
-  dataset: string;
-  version: string;
-};
-
 const SAFE_SEGMENT = /^[a-zA-Z0-9][a-zA-Z0-9._-]*$/;
 
 @Injectable()
@@ -33,32 +28,30 @@ export class LocalChartStorageService implements ChartStorage {
     );
   }
 
-  async getActiveManifest(dataset: string): Promise<TilesetManifest> {
+  async getManifest(
+    dataset: string,
+    version: string,
+  ): Promise<TilesetManifest> {
     this.assertSafeSegment(dataset);
+    this.assertSafeSegment(version);
 
     try {
-      const active = await this.readJson<ActiveVersion>(
-        path.join(this.storageDirectory, dataset, 'active.json'),
-      );
-      this.assertSafeSegment(active.version);
-
       const manifest = await this.readJson<TilesetManifest>(
         path.join(
           this.storageDirectory,
           dataset,
           'versions',
-          active.version,
+          version,
           'manifest.json',
         ),
       );
 
       if (
-        active.dataset !== dataset ||
         manifest.dataset !== dataset ||
-        manifest.version !== active.version
+        manifest.version !== version
       ) {
         throw new InternalServerErrorException(
-          `Invalid active manifest for ${dataset}`,
+          `Invalid manifest for ${dataset}/${version}`,
         );
       }
       return manifest;

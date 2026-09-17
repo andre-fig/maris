@@ -15,7 +15,7 @@ FROM node:22-bookworm-slim AS runtime
 
 WORKDIR /app
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends gettext-base nginx \
+    && apt-get install -y --no-install-recommends gdal-bin gettext-base nginx unzip \
     && rm -rf /var/lib/apt/lists/* \
     && rm -f /etc/nginx/sites-enabled/default
 ENV NODE_ENV=production
@@ -23,6 +23,8 @@ ENV NODE_ENV=production
 COPY --from=build /app/node_modules node_modules
 COPY --from=build /app/apps/api/dist apps/api/dist
 COPY --from=build /app/apps/api/node_modules apps/api/node_modules
+COPY apps/api/package.json apps/api/package.json
+COPY apps/api/scripts apps/api/scripts
 COPY ops/nginx/default.conf.template /etc/nginx/templates/maris.conf.template
 COPY ops/docker-entrypoint.sh /usr/local/bin/maris-entrypoint
 RUN chmod +x /usr/local/bin/maris-entrypoint

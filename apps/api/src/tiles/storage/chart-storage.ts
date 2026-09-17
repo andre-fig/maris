@@ -21,6 +21,6 @@ export type TilesetManifest = {
 };
 
 export interface ChartStorage {
-  getActiveManifest(dataset: string): Promise<TilesetManifest>;
+  getManifest(dataset: string, version: string): Promise<TilesetManifest>;
   getTileUrl(manifest: TilesetManifest, fallbackBaseUrl: string): string;
 }

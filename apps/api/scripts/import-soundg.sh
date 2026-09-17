@@ -6,7 +6,7 @@ api_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 repository_dir="$(cd "${api_dir}/../.." && pwd)"
 source_root="${repository_dir}/data/ENC_ROOT"
 storage_dir="${CHART_STORAGE_DIR:-${repository_dir}/.storage/chart-data}"
-version="${1:-${TILESET_VERSION:-}}"
+version="${1:-}"
 work_dir="$(mktemp -d)"
 geopackage="${work_dir}/soundings.gpkg"
 output_file="${work_dir}/miami-soundg.json"
@@ -48,5 +48,4 @@ ogr2ogr -f GeoJSON "${output_file}" "${geopackage}" soundings \
 pnpm --dir "${api_dir}" exec tsx scripts/build-soundg-tiles.ts \
   --input "${output_file}" \
   --storage-dir "${storage_dir}" \
-  --version "${version}" \
-  --publish
+  --version "${version}"

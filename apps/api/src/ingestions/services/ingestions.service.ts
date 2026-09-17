@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { createReadStream } from "node:fs";
-import { mkdir, open, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { mkdir, open, rename, rm } from "node:fs/promises";
 import path from "node:path";
 
 import {
@@ -12,6 +12,8 @@ import { ConfigService } from "@nestjs/config";
 
 import type { IngestionDto } from "../dtos/ingestion.dto.js";
 import { EncArchiveService } from "./enc-archive.service.js";
+import { ChartCatalogService } from './chart-catalog.service.js';
+import { ProcessingDispatcherService } from './processing-dispatcher.service.js';
 
 const ACCEPTED_MIME_TYPES = new Set([
   "application/octet-stream",
@@ -31,6 +33,10 @@ export class IngestionsService {
     @Inject(ConfigService) config: ConfigService,
     @Inject(EncArchiveService)
     private readonly archiveService: EncArchiveService,
+    @Inject(ChartCatalogService)
+    private readonly catalog: ChartCatalogService,
+    @Inject(ProcessingDispatcherService)
+    private readonly dispatcher: ProcessingDispatcherService,
   ) {
     this.storageDirectory = path.resolve(
       config.getOrThrow<string>("STORAGE_DIR"),
@@ -55,24 +61,21 @@ export class IngestionsService {
       await mkdir(ingestionDirectory, { recursive: true });
       await rename(file.path, archivePath);
 
-      const manifest: IngestionDto = {
+      const ingestion = await this.catalog.createIngestion({
         archive,
-        checksum: { algorithm: "sha256", value: checksum },
-        createdAt: new Date().toISOString(),
-        id: ingestionId,
+        checksum,
+        ingestionId,
         originalFilename: path.basename(file.originalname),
         sizeBytes: file.size,
-        sourceType: "S57",
-        status: "received",
         storagePath: path.relative(this.storageDirectory, archivePath),
-      };
-
-      await writeFile(
-        path.join(ingestionDirectory, "manifest.json"),
-        `${JSON.stringify(manifest, null, 2)}\n`,
-        { encoding: "utf8", flag: "wx" },
-      );
-      return manifest;
+      });
+      this.dispatcher.dispatch({
+        archivePath: ingestion.storagePath,
+        ingestionId: ingestion.id,
+        versionId: ingestion.versionId,
+        versionKey: ingestion.versionKey,
+      });
+      return ingestion;
     } catch (error) {
       await rm(file.path, { force: true });
       await rm(ingestionDirectory, { force: true, recursive: true });
@@ -81,17 +84,7 @@ export class IngestionsService {
   }
 
   async find(id: string): Promise<IngestionDto | null> {
-    try {
-      return JSON.parse(
-        await readFile(
-          path.join(this.storageDirectory, "ingestions", id, "manifest.json"),
-          "utf8",
-        ),
-      ) as IngestionDto;
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
-      throw error;
-    }
+    return this.catalog.findIngestion(id);
   }
 
   private validateUpload(file: Express.Multer.File) {

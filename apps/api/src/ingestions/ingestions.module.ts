@@ -8,8 +8,12 @@ import { MulterModule } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 
 import { EncArchiveService } from './services/enc-archive.service.js';
+import { ChartCatalogService } from './services/chart-catalog.service.js';
+import { EncProcessingService } from './services/enc-processing.service.js';
 import { IngestionsController } from './ingestions.controller.js';
 import { IngestionsService } from './services/ingestions.service.js';
+import { IngestionPipelineService } from './services/ingestion-pipeline.service.js';
+import { ProcessingDispatcherService } from './services/processing-dispatcher.service.js';
 
 @Module({
   imports: [
@@ -40,6 +44,14 @@ import { IngestionsService } from './services/ingestions.service.js';
     }),
   ],
   controllers: [IngestionsController],
-  providers: [EncArchiveService, IngestionsService],
+  providers: [
+    ChartCatalogService,
+    EncArchiveService,
+    EncProcessingService,
+    IngestionPipelineService,
+    IngestionsService,
+    ProcessingDispatcherService,
+  ],
+  exports: [ChartCatalogService],
 })
 export class IngestionsModule {}

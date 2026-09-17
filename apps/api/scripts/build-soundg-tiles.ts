@@ -31,7 +31,6 @@ type VectorTile = NonNullable<ReturnType<TileIndex['getTile']>>;
 type TileEncoder = (layers: Record<string, VectorTile>) => Uint8Array;
 type Options = {
   input: string;
-  publish: boolean;
   sampling: 'none' | 'legacy-v1';
   storageDirectory: string;
   version: string;
@@ -39,14 +38,9 @@ type Options = {
 
 function parseArguments(): Options {
   const values = new Map<string, string>();
-  const flags = new Set<string>();
   for (let index = 2; index < process.argv.length; index += 1) {
     const argument = process.argv[index]!;
     if (argument === '--') continue;
-    if (argument === '--publish') {
-      flags.add(argument);
-      continue;
-    }
     const value = process.argv[index + 1];
     if (!argument.startsWith('--') || !value || value.startsWith('--')) {
       throw new Error(`Invalid argument: ${argument}`);
@@ -61,7 +55,7 @@ function parseArguments(): Options {
   const sampling = values.get('--sampling') ?? 'none';
   if (!input || !storageDirectory || !version) {
     throw new Error(
-      'Usage: build-soundg-tiles --input <geojson> --storage-dir <dir> --version <id> [--sampling none|legacy-v1] [--publish]',
+      'Usage: build-soundg-tiles --input <geojson> --storage-dir <dir> --version <id> [--sampling none|legacy-v1]',
     );
   }
   if (!SAFE_VERSION.test(version)) throw new Error('Invalid version identifier');
@@ -71,7 +65,6 @@ function parseArguments(): Options {
 
   return {
     input: path.resolve(input),
-    publish: flags.has('--publish'),
     sampling,
     storageDirectory: path.resolve(storageDirectory),
     version,
@@ -148,13 +141,6 @@ async function pathExists(filePath: string) {
   } catch {
     return false;
   }
-}
-
-async function writeJsonAtomic(filePath: string, value: unknown) {
-  const temporaryPath = `${filePath}.${process.pid}.tmp`;
-  await mkdir(path.dirname(filePath), { recursive: true });
-  await writeFile(temporaryPath, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
-  await rename(temporaryPath, filePath);
 }
 
 async function build(options: Options) {
@@ -260,19 +246,11 @@ async function build(options: Options) {
     await mkdir(versionsDirectory, { recursive: true });
     await rename(temporaryDestination, destination);
 
-    if (options.publish) {
-      await writeJsonAtomic(
-        path.join(options.storageDirectory, DATASET, 'active.json'),
-        { dataset: DATASET, version: options.version },
-      );
-    }
-
     const outputStats = await stat(destination);
     console.log(
       JSON.stringify({
         directory: destination,
         directoryCreatedAt: outputStats.birthtime.toISOString(),
-        published: options.publish,
         tileCount,
         totalBytes,
         version: options.version,
@@ -284,4 +262,7 @@ async function build(options: Options) {
   }
 }
 
-await build(parseArguments());
+void build(parseArguments()).catch((error: unknown) => {
+  console.error(error);
+  process.exitCode = 1;
+});

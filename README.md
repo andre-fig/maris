@@ -16,7 +16,8 @@ data/      arquivos ENC locais (ignorado pelo Git)
 - Node.js 20 ou superior
 - pnpm 9
 - Xcode para executar o app no iOS
-- GDAL/OGR para regenerar o exemplo `SOUNDG`
+- PostgreSQL
+- GDAL/OGR e `unzip` para processar ENC localmente
 
 ## Instalação
 
@@ -62,19 +63,21 @@ curl --fail-with-body \
 A API transmite o upload diretamente para disco, calcula SHA-256, valida a
 estrutura ZIP, bloqueia caminhos inseguros e arquivos criptografados, confere
 os limites de expansão e identifica as células S-57 `.000` e seus updates.
-O ZIP original e um `manifest.json` são armazenados em
-`apps/api/.storage/ingestions/<id>` por padrão.
+O ZIP original fica em `.storage/ingestions/<id>` e os metadados são persistidos
+no PostgreSQL.
 
-Para consultar o manifesto:
+Para consultar o estado e a rastreabilidade da ingestão:
 
 ```bash
 curl --fail-with-body \
   http://localhost:3001/ingestions/<id>
 ```
 
-Esta primeira rota encerra no estado `received`. A aplicação de updates S-57,
-normalização via GDAL e publicação cartográfica serão etapas assíncronas do
-pipeline, sem executar processamento pesado dentro da requisição HTTP.
+Depois da resposta `received`, o dispatcher inicia automaticamente o pipeline.
+Os estados persistidos são `received`, `validating`, `processing`, `ready`,
+`failed` e `published`. O trabalho pesado roda em processos GDAL/gerador
+separados do processo HTTP. Ingestões interrompidas são retomadas na próxima
+inicialização da API.
 
 ## Pipeline e tiles vetoriais
 
@@ -91,23 +94,17 @@ S-57 .000 + updates .001/.002
   -> MapLibre Native
 ```
 
-Para processar e publicar uma versão imutável a partir das células S-57 locais:
-
-```bash
-bash apps/api/scripts/import-soundg.sh miami-soundg-v3
-```
-
-O GeoJSON é intermediário e temporário. O script aplica os updates S-57 com o
-GDAL e chama `build-soundg-tiles.ts`, que materializa os PBFs antes de trocar o
-ponteiro `active.json`. Se a pasta da versão já existir, a geração falha em vez
-de sobrescrever artefatos publicados.
+O GeoJSON é intermediário e temporário. Após o upload, o pipeline extrai o ZIP,
+aplica os updates com `UPDATES=APPLY`, normaliza `SOUNDG`, executa
+`build-soundg-tiles.ts` em processo separado e grava os PBFs antes de marcar a
+versão como `ready`. Se a pasta da versão já existir, a geração falha em vez de
+sobrescrever artefatos publicados.
 
 O storage local/Railway tem esta estrutura:
 
 ```text
 .storage/chart-data/
   soundg/
-    active.json
     versions/
       miami-soundg-v1/
         manifest.json
@@ -117,13 +114,15 @@ O storage local/Railway tem esta estrutura:
         {z}/{x}/{y}.pbf
 ```
 
-Publicar uma versão altera somente `active.json`. As versões anteriores ficam
-intactas para rollback e clientes offline; nenhuma versão é apagada pelo deploy.
-No Railway, `.storage/chart-data` está no volume persistente, separado da imagem
-Docker. Em produção, o Nginx lê os PBFs diretamente desse volume. As requisições
-de tiles não chegam ao processo NestJS.
+O PostgreSQL é a fonte de verdade para a versão ativa. A publicação aceita
+somente versões `ready` e, na mesma transação, desativa a versão anterior, ativa
+a nova e registra os timestamps. Os arquivos anteriores ficam intactos para
+rollback e clientes offline. No Railway, `.storage/chart-data` está no volume
+persistente, separado da imagem Docker. O Nginx lê os PBFs diretamente desse
+volume; as requisições de tiles não chegam ao processo NestJS.
 
-O NestJS lê somente `active.json` e o pequeno `manifest.json` para responder:
+O NestJS consulta a versão `published` e `active` no banco e lê somente seu
+pequeno `manifest.json` para responder:
 
 ```text
 GET /tiles/soundg.json
@@ -137,29 +136,37 @@ uma CDN, basta configurar `CHART_ASSET_BASE_URL`; o TileJSON passa a usar
 lógica de mapa. A interface `ChartStorage` isola a descoberta dos manifestos da
 implementação local atual.
 
-Para gerar MVT a partir de um GeoJSON normalizado já existente, sem executar o
-GDAL novamente:
+O comando abaixo permanece disponível como ferramenta de diagnóstico para
+gerar um artefato sem publicá-lo. O fluxo normal não depende dele:
 
 ```bash
 pnpm --filter @maris/api build:tiles -- \
   --input /caminho/soundg.json \
   --storage-dir ../../.storage/chart-data \
-  --version miami-soundg-v3 \
-  --publish
+  --version miami-soundg-v3
 ```
 
 No mobile, a `VectorSource` do MapLibre administra seleção `z/x/y`, requisições
 concorrentes, cancelamento, deduplicação e cache ambiente. A mesma fonte poderá
 ser usada futuramente por pacotes offline e prefetch de rotas.
 
+### Persistência e rastreabilidade
+
+As tabelas `chart_datasets`, `chart_ingestions` e `chart_versions` registram o
+dataset, ZIP de origem, SHA-256, células e updates, edição lida do DSID, estado,
+bounds, caminhos do manifesto e tiles, timestamps, erro e versão ativa. Os PBFs
+e ZIPs continuam no filesystem; metadados e publicação ficam no PostgreSQL.
+
 ### Partes provisórias
 
 - a implementação de storage é o filesystem/volume do Railway; ainda não existe
   adaptador S3/R2 nem CDN externa;
-- o processamento é disparado por script, fora da requisição HTTP; a ingestão
-  por upload ainda termina no estado `received`;
-- `active.json` e os manifestos ainda são arquivos, não registros de catálogo
-  no PostgreSQL;
+- o dispatcher de processamento é interno à API e executa um processo por job;
+  ainda não existe uma fila externa;
+- as migrations são aplicadas pela API na inicialização, sem uma ferramenta
+  dedicada de migrations;
+- o manifesto permanece como artefato no filesystem, enquanto sua localização,
+  versão e estado ficam registrados no PostgreSQL;
 - a política de retenção ainda não foi implementada; por isso nenhuma versão
   antiga é removida automaticamente.
 
