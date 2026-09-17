@@ -16,6 +16,8 @@ export type WindFieldTile = {
   pixels: Uint8Array;
 };
 
+export type ColoredWindTile = WindFieldTile & { image: import("@shopify/react-native-skia").SkImage };
+
 type WindAvailability = {
   times?: Array<{ time: string; tiles?: { png?: string } }>;
 };
@@ -128,6 +130,42 @@ export function sampleWind(tiles: WindFieldTile[], longitude: number, latitude: 
   const offset = (py * tile.width + px) * 4;
   // MET wind tiles: R/G are (component * 2) + 128; B is unused.
   return { east: (tile.pixels[offset] - 128) / 2, north: (tile.pixels[offset + 1] - 128) / 2 };
+}
+
+const WIND_STOPS: Array<[number, [number, number, number]]> = [
+  [0, [167, 206, 161]], [5.5, [121, 204, 172]], [8, [60, 190, 190]],
+  [10.8, [19, 168, 214]], [13.9, [75, 135, 234]], [17.2, [123, 87, 237]],
+  [20.8, [112, 67, 168]], [24.5, [91, 39, 141]], [28.5, [77, 10, 108]], [32.6, [49, 0, 71]],
+];
+
+function windColor(speed: number): [number, number, number] {
+  const value = Math.max(0, Math.min(32.6, speed));
+  for (let index = 1; index < WIND_STOPS.length; index += 1) {
+    const [upper, upperColor] = WIND_STOPS[index];
+    const [lower, lowerColor] = WIND_STOPS[index - 1];
+    if (value <= upper) {
+      const t = (value - lower) / (upper - lower);
+      return [0, 1, 2].map((channel) => Math.round(lowerColor[channel] + (upperColor[channel] - lowerColor[channel]) * t)) as [number, number, number];
+    }
+  }
+  return WIND_STOPS[WIND_STOPS.length - 1][1];
+}
+
+export function createWindGradientImage(tile: WindFieldTile): ColoredWindTile | null {
+  const rgba = new Uint8Array(tile.width * tile.height * 4);
+  for (let pixel = 0; pixel < tile.width * tile.height; pixel += 1) {
+    const input = pixel * 4;
+    const east = (tile.pixels[input] - 128) / 2;
+    const north = (tile.pixels[input + 1] - 128) / 2;
+    const [red, green, blue] = windColor(Math.hypot(east, north));
+    const output = pixel * 4;
+    rgba[output] = red;
+    rgba[output + 1] = green;
+    rgba[output + 2] = blue;
+    rgba[output + 3] = 92;
+  }
+  const image = Skia.Image.MakeImage({ width: tile.width, height: tile.height, colorType: ColorType.RGBA_8888, alphaType: AlphaType.Unpremul }, Skia.Data.fromBytes(rgba), tile.width * 4);
+  return image ? { ...tile, image } : null;
 }
 
 export function clearWindTileCache() {

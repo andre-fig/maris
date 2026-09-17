@@ -1,7 +1,7 @@
-import { Canvas, Circle, Line } from "@shopify/react-native-skia";
+import { Canvas, Circle, Group, Image as SkiaImage, Line } from "@shopify/react-native-skia";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AppState, StyleSheet, useWindowDimensions, View } from "react-native";
-import { loadWindTiles, sampleWind, visibleWindTiles, type WindFieldTile } from "../wind/met-wind";
+import { createWindGradientImage, loadWindTiles, sampleWind, visibleWindTiles, type ColoredWindTile, type WindFieldTile } from "../wind/met-wind";
 
 type WindOverlayProps = {
   center: [number, number];
@@ -35,6 +35,14 @@ function project(coordinate: [number, number], center: [number, number], zoom: n
   return { x: width / 2 + dx * Math.cos(angle) - dy * Math.sin(angle), y: height / 2 + dx * Math.sin(angle) + dy * Math.cos(angle) };
 }
 
+function tileBounds(tile: WindFieldTile): { west: number; east: number; north: number; south: number } {
+  const n = 2 ** tile.z;
+  const west = (tile.x / n) * 360 - 180;
+  const east = ((tile.x + 1) / n) * 360 - 180;
+  const mercatorLatitude = (value: number) => (Math.atan(Math.sinh(Math.PI * (1 - 2 * value))) * 180) / Math.PI;
+  return { west, east, north: mercatorLatitude(tile.y / n), south: mercatorLatitude((tile.y + 1) / n) };
+}
+
 function seedParticles(tiles: WindFieldTile[], center: [number, number], zoom: number) {
   const span = 70 / Math.max(1, 2 ** (zoom - 4));
   const particles: Particle[] = [];
@@ -50,6 +58,7 @@ function seedParticles(tiles: WindFieldTile[], center: [number, number], zoom: n
 export function WindOverlay({ center, zoom, bearing, enabled = true }: WindOverlayProps) {
   const { width, height } = useWindowDimensions();
   const [tiles, setTiles] = useState<WindFieldTile[]>([]);
+  const [gradientTiles, setGradientTiles] = useState<ColoredWindTile[]>([]);
   const [segments, setSegments] = useState<Segment[]>([]);
   const particles = useRef<Particle[]>([]);
   const generation = useRef(0);
@@ -75,6 +84,7 @@ export function WindOverlay({ center, zoom, bearing, enabled = true }: WindOverl
     void loadWindTiles(requestedTiles).then((loaded) => {
       if (requestGeneration !== generation.current) return;
       setTiles(loaded);
+      setGradientTiles(loaded.map(createWindGradientImage).filter((tile): tile is ColoredWindTile => tile !== null));
       particles.current = seedParticles(loaded, center, zoom);
     }).catch(() => { if (requestGeneration === generation.current) setTiles([]); });
   }, [center, zoom, enabled, width, height]);
@@ -119,12 +129,22 @@ export function WindOverlay({ center, zoom, bearing, enabled = true }: WindOverl
   }, [enabled, tiles, frame]);
 
   if (!enabled || !tiles.length) return null;
-  return <View pointerEvents="none" style={StyleSheet.absoluteFill}><Canvas style={StyleSheet.absoluteFill}><>{segments.map((segment, index) => {
+  return <View pointerEvents="none" style={StyleSheet.absoluteFill}><Canvas style={StyleSheet.absoluteFill}>
+    <Group origin={{ x: width / 2, y: height / 2 }} transform={[{ rotate: (-bearing * Math.PI) / 180 }]}>
+      {gradientTiles.map((tile) => {
+        const bounds = tileBounds(tile);
+        const topLeft = project([bounds.west, bounds.north], frame.center, frame.zoom, 0, frame.width, frame.height);
+        const bottomRight = project([bounds.east, bounds.south], frame.center, frame.zoom, 0, frame.width, frame.height);
+        return <SkiaImage key={`gradient-${tile.key}`} image={tile.image} x={topLeft.x} y={topLeft.y} width={bottomRight.x - topLeft.x} height={bottomRight.y - topLeft.y} fit="fill" opacity={0.52} />;
+      })}
+    </Group>
+    <Group>{segments.map((segment, index) => {
     const normalized = Math.max(0, Math.min(1, segment.speed / 20));
     const red = Math.round(70 + 180 * normalized);
     const green = Math.round(205 - 125 * normalized);
     const blue = Math.round(225 - 150 * normalized);
     const color = `rgba(${red},${green},${blue},${Math.min(0.95, segment.opacity + 0.25)})`;
     return <Line key={index} p1={{ x: segment.x1, y: segment.y1 }} p2={{ x: segment.x2, y: segment.y2 }} color={color} strokeWidth={1.4 + normalized * 1.4} />;
-  })}{segments.map((segment, index) => <Circle key={`dot-${index}`} cx={segment.x2} cy={segment.y2} r={1.1} color="rgba(255,255,255,0.7)" />)}</></Canvas></View>;
+  })}{segments.map((segment, index) => <Circle key={`dot-${index}`} cx={segment.x2} cy={segment.y2} r={1.1} color="rgba(255,255,255,0.7)" />)}</Group>
+  </Canvas></View>;
 }
