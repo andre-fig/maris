@@ -27,6 +27,9 @@ static maris::TileCache tileCache;
   id<MTLRenderPipelineState> _heat, _trails;
   id<MTLDepthStencilState> _depth;
   id<MTLTexture> _texture;
+  id<MTLTexture> _oldTexture;
+  std::shared_ptr<maris::Field> _oldField;
+  maris::WindFade _fieldTransition;
   std::shared_ptr<maris::Field> _field;
   maris::Particles _particles;
   std::vector<maris::ClipVertex> _trailMesh;
@@ -142,6 +145,7 @@ static maris::TileCache tileCache;
   _key = key;
   _loadedAt = now;
   if (_field && !maris::overlaps(_field->plan, p)) {
+    _oldField.reset(); _oldTexture = nil;
     _field.reset(); _texture = nil;
     _particles = maris::Particles();
     std::vector<maris::ClipVertex>().swap(_trailMesh);
@@ -234,8 +238,20 @@ static maris::TileCache tileCache;
     std::string catalogText((const char *)catalog.bytes, catalog.length);
     store.save(*field, catalogText, int64_t(savedAt));
     dispatch_async(dispatch_get_main_queue(), ^{
-      if (generation != owner->_generation || !field->received)
+      if (generation != owner->_generation)
         return;
+      if (!maris::canPublish(owner->_field.get(), *field)) {
+        if (owner.dataStatus) owner.dataStatus(YES, owner->_dataSavedAt);
+        return; // Never replace a visible field with a partial refresh.
+      }
+      if (owner->_field && owner->_field->plan.key() == field->plan.key() && owner->_field->rgba == field->rgba) {
+        owner->_dataSavedAt = savedAt;
+        if (owner.dataStatus) owner.dataStatus(NO, savedAt);
+        return;
+      }
+      owner->_oldField = owner->_texture ? owner->_field : nullptr;
+      owner->_oldTexture = owner->_texture;
+      owner->_fieldTransition = maris::WindFade();
       owner->_field = field;
       owner->_texture = nil;
       owner->_dataSavedAt = savedAt;
@@ -252,6 +268,8 @@ static maris::TileCache tileCache;
     return;
   _stats.begin();
   auto f = _field;
+  float progress = _oldField ? _fieldTransition.update(true, CACurrentMediaTime()) : 1;
+  if (progress >= 1) { _oldField.reset(); _oldTexture = nil; }
   if (!_texture) {
     auto d = [MTLTextureDescriptor
         texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Unorm
@@ -275,6 +293,10 @@ static maris::TileCache tileCache;
   [encoder setRenderPipelineState:_heat];
   [encoder setVertexBytes:vertices.data() length:sizeof(vertices) atIndex:0];
   [encoder setFragmentTexture:_texture atIndex:0];
+  [encoder setFragmentTexture:_oldTexture ?: _texture atIndex:1];
+  auto uv = _oldField ? maris::previousUv(f->plan, _oldField->plan) : std::array<float,4>{1,1,0,0};
+  [encoder setFragmentBytes:uv.data() length:sizeof(uv) atIndex:1];
+  [encoder setFragmentBytes:&progress length:sizeof(progress) atIndex:2];
   float opacity = _windOpacity * _fade.update(_windVisible, CACurrentMediaTime());
   [encoder setFragmentBytes:&opacity length:sizeof(opacity) atIndex:0];
   [encoder drawPrimitives:MTLPrimitiveTypeTriangleStrip
@@ -285,7 +307,7 @@ static maris::TileCache tileCache;
   _previous = now;
   _quality.frame(delta);
   const auto &lines = _particles.update(*f, matrix, context.zoomLevel, dt,
-                                        _density * _quality.density, _animationSpeed);
+                                        _density * _quality.density, _animationSpeed, _oldField.get(), progress);
   if (!lines.empty() && _trails) {
     CGSize size = map.backendResource.mtkView.drawableSize;
     maris::buildTrailMesh(lines, size.width, size.height, _trailMesh);
@@ -329,6 +351,8 @@ static maris::TileCache tileCache;
   ++_generation;
   _key = nil;
   _texture = nil;
+  _oldTexture = nil;
+  _oldField.reset();
   _field.reset();
   _heat = nil;
   _trails = nil;
@@ -409,9 +433,9 @@ static MLNMapView *findMap(UIView *view) {
 }
 - (void)tick:(CADisplayLink *)clock {
   if (UIApplication.sharedApplication.applicationState != UIApplicationStateActive) {
-    if (_layer.style)
-      [_layer.style removeLayer:_layer];
-    _layer = nil;
+    // Control Center temporarily makes iOS inactive (e.g. toggling Wi-Fi).
+    // Keep the displayed field. Actual background cleanup is handled by the
+    // UIApplicationDidEnterBackground notification, not by focus loss.
     return;
   }
   if (!_enabled || _opacity <= 0) {

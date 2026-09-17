@@ -28,9 +28,14 @@ vertex Output windVertex(uint id [[vertex_id]],const device Input* v [[buffer(0)
 }
 )SHADER") +
          gradient + R"SHADER(
-fragment float4 windFragment(Output in [[stage_in]],texture2d<float> field [[texture(0)]],constant float& opacity [[buffer(0)]]) {
+fragment float4 windFragment(Output in [[stage_in]],texture2d<float> field [[texture(0)]],texture2d<float> previousField [[texture(1)]],constant float& opacity [[buffer(0)]],constant float4& previousUV [[buffer(1)]],constant float& progress [[buffer(2)]]) {
   constexpr sampler s(coord::normalized,filter::linear,address::clamp_to_zero);
   float4 raw=field.sample(s,in.uv);
+  if(progress<1.0) {
+    float2 uv=in.uv*previousUV.xy+previousUV.zw;
+    float4 old=previousField.sample(s,uv);
+    if(all(uv>=0.0)&&all(uv<=1.0)&&old.a>=0.999) raw=raw.a>=0.999?mix(old,raw,progress):old;
+  }
   if(raw.a<0.999)discard_fragment();
   float2 direction=(raw.rg*255.0-128.0)/2.0;
   return float4(windColor(length(direction))*opacity,opacity);
@@ -50,10 +55,13 @@ inline std::string glFragment() {
   return std::string(R"SHADER(#version 300 es
 precision highp float;
 #define float3 vec3
-in vec2 texCoord;uniform sampler2D field;uniform float opacity;out vec4 color;
+in vec2 texCoord;uniform sampler2D field;uniform sampler2D previousField;uniform vec4 previousUV;uniform float progress;uniform float opacity;out vec4 color;
 )SHADER") +
          gradient + R"SHADER(
-void main(){vec4 raw=texture(field,texCoord);if(raw.a<.999)discard;
+void main(){vec4 raw=texture(field,texCoord);
+if(progress<1.0){vec2 uv=texCoord*previousUV.xy+previousUV.zw;vec4 old=texture(previousField,uv);
+if(all(greaterThanEqual(uv,vec2(0)))&&all(lessThanEqual(uv,vec2(1)))&&old.a>=.999)raw=raw.a>=.999?mix(old,raw,progress):old;}
+if(raw.a<.999)discard;
 vec2 direction=(raw.rg*255.0-128.0)/2.0;
 color=vec4(windColor(length(direction))*opacity,opacity);}
 )SHADER";

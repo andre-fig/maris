@@ -64,6 +64,9 @@ static GLuint program(const char *fragment) {
 class Host final : public mbgl::style::CustomLayerHost {
   std::shared_ptr<State> s;
   std::shared_ptr<maris::Field> uploaded;
+  std::shared_ptr<maris::Field> oldField;
+  GLuint oldTexture = 0;
+  maris::WindFade fieldTransition;
   GLuint heat = 0, trails = 0, texture = 0, buffer = 0, vao = 0;
   maris::Particles particles;
   std::vector<maris::ClipVertex> trailMesh;
@@ -107,6 +110,9 @@ public:
       visible = s->visible;
     }
     if (!field || !heat) {
+      oldField.reset();
+      if (oldTexture) glDeleteTextures(1, &oldTexture);
+      oldTexture = 0;
       fade = maris::WindFade();
       { std::lock_guard<std::mutex> lock(s->mutex); s->fadedOut = true; }
       if (uploaded) {
@@ -130,6 +136,12 @@ public:
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, texture);
     if (uploaded != field) {
+      if (oldTexture) glDeleteTextures(1, &oldTexture);
+      oldTexture = uploaded ? texture : 0;
+      oldField = uploaded;
+      fieldTransition = maris::WindFade();
+      if (oldTexture) glGenTextures(1, &texture);
+      glBindTexture(GL_TEXTURE_2D, texture);
       glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
       glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, field->plan.width(),
                    field->plan.height(), 0, GL_RGBA, GL_UNSIGNED_BYTE,
@@ -140,6 +152,15 @@ public:
       glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
       uploaded = field;
     }
+    float progress = oldField ? fieldTransition.update(true, seconds) : 1;
+    if (progress >= 1) {
+      oldField.reset();
+      if (oldTexture) glDeleteTextures(1, &oldTexture);
+      oldTexture = 0;
+    }
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, oldTexture ? oldTexture : texture);
+    glActiveTexture(GL_TEXTURE0);
     glDisable(GL_DEPTH_TEST);
     glDepthMask(GL_FALSE);
     glDisable(GL_STENCIL_TEST);
@@ -150,6 +171,10 @@ public:
                         GL_ONE_MINUS_SRC_ALPHA);
     glUseProgram(heat);
     glUniform1i(glGetUniformLocation(heat, "field"), 0);
+    glUniform1i(glGetUniformLocation(heat, "previousField"), 1);
+    auto uv = oldField ? maris::previousUv(field->plan,oldField->plan) : std::array<float,4>{1,1,0,0};
+    glUniform4fv(glGetUniformLocation(heat, "previousUV"),1,uv.data());
+    glUniform1f(glGetUniformLocation(heat, "progress"), progress);
     glUniform1f(glGetUniformLocation(heat, "opacity"), opacity);
     glBindVertexArray(vao);
     glBindBuffer(GL_ARRAY_BUFFER, buffer);
@@ -169,7 +194,7 @@ public:
     quality.frame(delta);
     { std::lock_guard<std::mutex> lock(s->mutex); s->quality = quality.density; }
     const auto &lines = particles.update(*field, p.projectionMatrix.data(),
-                                         p.zoom, dt, density * quality.density, speed);
+                                         p.zoom, dt, density * quality.density, speed, oldField.get(), progress);
     if (!lines.empty() && trails) {
       GLint viewport[4];
       glGetIntegerv(GL_VIEWPORT, viewport);
@@ -206,12 +231,14 @@ public:
     heat = trails = texture = buffer = vao = 0;
     trailBuffer = 0; trailFence = nullptr; trailBytes = 0;
     uploaded.reset();
+    oldField.reset(); oldTexture = 0;
     particles = maris::Particles();
     std::vector<maris::ClipVertex>().swap(trailMesh);
     previous = {};
     fade = maris::WindFade();
   }
   void deinitialize() override {
+    if (oldTexture) glDeleteTextures(1, &oldTexture);
     if (trailFence) glDeleteSync(trailFence);
     if (trailBuffer) glDeleteBuffers(1, &trailBuffer);
     if (heat)
@@ -308,16 +335,23 @@ JNIEXPORT void JNICALL Java_com_maris_wind_WindControl_put(JNIEnv *env, jclass,
   tileCache.put(text, data);
   env->ReleaseStringUTFChars(url, text);
 }
-JNIEXPORT void JNICALL Java_com_maris_wind_WindControl_publish(JNIEnv *, jclass,
+JNIEXPORT jboolean JNICALL Java_com_maris_wind_WindControl_publish(JNIEnv *, jclass,
                                                                jlong id,
                                                                jint gen) {
   auto s = state(id);
   if (!s)
-    return;
+    return false;
   std::lock_guard<std::mutex> lock(s->mutex);
-  if (gen == s->generation && s->staging && s->staging->received) {
+  if (gen == s->generation && s->staging && maris::canPublish(s->field.get(), *s->staging)) {
+    if (s->field && s->field->plan.key() == s->staging->plan.key() && s->field->rgba == s->staging->rgba) {
+      s->staging.reset();
+      return true;
+    }
     s->field = std::move(s->staging);
+    return true;
   }
+  s->staging.reset();
+  return false;
 }
 JNIEXPORT void JNICALL Java_com_maris_wind_WindControl_configure(
     JNIEnv *, jclass, jlong id, jfloat opacity, jfloat density, jfloat speed, jboolean visible) {

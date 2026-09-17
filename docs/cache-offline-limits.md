@@ -101,6 +101,16 @@ Espessura, paleta, opacidade, movimento e aparência nominal foram preservados.
 
 Background remove a layer, interrompe o clock e cancela requests; voltar recria
 recursos sob demanda. iOS também responde a memory warning liberando o estado.
+Inatividade temporária do iOS (Central de Controle para ligar/desligar a rede)
+não remove o campo; somente background real executa a limpeza.
+
+Atualização/reconexão: o campo visível permanece enquanto a próxima versão é
+baixada. Uma atualização parcial não substitui um campo existente. Conteúdo
+idêntico não recria textura. Na troca, Metal/OpenGL interpolam os vetores entre
+as duas texturas por 400 ms; partículas usam a mesma interpolação sem reiniciar
+os rastros. Ao terminar, campo/textura anterior são liberados. Há no máximo um
+campo/textura anterior adicional por renderer durante a transição (até 16 MiB
+de RGBA CPU + 16 MiB de textura, ou 4 + 4 MiB no perfil reduzido).
 
 ## Vento offline/desatualizado
 

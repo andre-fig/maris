@@ -70,6 +70,7 @@ struct Field {
   int received = 0;
   explicit Field(Plan p)
       : plan(p), rgba(size_t(p.width()) * p.height() * 4, 0) {}
+  bool complete() const { return received == (plan.right-plan.left+1)*(plan.bottom-plan.top+1); }
   void put(int x, int y, const uint8_t *bytes, size_t stride) {
     for (int row = 0; row < 256; ++row)
       std::copy_n(bytes + row * stride, 256 * 4,
@@ -104,6 +105,25 @@ inline bool overlaps(const Plan &a, const Plan &b) {
   const double an = double(1 << a.z), bn = double(1 << b.z);
   return a.left/an < (b.right+1)/bn && (a.right+1)/an > b.left/bn &&
          a.top/an < (b.bottom+1)/bn && (a.bottom+1)/an > b.top/bn;
+}
+inline bool canPublish(const Field *current, const Field &next) {
+  return next.received > 0 && (!current || next.complete());
+}
+inline std::array<float,4> previousUv(const Plan &next, const Plan &old) {
+  const double ratio = std::exp2(old.z-next.z);
+  return {float(next.width()*ratio/old.width()), float(next.height()*ratio/old.height()),
+    float((next.left*ratio-old.left)*256/old.width()), float((next.top*ratio-old.top)*256/old.height())};
+}
+inline bool sampleTransition(const Field &next, const Field *old, float progress,
+                             double x, double y, float &u, float &v) {
+  bool valid = next.sample(x,y,u,v);
+  float ou, ov;
+  if (old && progress < 1 && old->sample(x,y,ou,ov)) {
+    u = valid ? ou+(u-ou)*progress : ou;
+    v = valid ? ov+(v-ov)*progress : ov;
+    return true;
+  }
+  return valid;
 }
 // Shared, bounded decoded-tile cache. URLs include MET revision and valid time.
 class TileCache {
@@ -232,7 +252,7 @@ class Particles {
 public:
   const std::vector<ClipVertex> &update(const Field &f, const double *m,
                                         double zoom, double dt, float density,
-                                        float speed) {
+                                        float speed, const Field *old = nullptr, float progress = 1) {
     size_t count = size_t(std::clamp(density, 0.f, 1.f) * maximumParticleCount);
     if (particles.capacity() < count) {
       particles.reserve(maximumParticleCount);
@@ -246,21 +266,21 @@ public:
     for (auto &p : particles) {
       float u, v;
       if (p.age > p.lifetime || p.x < bounds[0] || p.x > bounds[2] ||
-          p.y < bounds[1] || p.y > bounds[3] || !f.sample(p.x, p.y, u, v)) {
+          p.y < bounds[1] || p.y > bounds[3] || !sampleTransition(f, old, progress, p.x, p.y, u, v)) {
         p.x = bounds[0] + rng() * (bounds[2] - bounds[0]);
         p.y = bounds[1] + rng() * (bounds[3] - bounds[1]);
         p.age = 0;
         p.lifetime = 2 + float(rng() * 3);
         p.size = 0;
         p.head = 0;
-        if (!f.sample(p.x, p.y, u, v))
+        if (!sampleTransition(f, old, progress, p.x, p.y, u, v))
           continue;
       }
       // Visualization speed: 4 map pixels/second per m/s, preserving direction
       // and relative magnitude. Not a physical travel-time simulation.
       double k = dt * speed * 4 / (512. * std::exp2(zoom));
       float midU = u, midV = v;
-      if (!f.sample(p.x + u * k * .5, p.y - v * k * .5, midU, midV)) {
+      if (!sampleTransition(f, old, progress, p.x + u * k * .5, p.y - v * k * .5, midU, midV)) {
         p.age = 100;
         continue;
       }

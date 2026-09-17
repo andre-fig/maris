@@ -23,7 +23,7 @@ public class WindControl extends View
   static native void put(long id, int gen, int x, int y, ByteBuffer b,
                          String url);
   static native boolean cached(long id, int gen, int x, int y, String url);
-  static native void publish(long id, int gen);
+  static native boolean publish(long id, int gen);
   static native void configure(long id, float opacity, float density,
                                float speed, boolean visible);
   static native boolean fadedOut(long id);
@@ -269,10 +269,11 @@ public class WindControl extends View
             }
           }
         if (gen == generation) {
-          savedAt = System.currentTimeMillis() / 1000;
-          save(target, gen, snapshotPath, catalog, savedAt);
-          publish(target, gen);
-          dataStatus(count != (p[3]-p[1]+1)*(p[4]-p[2]+1), savedAt, gen);
+          long downloadedAt = System.currentTimeMillis() / 1000;
+          save(target, gen, snapshotPath, catalog, downloadedAt);
+          boolean accepted = publish(target, gen);
+          if (accepted) savedAt = downloadedAt;
+          dataStatus(!accepted || count != (p[3]-p[1]+1)*(p[4]-p[2]+1), savedAt, gen);
           post(() -> {
             if (map != null)
               map.triggerRepaint();
