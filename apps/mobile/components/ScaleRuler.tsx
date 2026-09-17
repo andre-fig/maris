@@ -160,27 +160,27 @@ export function ScaleRuler({
   }, [opacity, showImmediately]);
 
   useEffect(() => {
-    weatherOpacity.stopAnimation();
-
-    if (!showWeather) {
-      Animated.timing(weatherOpacity, {
-        toValue: 0,
-        duration: FADE_OUT_DURATION_MS,
-        useNativeDriver: true,
-      }).start();
+    if (showWeather) {
+      weatherOpacity.stopAnimation();
+      weatherOpacity.setValue(1);
       return;
     }
 
-    weatherOpacity.setValue(1);
+    const fadeOut = Animated.timing(weatherOpacity, {
+      toValue: 0,
+      duration: FADE_OUT_DURATION_MS,
+      useNativeDriver: true,
+    });
+
+    fadeOut.start();
+
+    return () => fadeOut.stop();
   }, [showWeather, weatherOpacity]);
 
   return (
     <View style={[styles.container, { width: viewportWidth }]}>
       <Animated.View
-        style={[
-          styles.weatherBadge,
-          { opacity: showWeather ? 1 : weatherOpacity },
-        ]}
+        style={[styles.weatherBadge, { opacity: weatherOpacity }]}
       >
         <BlurView
           intensity={6}
