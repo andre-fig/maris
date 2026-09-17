@@ -59,6 +59,18 @@ export default function App() {
       setLocationActive(true);
     }
   }, [deviceLocation]);
+
+  useEffect(() => {
+    if (!courseUp || deviceLocation?.heading === null || deviceLocation?.heading === undefined) {
+      return;
+    }
+
+    void cameraRef.current?.setStop({
+      bearing: deviceLocation.heading,
+      duration: 350,
+    });
+  }, [courseUp, deviceLocation?.heading]);
+
   const scaleMaxWidth = Math.min(width - 96, 175);
   const currentWeather = useCurrentViewportWeather(
     API_URL,
