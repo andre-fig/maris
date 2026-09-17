@@ -2,8 +2,6 @@ import {
   BadRequestException,
   Controller,
   Get,
-  HttpCode,
-  HttpStatus,
   Inject,
   NotFoundException,
   Param,
@@ -25,7 +23,6 @@ export class IngestionsController {
   ) {}
 
   @Post("enc")
-  @HttpCode(HttpStatus.CREATED)
   @UseInterceptors(FileInterceptor("file"))
   async createEncIngestion(
     @UploadedFile() file?: UploadEncDto["file"],
