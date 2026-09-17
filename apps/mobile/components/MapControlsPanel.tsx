@@ -22,12 +22,12 @@ export function MapControlsPanel({
           <MaterialCommunityIcons
             color="#FFFFFF"
             name="map-outline"
-            size={24}
+            size={20}
           />
         ) : (
           <SymbolView
             name="map"
-            size={24}
+            size={20}
             tintColor="#FFFFFF"
             type="monochrome"
           />
@@ -39,11 +39,11 @@ export function MapControlsPanel({
         onPress={onLocate}
       >
         {isAndroid ? (
-          <MaterialCommunityIcons color="#FFFFFF" name="near-me" size={24} />
+          <MaterialCommunityIcons color="#FFFFFF" name="near-me" size={20} />
         ) : (
           <SymbolView
             name={locationActive ? "location.fill" : "location"}
-            size={24}
+            size={20}
             tintColor="#FFFFFF"
             type="monochrome"
           />
