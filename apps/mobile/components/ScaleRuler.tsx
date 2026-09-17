@@ -1,8 +1,14 @@
 import { BlurView } from 'expo-blur';
+import { SymbolView } from 'expo-symbols';
 import { useEffect, useMemo, useRef } from 'react';
 import { Animated, Platform, StyleSheet, Text, View } from 'react-native';
 
 import type { CurrentWeather } from '../weather/current-weather';
+import {
+  getAndroidWeatherSymbol,
+  iosWeatherIcons,
+  openWeatherIconMap,
+} from '../weather/weather-icons';
 
 type ScaleDefinition = {
   segmentMetres: number;
@@ -29,27 +35,6 @@ const WEATHER_BADGE_LEFT_MARGIN = 48;
 const WEATHER_BADGE_HORIZONTAL_PADDING = 3;
 const WEATHER_BADGE_VERTICAL_PADDING = 4;
 const SYSTEM_FONT = Platform.select({ ios: 'System', default: 'sans-serif' });
-
-const WEATHER_EMOJIS: Record<string, string> = {
-  '01d': '☀️',
-  '01n': '🌙',
-  '02d': '🌤️',
-  '02n': '☁️',
-  '03d': '🌥️',
-  '03n': '☁️',
-  '04d': '☁️',
-  '04n': '☁️',
-  '09d': '🌦️',
-  '09n': '🌧️',
-  '10d': '🌧️',
-  '10n': '🌧️',
-  '11d': '🌩️',
-  '11n': '🌩️',
-  '13d': '🌨️',
-  '13n': '🌨️',
-  '50d': '🌫️',
-  '50n': '🌫️',
-};
 
 const METRE_SCALES: ScaleDefinition[] = [
   { segmentMetres: 2, segments: 3, unit: 'm' },
@@ -169,11 +154,10 @@ export function ScaleRuler({
   }, [latitude, maxWidth, zoom]);
   const showImmediately = visible && !hidden;
   const displayWeather = showWeather && weather !== undefined;
-  const weatherText = weather
-    ? `${WEATHER_EMOJIS[weather.icon_code] ?? '🌡️'} ${Math.round(
-        weather.temperature_celsius,
-      )}°`
-    : '';
+  const weatherIcon = weather
+    ? openWeatherIconMap[weather.icon_code]
+    : undefined;
+  const weatherText = weather ? `${Math.round(weather.temperature_celsius)}°` : '';
 
   useEffect(() => {
     opacity.stopAnimation();
@@ -218,6 +202,19 @@ export function ScaleRuler({
           tint="systemMaterialDark"
           style={StyleSheet.absoluteFill}
         />
+        {weatherIcon ? (
+          <SymbolView
+            name={{
+              android: getAndroidWeatherSymbol(weatherIcon),
+              ios: iosWeatherIcons[weatherIcon],
+              web: getAndroidWeatherSymbol(weatherIcon),
+            }}
+            size={20}
+            style={styles.weatherIcon}
+            tintColor="#ffffff"
+            type="hierarchical"
+          />
+        ) : null}
         <Text
           accessibilityLabel={
             weather
@@ -290,6 +287,8 @@ const styles = StyleSheet.create({
     left: WEATHER_BADGE_LEFT_MARGIN,
     paddingHorizontal: WEATHER_BADGE_HORIZONTAL_PADDING,
     paddingVertical: WEATHER_BADGE_VERTICAL_PADDING,
+    flexDirection: 'row',
+    columnGap: 3,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
@@ -305,6 +304,10 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontVariant: ['tabular-nums'],
     lineHeight: 22,
+  },
+  weatherIcon: {
+    width: 20,
+    height: 20,
   },
   ruler: {
     height: 26,
