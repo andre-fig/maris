@@ -10,8 +10,8 @@ import {
 } from 'typeorm';
 import type { Relation } from 'typeorm';
 
-import type { EncArchiveDto } from '../../ingestions/dtos/ingestion.dto.js';
-import type { IngestionStatus } from '../../ingestions/models/processing.js';
+import type { EncArchiveDto } from '../dtos/ingestion.dto.js';
+import type { IngestionStatus } from '../models/processing.js';
 import { ChartDataset } from './chart-dataset.entity.js';
 import { ChartVersion } from './chart-version.entity.js';
 

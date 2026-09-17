@@ -10,11 +10,11 @@ import { newDb } from 'pg-mem';
 import 'reflect-metadata';
 import { DataSource } from 'typeorm';
 
-import { ChartDataset } from '../src/database/entities/chart-dataset.entity.js';
-import { ChartIngestion } from '../src/database/entities/chart-ingestion.entity.js';
-import { ChartVersion } from '../src/database/entities/chart-version.entity.js';
 import { CreateChartCatalog2026091700000 } from '../src/database/migrations/2026091700000-create-chart-catalog.js';
 import type { EncArchiveDto } from '../src/ingestions/dtos/ingestion.dto.js';
+import { ChartDataset } from '../src/ingestions/entities/chart-dataset.entity.js';
+import { ChartIngestion } from '../src/ingestions/entities/chart-ingestion.entity.js';
+import { ChartVersion } from '../src/ingestions/entities/chart-version.entity.js';
 import type {
   ProcessingJob,
   ProcessingResult,

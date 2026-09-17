@@ -11,7 +11,7 @@ import {
 } from 'typeorm';
 import type { Relation } from 'typeorm';
 
-import type { IngestionStatus, ProcessedCell } from '../../ingestions/models/processing.js';
+import type { IngestionStatus, ProcessedCell } from '../models/processing.js';
 import { ChartDataset } from './chart-dataset.entity.js';
 import { ChartIngestion } from './chart-ingestion.entity.js';
 

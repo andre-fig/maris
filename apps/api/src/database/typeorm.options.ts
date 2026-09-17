@@ -1,8 +1,8 @@
 import type { DataSourceOptions } from 'typeorm';
 
-import { ChartDataset } from './entities/chart-dataset.entity.js';
-import { ChartIngestion } from './entities/chart-ingestion.entity.js';
-import { ChartVersion } from './entities/chart-version.entity.js';
+import { ChartDataset } from '../ingestions/entities/chart-dataset.entity.js';
+import { ChartIngestion } from '../ingestions/entities/chart-ingestion.entity.js';
+import { ChartVersion } from '../ingestions/entities/chart-version.entity.js';
 import { CreateChartCatalog2026091700000 } from './migrations/2026091700000-create-chart-catalog.js';
 
 export function createTypeOrmOptions(databaseUrl: string): DataSourceOptions {

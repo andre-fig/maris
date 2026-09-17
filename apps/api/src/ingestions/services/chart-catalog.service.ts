@@ -7,10 +7,10 @@ import {
 } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 
-import { ChartDataset } from '../../database/entities/chart-dataset.entity.js';
-import { ChartIngestion } from '../../database/entities/chart-ingestion.entity.js';
-import { ChartVersion } from '../../database/entities/chart-version.entity.js';
 import type { EncArchiveDto } from '../dtos/ingestion.dto.js';
+import { ChartDataset } from '../entities/chart-dataset.entity.js';
+import { ChartIngestion } from '../entities/chart-ingestion.entity.js';
+import { ChartVersion } from '../entities/chart-version.entity.js';
 import type {
   IngestionStatus,
   ProcessingJob,
