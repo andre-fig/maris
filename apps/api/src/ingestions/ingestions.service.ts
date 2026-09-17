@@ -1,14 +1,13 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { createReadStream } from 'node:fs';
-import { mkdir, open, rename, rm } from 'node:fs/promises';
+import { mkdir, open, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { Inject, Injectable, UnprocessableEntityException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 
-import { API_CONFIG, type ApiConfig } from '../configuration/api-config.js';
-import type { IngestionManifest } from './domain/ingestion.js';
-import { EncArchiveInspector } from './infrastructure/enc-archive-inspector.js';
-import { ManifestRepository } from './infrastructure/manifest.repository.js';
+import type { IngestionDto } from './dto/ingestion.dto.js';
+import { EncArchiveService } from './enc-archive.service.js';
 
 const ACCEPTED_MIME_TYPES = new Set([
   'application/octet-stream',
@@ -22,18 +21,22 @@ function invalidEnc(code: string, message: string) {
 
 @Injectable()
 export class IngestionsService {
-  constructor(
-    @Inject(API_CONFIG) private readonly config: ApiConfig,
-    @Inject(EncArchiveInspector)
-    private readonly archiveInspector: EncArchiveInspector,
-    @Inject(ManifestRepository)
-    private readonly manifestRepository: ManifestRepository,
-  ) {}
+  private readonly storageDirectory: string;
 
-  async create(file: Express.Multer.File): Promise<IngestionManifest> {
+  constructor(
+    @Inject(ConfigService) config: ConfigService,
+    @Inject(EncArchiveService)
+    private readonly archiveService: EncArchiveService,
+  ) {
+    this.storageDirectory = path.resolve(
+      config.getOrThrow<string>('STORAGE_DIR'),
+    );
+  }
+
+  async create(file: Express.Multer.File): Promise<IngestionDto> {
     const ingestionId = randomUUID();
     const ingestionDirectory = path.join(
-      this.config.storageDirectory,
+      this.storageDirectory,
       'ingestions',
       ingestionId,
     );
@@ -42,13 +45,13 @@ export class IngestionsService {
     try {
       this.validateUpload(file);
       await this.assertZipSignature(file.path);
-      const archive = await this.archiveInspector.inspect(file.path);
+      const archive = await this.archiveService.inspect(file.path);
       const checksum = await this.calculateChecksum(file.path);
 
       await mkdir(ingestionDirectory, { recursive: true });
       await rename(file.path, archivePath);
 
-      const manifest: IngestionManifest = {
+      const manifest: IngestionDto = {
         archive,
         checksum: { algorithm: 'sha256', value: checksum },
         createdAt: new Date().toISOString(),
@@ -57,10 +60,14 @@ export class IngestionsService {
         sizeBytes: file.size,
         sourceType: 'S57',
         status: 'received',
-        storagePath: path.relative(this.config.storageDirectory, archivePath),
+        storagePath: path.relative(this.storageDirectory, archivePath),
       };
 
-      await this.manifestRepository.save(manifest);
+      await writeFile(
+        path.join(ingestionDirectory, 'manifest.json'),
+        `${JSON.stringify(manifest, null, 2)}\n`,
+        { encoding: 'utf8', flag: 'wx' },
+      );
       return manifest;
     } catch (error) {
       await rm(file.path, { force: true });
@@ -69,8 +76,18 @@ export class IngestionsService {
     }
   }
 
-  find(id: string) {
-    return this.manifestRepository.findById(id);
+  async find(id: string): Promise<IngestionDto | null> {
+    try {
+      return JSON.parse(
+        await readFile(
+          path.join(this.storageDirectory, 'ingestions', id, 'manifest.json'),
+          'utf8',
+        ),
+      ) as IngestionDto;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
+      throw error;
+    }
   }
 
   private validateUpload(file: Express.Multer.File) {

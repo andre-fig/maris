@@ -3,23 +3,23 @@ import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 
 import { Module } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { MulterModule } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 
-import { API_CONFIG, type ApiConfig } from '../configuration/api-config.js';
-import { ConfigurationModule } from '../configuration/configuration.module.js';
-import { EncArchiveInspector } from './infrastructure/enc-archive-inspector.js';
-import { ManifestRepository } from './infrastructure/manifest.repository.js';
+import { EncArchiveService } from './enc-archive.service.js';
 import { IngestionsController } from './ingestions.controller.js';
 import { IngestionsService } from './ingestions.service.js';
 
 @Module({
   imports: [
     MulterModule.registerAsync({
-      imports: [ConfigurationModule],
-      inject: [API_CONFIG],
-      useFactory: (config: ApiConfig) => {
-        const temporaryDirectory = path.join(config.storageDirectory, '.tmp');
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => {
+        const storageDirectory = path.resolve(
+          config.getOrThrow<string>('STORAGE_DIR'),
+        );
+        const temporaryDirectory = path.join(storageDirectory, '.tmp');
         mkdirSync(temporaryDirectory, { recursive: true });
 
         return {
@@ -31,7 +31,7 @@ import { IngestionsService } from './ingestions.service.js';
           limits: {
             fieldSize: 16 * 1024,
             fields: 4,
-            fileSize: config.maxUploadBytes,
+            fileSize: config.getOrThrow<number>('MAX_UPLOAD_BYTES'),
             files: 1,
             parts: 5,
           },
@@ -40,10 +40,6 @@ import { IngestionsService } from './ingestions.service.js';
     }),
   ],
   controllers: [IngestionsController],
-  providers: [
-    EncArchiveInspector,
-    IngestionsService,
-    ManifestRepository,
-  ],
+  providers: [EncArchiveService, IngestionsService],
 })
 export class IngestionsModule {}

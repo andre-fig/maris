@@ -6,13 +6,10 @@ import {
   Injectable,
   UnprocessableEntityException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import yauzl, { type Entry, type ZipFile } from 'yauzl';
 
-import {
-  API_CONFIG,
-  type ApiConfig,
-} from '../../configuration/api-config.js';
-import type { EncArchiveSummary } from '../domain/ingestion.js';
+import type { EncArchiveDto } from './dto/ingestion.dto.js';
 
 type InspectOptions = {
   maxEntries: number;
@@ -80,7 +77,7 @@ function assertSafeEntry(entry: Entry) {
 async function inspectEncArchive(
   archivePath: string,
   options: InspectOptions,
-): Promise<EncArchiveSummary> {
+): Promise<EncArchiveDto> {
   const zipFile = await openZip(archivePath);
 
   return new Promise((resolve, reject) => {
@@ -220,13 +217,13 @@ async function inspectEncArchive(
 }
 
 @Injectable()
-export class EncArchiveInspector {
-  constructor(@Inject(API_CONFIG) private readonly config: ApiConfig) {}
+export class EncArchiveService {
+  constructor(@Inject(ConfigService) private readonly config: ConfigService) {}
 
   inspect(archivePath: string) {
     return inspectEncArchive(archivePath, {
-      maxEntries: this.config.maxArchiveEntries,
-      maxUncompressedBytes: this.config.maxUncompressedBytes,
+      maxEntries: this.config.getOrThrow<number>('MAX_ARCHIVE_ENTRIES'),
+      maxUncompressedBytes: this.config.getOrThrow<number>('MAX_UNCOMPRESSED_BYTES'),
     });
   }
 }

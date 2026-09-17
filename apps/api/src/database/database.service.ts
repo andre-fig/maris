@@ -4,17 +4,17 @@ import {
   OnApplicationShutdown,
   OnModuleInit,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Pool } from 'pg';
-
-import { API_CONFIG, type ApiConfig } from '../configuration/api-config.js';
 
 @Injectable()
 export class DatabaseService implements OnModuleInit, OnApplicationShutdown {
   private readonly pool: Pool | null;
 
-  constructor(@Inject(API_CONFIG) config: ApiConfig) {
-    this.pool = config.databaseUrl
-      ? new Pool({ connectionString: config.databaseUrl, max: 5 })
+  constructor(@Inject(ConfigService) config: ConfigService) {
+    const databaseUrl = config.get<string>('DATABASE_URL');
+    this.pool = databaseUrl
+      ? new Pool({ connectionString: databaseUrl, max: 5 })
       : null;
   }
 

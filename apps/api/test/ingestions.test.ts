@@ -10,32 +10,24 @@ import { zipSync } from 'fflate';
 import request from 'supertest';
 
 import { AppModule } from '../src/app.module.js';
-import { API_CONFIG, type ApiConfig } from '../src/configuration/api-config.js';
 
 let storageDirectory: string;
 let app: INestApplication;
 
 before(async () => {
   storageDirectory = await mkdtemp(path.join(tmpdir(), 'maris-api-test-'));
-  const config: ApiConfig = {
-    databaseUrl: null,
-    host: '127.0.0.1',
-    maxArchiveEntries: 100,
-    maxUncompressedBytes: 10 * 1024 * 1024,
-    maxUploadBytes: 5 * 1024 * 1024,
-    port: 0,
-    storageDirectory,
-  };
-  const module = await Test.createTestingModule({ imports: [AppModule] })
-    .overrideProvider(API_CONFIG)
-    .useValue(config)
-    .compile();
+  process.env.STORAGE_DIR = storageDirectory;
+  process.env.MAX_ARCHIVE_ENTRIES = '100';
+  process.env.MAX_UNCOMPRESSED_BYTES = `${10 * 1024 * 1024}`;
+  process.env.MAX_UPLOAD_BYTES = `${5 * 1024 * 1024}`;
+
+  const module = await Test.createTestingModule({ imports: [AppModule] }).compile();
   app = module.createNestApplication();
   await app.init();
 });
 
 after(async () => {
-  await app.close();
+  await app?.close();
   await rm(storageDirectory, { force: true, recursive: true });
 });
 

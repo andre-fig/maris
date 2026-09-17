@@ -1,12 +1,21 @@
 import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
 
-import { ConfigurationModule } from './configuration/configuration.module.js';
+import { validateEnv } from './config/env.schema.js';
 import { DatabaseModule } from './database/database.module.js';
-import { HealthController } from './health/health.controller.js';
+import { HealthModule } from './health/health.module.js';
 import { IngestionsModule } from './ingestions/ingestions.module.js';
 
 @Module({
-  imports: [ConfigurationModule, DatabaseModule, IngestionsModule],
-  controllers: [HealthController],
+  imports: [
+    ConfigModule.forRoot({
+      cache: true,
+      isGlobal: true,
+      validate: validateEnv,
+    }),
+    DatabaseModule,
+    HealthModule,
+    IngestionsModule,
+  ],
 })
 export class AppModule {}
