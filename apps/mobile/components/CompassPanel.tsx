@@ -71,7 +71,7 @@ const styles = StyleSheet.create({
   },
   centerLabel: {
     position: "absolute",
-    top: 12,
+    top: 0,
     right: 0,
     bottom: 0,
     left: 0,
