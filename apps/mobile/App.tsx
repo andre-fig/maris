@@ -100,6 +100,7 @@ export default function App() {
         <ScaleRuler
           latitude={viewState.latitude}
           maxWidth={Math.min(width - 96, 175)}
+          viewportWidth={width}
           visible={isZooming}
           zoom={viewState.zoom}
         />

@@ -10,6 +10,7 @@ type ScaleDefinition = {
 type ScaleRulerProps = {
   latitude: number;
   maxWidth: number;
+  viewportWidth: number;
   visible: boolean;
   zoom: number;
 };
@@ -21,7 +22,7 @@ const MIN_ACTIVATION_RATIO = 1.2;
 const FADE_OUT_DURATION_MS = 400;
 const WEATHER_MAX_SCALE_METRES = 10_000;
 const WEATHER_BADGE_WIDTH = 68;
-const WEATHER_BADGE_GAP = 8;
+const WEATHER_BADGE_LEFT_MARGIN = 16;
 const SYSTEM_FONT = Platform.select({ ios: 'System', default: 'sans-serif' });
 
 const METRE_SCALES: ScaleDefinition[] = [
@@ -104,7 +105,13 @@ function formatValue(valueMetres: number, unit: ScaleDefinition['unit']) {
   return numberFormatter.format(value);
 }
 
-export function ScaleRuler({ latitude, maxWidth, visible, zoom }: ScaleRulerProps) {
+export function ScaleRuler({
+  latitude,
+  maxWidth,
+  viewportWidth,
+  visible,
+  zoom,
+}: ScaleRulerProps) {
   const opacity = useRef(new Animated.Value(0)).current;
   const weatherOpacity = useRef(new Animated.Value(0)).current;
   const { hidden, labels, segments, showWeather, width } = useMemo(() => {
@@ -166,17 +173,7 @@ export function ScaleRuler({ latitude, maxWidth, visible, zoom }: ScaleRulerProp
   }, [showWeather, weatherOpacity]);
 
   return (
-    <View
-      style={[
-        styles.container,
-        {
-          width: width + WEATHER_BADGE_WIDTH + WEATHER_BADGE_GAP,
-          transform: [
-            { translateX: -(WEATHER_BADGE_WIDTH + WEATHER_BADGE_GAP) / 2 },
-          ],
-        },
-      ]}
-    >
+    <View style={[styles.container, { width: viewportWidth }]}>
       <Animated.View
         style={[
           styles.weatherBadge,
@@ -186,7 +183,14 @@ export function ScaleRuler({ latitude, maxWidth, visible, zoom }: ScaleRulerProp
         <Text style={styles.weatherText}>☁️ 20°</Text>
       </Animated.View>
       <Animated.View
-        style={{ opacity: showImmediately ? 1 : opacity, width }}
+        style={[
+          styles.rulerContainer,
+          {
+            left: (viewportWidth - width) / 2,
+            opacity: showImmediately ? 1 : opacity,
+            width,
+          },
+        ]}
       >
         <View style={styles.ruler}>
           <View style={styles.labels}>
@@ -226,12 +230,17 @@ export function ScaleRuler({ latitude, maxWidth, visible, zoom }: ScaleRulerProp
 const styles = StyleSheet.create({
   container: {
     height: 26,
-    flexDirection: 'row',
+  },
+  rulerContainer: {
+    position: 'absolute',
+    top: 0,
   },
   weatherBadge: {
+    position: 'absolute',
+    top: 0,
+    left: WEATHER_BADGE_LEFT_MARGIN,
     height: 26,
     width: WEATHER_BADGE_WIDTH,
-    marginRight: WEATHER_BADGE_GAP,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'rgba(20, 34, 39, 0.7)',
