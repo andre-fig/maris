@@ -182,7 +182,7 @@ export function ScaleRuler({
         ]}
       >
         <BlurView
-          intensity={22}
+          intensity={12}
           tint="systemMaterialDark"
           style={StyleSheet.absoluteFill}
         />
