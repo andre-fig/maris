@@ -10,6 +10,7 @@ type ScaleDefinition = {
 type ScaleRulerProps = {
   latitude: number;
   maxWidth: number;
+  visible: boolean;
   zoom: number;
 };
 
@@ -96,8 +97,8 @@ function formatValue(valueMetres: number, unit: ScaleDefinition['unit']) {
   return numberFormatter.format(value);
 }
 
-export function ScaleRuler({ latitude, maxWidth, zoom }: ScaleRulerProps) {
-  const opacity = useRef(new Animated.Value(1)).current;
+export function ScaleRuler({ latitude, maxWidth, visible, zoom }: ScaleRulerProps) {
+  const opacity = useRef(new Animated.Value(0)).current;
   const { hidden, labels, segments, width } = useMemo(() => {
     const metresPerPoint =
       (METRES_PER_PIXEL_AT_EQUATOR * Math.cos((latitude * Math.PI) / 180)) /
@@ -127,7 +128,7 @@ export function ScaleRuler({ latitude, maxWidth, zoom }: ScaleRulerProps) {
   useEffect(() => {
     opacity.stopAnimation();
 
-    if (hidden) {
+    if (hidden || !visible) {
       Animated.timing(opacity, {
         toValue: 0,
         duration: FADE_OUT_DURATION_MS,
@@ -137,7 +138,7 @@ export function ScaleRuler({ latitude, maxWidth, zoom }: ScaleRulerProps) {
     }
 
     opacity.setValue(1);
-  }, [hidden, opacity]);
+  }, [hidden, opacity, visible]);
 
   return (
     <Animated.View style={[styles.panel, { opacity }]}>

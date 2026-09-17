@@ -4,7 +4,7 @@ import {
   Layer,
   Map,
 } from '@maplibre/maplibre-react-native';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { StyleSheet, useWindowDimensions, View } from 'react-native';
 
 import soundings from './assets/data/miami-soundg.json';
@@ -17,6 +17,8 @@ const SOUNDINGS = soundings as unknown as GeoJSON.FeatureCollection<GeoJSON.Poin
 export default function App() {
   const { width } = useWindowDimensions();
   const [viewState, setViewState] = useState({ latitude: MIAMI[1], zoom: 11 });
+  const [isZooming, setIsZooming] = useState(false);
+  const lastZoom = useRef(11);
 
   return (
     <View style={styles.container}>
@@ -31,10 +33,23 @@ export default function App() {
         touchRotate
         touchPitch={false}
         onRegionIsChanging={({ nativeEvent }) => {
+          if (Math.abs(nativeEvent.zoom - lastZoom.current) > 0.0001) {
+            setIsZooming(true);
+          }
+
+          lastZoom.current = nativeEvent.zoom;
           setViewState({
             latitude: nativeEvent.center[1],
             zoom: nativeEvent.zoom,
           });
+        }}
+        onRegionDidChange={({ nativeEvent }) => {
+          lastZoom.current = nativeEvent.zoom;
+          setViewState({
+            latitude: nativeEvent.center[1],
+            zoom: nativeEvent.zoom,
+          });
+          setIsZooming(false);
         }}
       >
         <Camera
@@ -75,6 +90,7 @@ export default function App() {
         <ScaleRuler
           latitude={viewState.latitude}
           maxWidth={Math.min(width - 96, 175)}
+          visible={isZooming}
           zoom={viewState.zoom}
         />
       </View>
