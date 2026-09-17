@@ -7,12 +7,13 @@ import { test } from 'node:test';
 import { ConfigService } from '@nestjs/config';
 import { zipSync } from 'fflate';
 import { newDb } from 'pg-mem';
-import type { Pool, PoolClient } from 'pg';
+import 'reflect-metadata';
+import { DataSource } from 'typeorm';
 
-import {
-  CHART_CATALOG_MIGRATION,
-  DatabaseService,
-} from '../src/database/database.service.js';
+import { ChartDataset } from '../src/database/entities/chart-dataset.entity.js';
+import { ChartIngestion } from '../src/database/entities/chart-ingestion.entity.js';
+import { ChartVersion } from '../src/database/entities/chart-version.entity.js';
+import { CreateChartCatalog2026091700000 } from '../src/database/migrations/2026091700000-create-chart-catalog.js';
 import type { EncArchiveDto } from '../src/ingestions/dtos/ingestion.dto.js';
 import type {
   ProcessingJob,
@@ -48,36 +49,24 @@ const RESULT: ProcessingResult = {
   storagePath: 'soundg/versions/test',
 };
 
-type TestDatabase = DatabaseService & { close(): Promise<void> };
-
-async function createDatabase(): Promise<TestDatabase> {
+async function createDatabase(): Promise<DataSource> {
   const memory = newDb({ autoCreateForeignKeyIndices: true });
-  const adapter = memory.adapters.createPg();
-  const pool: Pool = new adapter.Pool() as Pool;
-  await pool.query(CHART_CATALOG_MIGRATION);
-
-  return {
-    check: async () => 'up' as const,
-    close: () => pool.end(),
-    isEnabled: () => true,
-    onApplicationShutdown: async () => pool.end(),
-    onModuleInit: async () => undefined,
-    query: (text: string, values: unknown[] = []) => pool.query(text, values),
-    transaction: async <T>(work: (client: PoolClient) => Promise<T>) => {
-      const client = await pool.connect();
-      try {
-        await client.query('BEGIN');
-        const result = await work(client);
-        await client.query('COMMIT');
-        return result;
-      } catch (error) {
-        await client.query('ROLLBACK');
-        throw error;
-      } finally {
-        client.release();
-      }
-    },
-  } as TestDatabase;
+  memory.public.registerFunction({
+    implementation: () => 'maris_test',
+    name: 'current_database',
+  });
+  memory.public.registerFunction({
+    implementation: () => 'PostgreSQL 16.0',
+    name: 'version',
+  });
+  const dataSource = (await memory.adapters.createTypeormDataSource({
+    entities: [ChartDataset, ChartIngestion, ChartVersion],
+    migrations: [CreateChartCatalog2026091700000],
+    migrationsRun: true,
+    synchronize: false,
+    type: 'postgres',
+  }).initialize()) as DataSource;
+  return dataSource;
 }
 
 function config(values: Record<string, string>) {
@@ -180,14 +169,14 @@ test('successful processing produces ready metadata before publication', async (
 
     const ready = await catalog.findIngestion(ingestion.id);
     assert.equal(ready?.status, 'ready');
-    const version = await database.query<{ edition_metadata: unknown; status: string }>(
+    const versions = await database.query(
       'SELECT edition_metadata, status FROM chart_versions WHERE id = $1',
       [ingestion.versionId],
     );
-    assert.equal(version.rows[0]?.status, 'ready');
-    assert.deepEqual(version.rows[0]?.edition_metadata, RESULT.cells);
+    assert.equal(versions[0]?.status, 'ready');
+    assert.deepEqual(versions[0]?.edition_metadata, RESULT.cells);
   } finally {
-    await database.close();
+    await database.destroy();
   }
 });
 
@@ -209,7 +198,7 @@ test('ready version can be published and failed version cannot', async () => {
       /Only ready chart versions can be published/,
     );
   } finally {
-    await database.close();
+    await database.destroy();
   }
 });
 
@@ -221,18 +210,18 @@ test('publication atomically changes the single active version', async () => {
     await catalog.markReady(next.id, RESULT);
     await catalog.publishReadyVersion(next.versionId);
 
-    const active = await database.query<{ version_key: string }>(
+    const active = await database.query(
       'SELECT version_key FROM chart_versions WHERE active = true',
     );
-    assert.deepEqual(active.rows, [{ version_key: next.versionKey }]);
+    assert.deepEqual(active, [{ version_key: next.versionKey }]);
 
-    const previous = await database.query<{ active: boolean; status: string }>(
+    const previous = await database.query(
       `SELECT active, status FROM chart_versions WHERE version_key = 'miami-soundg-v2'`,
     );
-    assert.equal(previous.rows[0]?.active, false);
-    assert.equal(previous.rows[0]?.status, 'published');
+    assert.equal(previous[0]?.active, false);
+    assert.equal(previous[0]?.status, 'published');
   } finally {
-    await database.close();
+    await database.destroy();
   }
 });
 
@@ -252,7 +241,7 @@ test('publishing a new version does not remove previous artifacts', async () => 
     await catalog.publishReadyVersion(next.versionId);
     assert.deepEqual(await readFile(previousTile), Buffer.from([1, 2, 3]));
   } finally {
-    await database.close();
+    await database.destroy();
     await rm(directory, { force: true, recursive: true });
   }
 });
@@ -275,7 +264,7 @@ test('failed processing preserves the currently published version', async () => 
       'miami-soundg-v2',
     );
   } finally {
-    await database.close();
+    await database.destroy();
   }
 });
 
@@ -300,7 +289,7 @@ test('automatic pipeline reaches published after a successful job', async () => 
       ingestion.versionKey,
     );
   } finally {
-    await database.close();
+    await database.destroy();
   }
 });
 
@@ -354,7 +343,7 @@ test('TileJSON resolves the active version from PostgreSQL', async () => {
       `https://api.example.test/tiles/soundg/${ingestion.versionKey}/{z}/{x}/{y}.pbf`,
     );
   } finally {
-    await database.close();
+    await database.destroy();
     await rm(directory, { force: true, recursive: true });
   }
 });

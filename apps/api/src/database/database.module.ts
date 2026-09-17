@@ -1,10 +1,36 @@
-import { Global, Module } from '@nestjs/common';
+import {
+  Global,
+  Injectable,
+  Module,
+  OnApplicationShutdown,
+} from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { DataSource } from 'typeorm';
 
-import { DatabaseService } from './database.service.js';
+import { createTypeOrmOptions } from './typeorm.options.js';
+
+@Injectable()
+class DatabaseLifecycle implements OnApplicationShutdown {
+  constructor(private readonly dataSource: DataSource) {}
+
+  async onApplicationShutdown() {
+    if (this.dataSource.isInitialized) await this.dataSource.destroy();
+  }
+}
 
 @Global()
 @Module({
-  providers: [DatabaseService],
-  exports: [DatabaseService],
+  providers: [
+    {
+      inject: [ConfigService],
+      provide: DataSource,
+      useFactory: async (config: ConfigService) =>
+        new DataSource(
+          createTypeOrmOptions(config.getOrThrow<string>('DATABASE_URL')),
+        ).initialize(),
+    },
+    DatabaseLifecycle,
+  ],
+  exports: [DataSource],
 })
 export class DatabaseModule {}

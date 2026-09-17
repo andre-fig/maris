@@ -1,14 +1,18 @@
-import { Controller, Get, Inject } from '@nestjs/common';
-
-import { DatabaseService } from '../database/database.service.js';
+import { Controller, Get } from '@nestjs/common';
+import { DataSource } from 'typeorm';
 
 @Controller('health')
 export class HealthController {
-  constructor(@Inject(DatabaseService) private readonly database: DatabaseService) {}
+  constructor(private readonly dataSource: DataSource) {}
 
   @Get()
   async getHealth() {
-    const database = await this.database.check();
+    let database = 'up';
+    try {
+      await this.dataSource.query('SELECT 1');
+    } catch {
+      database = 'down';
+    }
     return { database, status: database === 'down' ? 'degraded' : 'ok' };
   }
 }

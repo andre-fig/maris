@@ -5,7 +5,6 @@ import {
   OnApplicationBootstrap,
 } from '@nestjs/common';
 
-import { DatabaseService } from '../../database/database.service.js';
 import type { ProcessingJob } from '../models/processing.js';
 import { ChartCatalogService } from './chart-catalog.service.js';
 import { IngestionPipelineService } from './ingestion-pipeline.service.js';
@@ -16,7 +15,6 @@ export class ProcessingDispatcherService implements OnApplicationBootstrap {
   private readonly logger = new Logger(ProcessingDispatcherService.name);
 
   constructor(
-    @Inject(DatabaseService) private readonly database: DatabaseService,
     @Inject(ChartCatalogService)
     private readonly catalog: ChartCatalogService,
     @Inject(IngestionPipelineService)
@@ -24,7 +22,6 @@ export class ProcessingDispatcherService implements OnApplicationBootstrap {
   ) {}
 
   async onApplicationBootstrap() {
-    if (!this.database.isEnabled()) return;
     for (const job of await this.catalog.listRecoverableJobs()) {
       this.dispatch(job);
     }

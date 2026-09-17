@@ -10,6 +10,10 @@
     "dev": "tsx watch src/main.ts",
     "build:tiles": "tsx scripts/build-soundg-tiles.ts",
     "build": "tsc -p tsconfig.json",
+    "migration:generate": "TS_NODE_TRANSPILE_ONLY=true typeorm-ts-node-esm -d src/database/data-source.ts migration:generate",
+    "migration:run": "TS_NODE_TRANSPILE_ONLY=true typeorm-ts-node-esm -d src/database/data-source.ts migration:run",
+    "migration:revert": "TS_NODE_TRANSPILE_ONLY=true typeorm-ts-node-esm -d src/database/data-source.ts migration:revert",
+    "migration:show": "TS_NODE_TRANSPILE_ONLY=true typeorm-ts-node-esm -d src/database/data-source.ts migration:show",
     "start": "node dist/main.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "tsx --test test/**/*.test.ts"
@@ -19,6 +23,7 @@
     "@nestjs/config": "12.0.0",
     "@nestjs/core": "12.0.3",
     "@nestjs/platform-express": "12.0.3",
+    "dotenv": "17.2.2",
     "geojson-vt": "3.2.1",
     "multer": "2.4.0",
     "joi": "18.0.1",
@@ -26,6 +31,7 @@
     "reflect-metadata": "0.2.2",
     "rxjs": "7.8.2",
     "tsx": "4.23.13",
+    "typeorm": "0.3.26",
     "vt-pbf": "3.1.3",
     "yauzl": "3.4.0"
   },
@@ -42,6 +48,7 @@
     "fflate": "0.8.2",
     "pg-mem": "3.0.5",
     "supertest": "7.2.2",
+    "ts-node": "10.9.2",
     "typescript": "~6.0.3"
   }
 }

@@ -66,6 +66,17 @@ os limites de expansão e identifica as células S-57 `.000` e seus updates.
 O ZIP original fica em `.storage/ingestions/<id>` e os metadados são persistidos
 no PostgreSQL.
 
+O schema é controlado por entities e migrations do TypeORM. A API executa
+somente migrations pendentes, registradas na tabela `migrations`; ela não usa
+`synchronize` nem recria o schema no startup. Para inspecionar ou executar pelo
+CLI:
+
+```bash
+pnpm --filter @maris/api migration:show
+pnpm --filter @maris/api migration:run
+pnpm --filter @maris/api migration:revert
+```
+
 Para consultar o estado e a rastreabilidade da ingestão:
 
 ```bash
@@ -163,8 +174,6 @@ e ZIPs continuam no filesystem; metadados e publicação ficam no PostgreSQL.
   adaptador S3/R2 nem CDN externa;
 - o dispatcher de processamento é interno à API e executa um processo por job;
   ainda não existe uma fila externa;
-- as migrations são aplicadas pela API na inicialização, sem uma ferramenta
-  dedicada de migrations;
 - o manifesto permanece como artefato no filesystem, enquanto sua localização,
   versão e estado ficam registrados no PostgreSQL;
 - a política de retenção ainda não foi implementada; por isso nenhuma versão
