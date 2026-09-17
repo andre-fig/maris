@@ -81,8 +81,8 @@ compass actions and weather logic are unchanged.
   HTTP request can finish, but its stale field is never published.
 - Complete staging atlas is published in one swap. Failed tiles stay transparent;
   no made-up wind and no interpolation across missing pixels.
-- Restored fields and fields assembled with the persisted catalog report stale;
-  the app displays "Vento desatualizado" while stale data is visible.
+- Restored fields and fields assembled with the persisted catalog report stale
+  internally; no status notice is displayed in the app.
 - Disabled, zero-opacity and background layers stop rendering and invalidate
   publication. Native clocks still perform a lightweight visibility check.
 - Reattachment/style reload/context loss recreates GPU resources; decoded cache

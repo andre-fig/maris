@@ -54,7 +54,7 @@ export function WindPanel({
   }, [enabled, expansion]);
 
   return (
-    <BlurPanel flexDirection="column">
+    <BlurPanel flexDirection="column" alignSelf="flex-end">
       <Animated.View
         style={[
           styles.content,
