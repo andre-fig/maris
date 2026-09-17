@@ -22,8 +22,9 @@ const MAX_VISIBLE_SCALE_METRES = 1_000_000;
 const MIN_ACTIVATION_RATIO = 1.2;
 const FADE_OUT_DURATION_MS = 400;
 const WEATHER_MAX_SCALE_METRES = 10_000;
-const WEATHER_BADGE_WIDTH = 56;
 const WEATHER_BADGE_LEFT_MARGIN = 20;
+const WEATHER_BADGE_HORIZONTAL_PADDING = 8;
+const WEATHER_BADGE_VERTICAL_PADDING = 4;
 const SYSTEM_FONT = Platform.select({ ios: 'System', default: 'sans-serif' });
 
 const METRE_SCALES: ScaleDefinition[] = [
@@ -235,7 +236,7 @@ export function ScaleRuler({
 
 const styles = StyleSheet.create({
   container: {
-    height: 26,
+    height: 32,
   },
   rulerContainer: {
     position: 'absolute',
@@ -245,8 +246,8 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 0,
     left: WEATHER_BADGE_LEFT_MARGIN,
-    height: 26,
-    width: WEATHER_BADGE_WIDTH,
+    paddingHorizontal: WEATHER_BADGE_HORIZONTAL_PADDING,
+    paddingVertical: WEATHER_BADGE_VERTICAL_PADDING,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
@@ -261,6 +262,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     fontVariant: ['tabular-nums'],
+    lineHeight: 22,
   },
   ruler: {
     height: 26,
