@@ -27,6 +27,7 @@ const API_URL =
   process.env.EXPO_PUBLIC_API_URL ??
   'https://api-production-7dc7.up.railway.app';
 const INITIAL_CENTER: MapCenter = MIAMI;
+const DEFAULT_MAP_ZOOM = 11;
 const LOCATION_MATCH_THRESHOLD_KM = 0.15;
 
 function distanceKm(a: [number, number], b: [number, number]) {
@@ -44,11 +45,11 @@ export default function App() {
   const { width } = useWindowDimensions();
   const [viewState, setViewState] = useState({
     latitude: MIAMI[1],
-    zoom: 11,
+    zoom: DEFAULT_MAP_ZOOM,
     bearing: 0,
   });
   const [isZooming, setIsZooming] = useState(false);
-  const lastZoom = useRef(11);
+  const lastZoom = useRef(DEFAULT_MAP_ZOOM);
   const cameraRef = useRef<CameraRef>(null);
   const deviceLocation = useDeviceLocation();
   const [locationActive, setLocationActive] = useState(false);
@@ -132,7 +133,7 @@ export default function App() {
           key={deviceLocation ? 'gps-camera' : 'fallback-camera'}
           initialViewState={{
             center: deviceLocation?.coordinate ?? MIAMI,
-            zoom: 11,
+            zoom: DEFAULT_MAP_ZOOM,
           }}
         />
         <VectorSource
@@ -182,6 +183,7 @@ export default function App() {
             locationTarget.current = true;
             cameraRef.current?.flyTo({
               center: deviceLocation.coordinate,
+              zoom: DEFAULT_MAP_ZOOM,
               duration: 500,
             });
             setLocationActive(true);
