@@ -73,3 +73,10 @@ export function WeatherPanel({ weather, visible, style }: WeatherPanelProps) {
     </Animated.View>
   );
 }
+
+const styles = StyleSheet.create({
+  wrapper: {
+    position: 'absolute',
+    alignSelf: 'flex-start',
+  },
+});
