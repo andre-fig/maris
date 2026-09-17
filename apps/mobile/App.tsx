@@ -1,6 +1,7 @@
 import {
   Camera,
   type CameraRef,
+  type MapRef,
   Layer,
   Map,
   OfflineManager,
@@ -19,6 +20,7 @@ import { BlurText } from "./components/BlurText";
 import { useDeviceLocation } from "./location/use-device-location";
 import { NativeWindLayer } from "@maris/native-wind";
 import { MAP_AMBIENT_CACHE_BYTES } from "./offline/offline-areas";
+import { useAutomaticOffline } from "./offline/use-automatic-offline";
 import {
   type MapCenter,
   useCurrentViewportWeather,
@@ -45,6 +47,12 @@ function distanceKm(a: [number, number], b: [number, number]) {
 export default function App() {
   const { width } = useWindowDimensions();
   const deviceLocation = useDeviceLocation();
+  const mapRef = useRef<MapRef>(null);
+  const {
+    ready: offlineReady,
+    area: offlineArea,
+    onViewportSettled,
+  } = useAutomaticOffline(mapRef, API_URL, BASE_MAP_STYLE);
   const initialCenter: MapCenter = deviceLocation?.coordinate ?? [0, 0];
   const [viewState, setViewState] = useState({
     longitude: initialCenter[0],
@@ -108,15 +116,16 @@ export default function App() {
     void OfflineManager.setMaximumAmbientCacheSize(MAP_AMBIENT_CACHE_BYTES);
   }, []);
 
-  if (!deviceLocation) {
+  if (!offlineReady || (!deviceLocation && !offlineArea)) {
     return <View style={styles.container} />;
   }
 
   return (
     <View style={styles.container}>
       <Map
+        ref={mapRef}
         style={styles.map}
-        mapStyle={BASE_MAP_STYLE}
+        mapStyle={offlineArea ? JSON.stringify(offlineArea.baseStyle) : BASE_MAP_STYLE}
         logo={false}
         attribution={false}
         compass={false}
@@ -124,6 +133,7 @@ export default function App() {
         touchZoom
         touchRotate
         touchPitch={false}
+        onDidFinishLoadingMap={() => { void onViewportSettled().catch(() => {}); }}
         onTouchStart={currentWeather.onTouchStart}
         onTouchEnd={({ nativeEvent }) => {
           currentWeather.onTouchEnd(nativeEvent.touches.length);
@@ -167,6 +177,7 @@ export default function App() {
             bearing: nativeEvent.bearing,
           });
           currentWeather.onCameraDidChange(nativeEvent.center);
+          void onViewportSettled().catch(() => {});
           setIsZooming(false);
         }}
       >
@@ -174,11 +185,19 @@ export default function App() {
           ref={cameraRef}
           key="gps-camera"
           initialViewState={{
-            center: deviceLocation.coordinate,
-            zoom: DEFAULT_MAP_ZOOM,
+            center: deviceLocation?.coordinate ?? [(offlineArea!.bounds[0]+offlineArea!.bounds[2])/2,(offlineArea!.bounds[1]+offlineArea!.bounds[3])/2],
+            zoom: offlineArea ? Math.min(offlineArea.maxZoom,Math.max(offlineArea.minZoom,DEFAULT_MAP_ZOOM)) : DEFAULT_MAP_ZOOM,
           }}
         />
-        <VectorSource id="miami-soundg" url={`${API_URL}/tiles/soundg.json`}>
+        <VectorSource
+          key={offlineArea?.id ?? 'online'}
+          id="miami-soundg"
+          {...(offlineArea ? {
+            tiles: offlineArea.chart.tiles,
+            minzoom: offlineArea.chart.minzoom,
+            maxzoom: offlineArea.chart.maxzoom,
+          } : { url: `${API_URL}/tiles/soundg.json` })}
+        >
           <Layer
             id="miami-soundg-depth"
             type="symbol"

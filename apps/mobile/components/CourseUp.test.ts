@@ -39,7 +39,8 @@ test("course up activates before heading is available and follows north without 
           else if (args.path === "@maris/native-wind") contents = 'export const NativeWindLayer="NativeWindLayer";';
           else if (args.path.includes("/location/")) contents = 'export const useDeviceLocation=()=>globalThis.__courseUp.location;';
           else if (args.path.includes("/weather/")) contents = 'export const useCurrentViewportWeather=()=>({onTouchStart(){},onTouchEnd(){},onCameraChanging(){},onCameraDidChange(){}});';
-          else if (args.path.includes("/offline/")) contents = 'export const MAP_AMBIENT_CACHE_BYTES=1;';
+          else if (args.path.endsWith('/offline/use-automatic-offline')) contents = 'export const useAutomaticOffline=()=>({ready:true,area:null,onViewportSettled:async()=>{}});';
+          else if (args.path.includes("/offline/")) contents = 'export const MAP_AMBIENT_CACHE_BYTES=1, offlineAreas={recover:async()=>[]};';
           else {
             const name = path.basename(args.path);
             contents = `export const ${name}="${name}";` + (name === "ScaleRuler" ? 'export const isWeatherScaleVisible=()=>true;' : '');

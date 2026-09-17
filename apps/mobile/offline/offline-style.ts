@@ -13,32 +13,68 @@ export type ChartSnapshot = {
   maxzoom: number;
 };
 
-export function validateArea(bounds: AreaBounds, minZoom: number, maxZoom: number) {
+export function validateArea(
+  bounds: AreaBounds,
+  minZoom: number,
+  maxZoom: number,
+) {
   const [w, s, e, n] = bounds;
-  if (!bounds.every(Number.isFinite) || w < -180 || e > 180 || w >= e ||
-      s < -85.05112878 || n > 85.05112878 || s >= n ||
-      !Number.isInteger(minZoom) || !Number.isInteger(maxZoom) ||
-      minZoom < 0 || maxZoom > 16 || minZoom > maxZoom) {
-    throw new Error('Invalid offline bounds or zoom range (0–16)');
+  if (
+    !bounds.every(Number.isFinite) ||
+    w < -180 ||
+    e > 180 ||
+    w >= e ||
+    s < -85.05112878 ||
+    n > 85.05112878 ||
+    s >= n ||
+    !Number.isInteger(minZoom) ||
+    !Number.isInteger(maxZoom) ||
+    minZoom < 0 ||
+    maxZoom > 16 ||
+    minZoom > maxZoom
+  ) {
+    throw new Error("Invalid offline bounds or zoom range (0–16)");
   }
 }
 
 // Offline downloads only inspect style sources/layers: the runtime JSX source
 // is not sufficient. Pin ENC here, without relying on mutable soundg.json.
-export function withOfflineSoundings(style: StyleSnapshot, chart: ChartSnapshot): StyleSnapshot {
-  if (!chart.version || !chart.tiles?.length || !chart.tiles.every((url) => url.includes(`/${chart.version}/`))) {
-    throw new Error('ENC TileJSON must contain immutable versioned URLs');
+export function withOfflineSoundings(
+  style: StyleSnapshot,
+  chart: ChartSnapshot,
+): StyleSnapshot {
+  if (
+    !chart.version ||
+    !chart.tiles?.length ||
+    !chart.tiles.every((url) => url.includes(`/${chart.version}/`))
+  ) {
+    throw new Error("ENC TileJSON must contain immutable versioned URLs");
   }
   return {
     ...style,
-    sources: { ...style.sources, 'offline-soundg': {
-      type: 'vector', tiles: chart.tiles, bounds: chart.bounds,
-      minzoom: chart.minzoom, maxzoom: chart.maxzoom,
-    } },
-    layers: [...style.layers, {
-      id: 'offline-soundg-resources', source: 'offline-soundg',
-      'source-layer': 'soundings', type: 'symbol', minzoom: 10,
-      layout: { 'text-field': ['get', 'DEPTH'], 'text-font': ['Noto Sans Regular'] },
-    }],
+    sources: {
+      ...style.sources,
+      "offline-soundg": {
+        type: "vector",
+        tiles: chart.tiles,
+        bounds: chart.bounds,
+        minzoom: chart.minzoom,
+        maxzoom: chart.maxzoom,
+      },
+    },
+    layers: [
+      ...style.layers,
+      {
+        id: "offline-soundg-resources",
+        source: "offline-soundg",
+        "source-layer": "soundings",
+        type: "symbol",
+        minzoom: 10,
+        layout: {
+          "text-field": ["to-string", ["get", "DEPTH"]],
+          "text-font": ["Noto Sans Regular"],
+        },
+      },
+    ],
   };
 }
