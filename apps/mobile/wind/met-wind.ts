@@ -56,9 +56,16 @@ export function visibleWindTiles(
   const minY = Math.max(0, Math.floor((centerPixelY - radiusY) / TILE_SIZE));
   const maxY = Math.min(n - 1, Math.floor((centerPixelY + radiusY) / TILE_SIZE));
   const result: Array<{ z: number; x: number; y: number }> = [];
+  const seen = new Set<string>();
   for (let rawX = minX; rawX <= maxX; rawX += 1) {
     const x = ((rawX % n) + n) % n;
-    for (let y = minY; y <= maxY; y += 1) result.push({ z, x, y });
+    for (let y = minY; y <= maxY; y += 1) {
+      const key = `${z}/${x}/${y}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        result.push({ z, x, y });
+      }
+    }
   }
   // Keep the center tile first so the overlay can appear as soon as possible.
   result.sort((a, b) => Number(a.x !== centerTile.x || a.y !== centerTile.y) - Number(b.x !== centerTile.x || b.y !== centerTile.y));
