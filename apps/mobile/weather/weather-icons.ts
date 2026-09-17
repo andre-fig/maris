@@ -48,18 +48,18 @@ export const openWeatherIconMap: Record<string, WeatherIcon> = {
 };
 
 export const iosWeatherIcons: Record<WeatherIcon, SFSymbol> = {
-  CLEAR_DAY: 'sun.max.fill',
-  CLEAR_NIGHT: 'moon.stars.fill',
-  FEW_CLOUDS_DAY: 'cloud.sun.fill',
-  FEW_CLOUDS_NIGHT: 'cloud.moon.fill',
-  SCATTERED_CLOUDS: 'cloud.fill',
-  BROKEN_CLOUDS: 'cloud.fill',
-  SHOWER_RAIN: 'cloud.drizzle.fill',
-  RAIN: 'cloud.rain.fill',
-  THUNDERSTORM: 'cloud.bolt.fill',
-  SNOW: 'cloud.snow.fill',
-  MIST: 'cloud.fog.fill',
-  MIXED_PRECIP: 'cloud.sleet.fill',
+  CLEAR_DAY: 'sun.max',
+  CLEAR_NIGHT: 'moon.stars',
+  FEW_CLOUDS_DAY: 'cloud.sun',
+  FEW_CLOUDS_NIGHT: 'cloud.moon',
+  SCATTERED_CLOUDS: 'cloud',
+  BROKEN_CLOUDS: 'cloud',
+  SHOWER_RAIN: 'cloud.drizzle',
+  RAIN: 'cloud.rain',
+  THUNDERSTORM: 'cloud.bolt',
+  SNOW: 'cloud.snow',
+  MIST: 'cloud.fog',
+  MIXED_PRECIP: 'cloud.sleet',
 };
 
 export const androidWeatherIcons: Record<WeatherIcon, string> = {
