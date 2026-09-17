@@ -4,5 +4,6 @@
 - [ ] GPS — em andamento
 - [ ] Rotas — a fazer
 - [x] Tempo — concluído
-- [x] Ícone — concluído
+- [x] Ícone do App — concluído
 - [ ] Ao invés de fallback em miami, enqt permissao/localizacao nao carrega, pegar pelo ip a localizacao estimada.
+- [ ] Permitir alterar a visualização do mapa
