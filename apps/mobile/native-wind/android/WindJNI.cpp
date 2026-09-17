@@ -81,6 +81,11 @@ class Host final : public mbgl::style::CustomLayerHost {
 public:
   explicit Host(std::shared_ptr<State> state) : s(std::move(state)), quality(s->lowMemory) {}
   void initialize() override {
+    // initialize() runs outside the render callback's GL state reset. Leave
+    // MapLibre's bindings intact so subsequent symbol uploads use their own VBO.
+    GLint previousVao = 0, previousBuffer = 0;
+    glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &previousVao);
+    glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &previousBuffer);
     heat = program(maris::glFragment().c_str());
     trails = program(maris::glParticle);
     glGenTextures(1, &texture);
@@ -95,7 +100,8 @@ public:
     glEnableVertexAttribArray(1);
     glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(maris::ClipVertex),
                           (void *)(4 * sizeof(float)));
-    glBindVertexArray(0);
+    glBindVertexArray(previousVao);
+    glBindBuffer(GL_ARRAY_BUFFER, previousBuffer);
   }
   void render(const mbgl::style::CustomLayerRenderParameters &p) override {
     std::shared_ptr<maris::Field> field;
@@ -133,6 +139,11 @@ public:
     opacity *= fade.update(visible, seconds);
     { std::lock_guard<std::mutex> lock(s->mutex); s->fadedOut = fade.value <= 0; }
     stats.begin();
+    // MapLibre 13.2 DrawableGL::draw compares the cached program ID before
+    // assigning it, even after setDirtyState(). Restore the actual program so
+    // adjacent symbol layers sharing a shader never draw with our wind shader.
+    GLint savedProgram = 0;
+    glGetIntegerv(GL_CURRENT_PROGRAM, &savedProgram);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, texture);
     if (uploaded != field) {
@@ -219,6 +230,7 @@ public:
       }
     }
     glBindVertexArray(0);
+    glUseProgram(savedProgram);
 #ifndef NDEBUG
     if (stats.end())
       __android_log_print(
