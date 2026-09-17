@@ -1,4 +1,4 @@
-import { PropsWithChildren } from 'react';
+import { PropsWithChildren } from "react";
 import {
   Platform,
   StyleProp,
@@ -6,7 +6,7 @@ import {
   Text,
   TextProps,
   TextStyle,
-} from 'react-native';
+} from "react-native";
 
 type BlurTextProps = PropsWithChildren<
   TextProps & {
@@ -25,11 +25,11 @@ export function BlurText({ children, style, ...props }: BlurTextProps) {
 
 const styles = StyleSheet.create({
   text: {
-    color: '#ffffff',
-    fontFamily: Platform.select({ ios: 'System', default: 'sans-serif' }),
-    fontSize: 18,
-    fontWeight: '600',
-    fontVariant: ['tabular-nums'],
+    color: "#ffffff",
+    fontFamily: Platform.select({ ios: "System", default: "sans-serif" }),
+    fontSize: 16,
+    fontWeight: "600",
+    fontVariant: ["tabular-nums"],
     lineHeight: 22,
   },
 });
