@@ -1,0 +1,11 @@
+.git
+.expo
+.storage
+artifacts
+data
+node_modules
+**/node_modules
+**/dist
+**/ios
+**/android
+*.zip

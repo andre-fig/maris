@@ -3,6 +3,9 @@ node_modules/
 artifacts/
 dist/
 /data/
+.storage/
+.env
+*.zip
 ios/
 android/
 *.log

@@ -2,22 +2,14 @@
   "name": "maris",
   "version": "1.0.0",
   "private": true,
-  "main": "index.ts",
+  "packageManager": "pnpm@9.12.3",
   "scripts": {
-    "start": "expo start --dev-client",
-    "ios": "expo run:ios",
-    "android": "expo run:android",
-    "typecheck": "tsc --noEmit"
-  },
-  "dependencies": {
-    "@maplibre/maplibre-react-native": "11.3.10",
-    "expo": "~57.0.23",
-    "expo-status-bar": "~57.0.1",
-    "react": "19.2.3",
-    "react-native": "0.86.3"
-  },
-  "devDependencies": {
-    "@types/react": "~19.2.2",
-    "typescript": "~6.0.3"
+    "dev:api": "pnpm --filter @maris/api dev",
+    "dev:mobile": "pnpm --filter @maris/mobile start",
+    "ios": "pnpm --filter @maris/mobile ios",
+    "android": "pnpm --filter @maris/mobile android",
+    "build": "pnpm --filter @maris/api build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r --if-present test"
   }
 }

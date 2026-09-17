@@ -2,9 +2,10 @@
 
 set -euo pipefail
 
-project_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-source_root="${project_dir}/data/ENC_ROOT"
-output_dir="${project_dir}/assets/data"
+mobile_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+repository_dir="$(cd "${mobile_dir}/../.." && pwd)"
+source_root="${repository_dir}/data/ENC_ROOT"
+output_dir="${mobile_dir}/assets/data"
 output_file="${output_dir}/miami-soundg.json"
 work_dir="$(mktemp -d)"
 geopackage="${work_dir}/soundings.gpkg"
