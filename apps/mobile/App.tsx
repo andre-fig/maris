@@ -27,6 +27,18 @@ const API_URL =
   process.env.EXPO_PUBLIC_API_URL ??
   'https://api-production-7dc7.up.railway.app';
 const INITIAL_CENTER: MapCenter = MIAMI;
+const LOCATION_MATCH_THRESHOLD_KM = 0.15;
+
+function distanceKm(a: [number, number], b: [number, number]) {
+  const [longitudeA, latitudeA] = a;
+  const [longitudeB, latitudeB] = b;
+  const latitudeDelta = ((latitudeB - latitudeA) * Math.PI) / 180;
+  const longitudeDelta = ((longitudeB - longitudeA) * Math.PI) / 180;
+  const meanLatitude = (((latitudeA + latitudeB) / 2) * Math.PI) / 180;
+  const x = longitudeDelta * Math.cos(meanLatitude);
+  const y = latitudeDelta;
+  return Math.sqrt(x * x + y * y) * 6_371;
+}
 
 export default function App() {
   const { width } = useWindowDimensions();
@@ -40,6 +52,7 @@ export default function App() {
   const cameraRef = useRef<CameraRef>(null);
   const deviceLocation = useDeviceLocation();
   const [locationActive, setLocationActive] = useState(false);
+  const locationTarget = useRef(false);
   const scaleMaxWidth = Math.min(width - 96, 175);
   const currentWeather = useCurrentViewportWeather(
     API_URL,
@@ -73,6 +86,14 @@ export default function App() {
           }
 
           lastZoom.current = nativeEvent.zoom;
+          if (
+            !locationTarget.current &&
+            deviceLocation &&
+            distanceKm(nativeEvent.center, deviceLocation.coordinate) >
+              LOCATION_MATCH_THRESHOLD_KM
+          ) {
+            setLocationActive(false);
+          }
           setViewState({
             latitude: nativeEvent.center[1],
             zoom: nativeEvent.zoom,
@@ -82,6 +103,13 @@ export default function App() {
         }}
         onRegionDidChange={({ nativeEvent }) => {
           lastZoom.current = nativeEvent.zoom;
+          if (deviceLocation) {
+            const isAtLocation =
+              distanceKm(nativeEvent.center, deviceLocation.coordinate) <=
+              LOCATION_MATCH_THRESHOLD_KM;
+            locationTarget.current = false;
+            setLocationActive(isAtLocation);
+          }
           setViewState({
             latitude: nativeEvent.center[1],
             zoom: nativeEvent.zoom,
@@ -142,6 +170,7 @@ export default function App() {
           locationActive={locationActive}
           onLocate={() => {
             if (!deviceLocation) return;
+            locationTarget.current = true;
             cameraRef.current?.flyTo({
               center: deviceLocation.coordinate,
               duration: 500,

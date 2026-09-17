@@ -43,7 +43,10 @@ export function WeatherPanel({ weather, visible, style }: WeatherPanelProps) {
 
   return (
     <Animated.View style={[styles.wrapper, { opacity }, style]}>
-      <BlurPanel style={styles.panel}>
+      <BlurPanel
+        key={displayWeather ? 'weather-blur-visible' : 'weather-blur-hidden'}
+        style={styles.panel}
+      >
         {weatherIcon ? (
           <SymbolView
             name={{
@@ -85,6 +88,7 @@ const styles = StyleSheet.create({
     columnGap: 3,
     alignItems: 'center',
     justifyContent: 'center',
+    borderRadius: 16,
   },
   icon: {
     width: 20,
