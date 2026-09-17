@@ -7,6 +7,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 import type {
+  EncMetadataFeature,
   ProcessedCell,
   ProcessingJob,
   ProcessingResult,
@@ -59,6 +60,7 @@ export class EncProcessingService {
         const updatesApplied = await this.findUpdates(cell);
         const metadata = await this.readCellMetadata(cell);
         cells.push({
+          ...metadata,
           edition: metadata.edition,
           name: cellName,
           updateNumber: Math.max(metadata.updateNumber, ...updatesApplied, 0),
@@ -192,17 +194,65 @@ export class EncProcessingService {
       .sort((left, right) => left - right);
   }
 
-  private async readCellMetadata(cell: string) {
-    const { stdout } = await execFileAsync(
-      'ogrinfo',
-      ['-ro', '-al', '-q', cell, 'DSID'],
-      { maxBuffer: 2 * 1024 * 1024 },
-    );
-    const edition = /DSID_EDTN \(String\) = (.*)/.exec(stdout)?.[1]?.trim() ?? null;
-    const updateNumber = Number(
-      /DSID_UPDN \(String\) = (.*)/.exec(stdout)?.[1]?.trim() ?? 0,
-    );
-    return { edition, updateNumber };
+  async readCellMetadata(cell: string) {
+    const { stdout } = await execFileAsync('ogrinfo',
+      ['-ro', '-so', '-oo', 'UPDATES=APPLY', cell],
+      { maxBuffer: 2 * 1024 * 1024 });
+    const layers = [...stdout.matchAll(/^\d+: (\w+)/gm)].map((match) => match[1]!);
+    const readLayer = async (layer: string): Promise<EncMetadataFeature[]> => {
+      const result = await execFileAsync('ogr2ogr', [
+        '-f', 'GeoJSON', '/vsistdout/', cell, layer, '-oo', 'UPDATES=APPLY',
+      ], { maxBuffer: 32 * 1024 * 1024 });
+      return (JSON.parse(result.stdout) as { features: EncMetadataFeature[] }).features;
+    };
+    const dsid = (await readLayer('DSID'))[0]?.properties;
+    if (!dsid) throw new Error('Missing S-57 DSID metadata');
+    const metaObjects: Record<string, EncMetadataFeature[]> = {};
+    for (const layer of layers.filter((name) => name.startsWith('M_'))) {
+      metaObjects[layer] = await readLayer(layer);
+    }
+    const names = new Set<string>();
+    // Geographic place names, not names of individual buoys or lights.
+    for (const layer of ['SEAARE', 'LNDARE', 'FAIRWY', 'CANALS', 'HRBARE']) {
+      if (!layers.includes(layer)) continue;
+      for (const feature of await readLayer(layer)) {
+        for (const key of ['OBJNAM', 'NOBJNM']) {
+          const value = feature.properties[key];
+          if (typeof value === 'string' && value.trim()) names.add(value.trim());
+        }
+      }
+    }
+    const number = (key: string): number | null => {
+      const value = dsid[key];
+      return value !== null && value !== undefined && value !== '' && Number.isFinite(Number(value))
+        ? Number(value) : null;
+    };
+    const date = (key: string): string | null => {
+      const value = String(dsid[key] ?? '');
+      if (!/^\d{8}$/.test(value)) return null;
+      const iso = `${value.slice(0, 4)}-${value.slice(4, 6)}-${value.slice(6, 8)}`;
+      const parsed = new Date(iso);
+      return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === iso ? iso : null;
+    };
+    const agencyCode = number('DSID_AGEN');
+    return {
+      edition: dsid.DSID_EDTN == null ? null : String(dsid.DSID_EDTN),
+      updateNumber: number('DSID_UPDN') ?? 0,
+      metadata: {
+        source: agencyCode === 550 ? 'NOAA' : null,
+        agencyCode,
+        issueDate: date('DSID_ISDT'),
+        updateApplicationDate: date('DSID_UADT'),
+        compilationScale: number('DSPM_CSCL'),
+        horizontalDatum: number('DSPM_HDAT'),
+        verticalDatum: number('DSPM_VDAT'),
+        soundingDatum: number('DSPM_SDAT'),
+        coveredAreaNames: [...names].sort(),
+        coverage: metaObjects.M_COVR ?? [],
+        metaObjects,
+        rawDatasetIdentification: dsid,
+      },
+    };
   }
 
   private async run(command: string, arguments_: string[]) {

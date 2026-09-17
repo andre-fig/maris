@@ -11,6 +11,8 @@ import type { EncArchiveDto } from '../dtos/ingestion.dto.js';
 import { ChartDataset } from '../entities/chart-dataset.entity.js';
 import { ChartIngestion } from '../entities/chart-ingestion.entity.js';
 import { ChartVersion } from '../entities/chart-version.entity.js';
+import { ChartCell } from '../entities/chart-cell.entity.js';
+import { mapChartCell } from '../models/chart-cell.mapper.js';
 import type {
   IngestionStatus,
   ProcessingJob,
@@ -162,17 +164,19 @@ export class ChartCatalogService {
       ...result.cells.map((cell) => cell.updateNumber),
     );
     await this.dataSource.transaction(async (manager) => {
+      const version = await manager.getRepository(ChartVersion).findOneByOrFail({ ingestionId });
+      await manager.getRepository(ChartCell).delete({ versionId: version.id });
+      await manager.getRepository(ChartCell).save(result.cells.map((cell) => mapChartCell(version.id, cell)));
       await manager.getRepository(ChartIngestion).update(ingestionId, {
         errorMessage: null,
         errorStack: null,
         processedAt: new Date(),
         status: 'ready',
       });
-      await manager.getRepository(ChartVersion).update(
-        { ingestionId },
-        {
+      await manager.getRepository(ChartVersion).createQueryBuilder()
+        .update()
+        .set({
           bounds: result.bounds,
-          editionMetadata: result.cells,
           errorMessage: null,
           errorStack: null,
           manifestPath: result.manifestPath,
@@ -180,8 +184,9 @@ export class ChartCatalogService {
           status: 'ready',
           storagePath: result.storagePath,
           updateNumber: maximumUpdate,
-        },
-      );
+        })
+        .where('ingestion_id = :ingestionId', { ingestionId })
+        .execute();
     });
   }
 

@@ -6,12 +6,14 @@ import {
   JoinColumn,
   ManyToOne,
   OneToOne,
+  OneToMany,
   PrimaryColumn,
   UpdateDateColumn,
 } from 'typeorm';
 import type { Relation } from 'typeorm';
 
-import type { IngestionStatus, ProcessedCell } from '../models/processing.js';
+import type { IngestionStatus } from '../models/processing.js';
+import { ChartCell } from './chart-cell.entity.js';
 import { ChartDataset } from './chart-dataset.entity.js';
 import { ChartIngestion } from './chart-ingestion.entity.js';
 
@@ -47,12 +49,8 @@ export class ChartVersion {
   @Column({ type: 'text' })
   status!: IngestionStatus;
 
-  @Column({
-    default: () => "'[]'::jsonb",
-    name: 'edition_metadata',
-    type: 'jsonb',
-  })
-  editionMetadata!: ProcessedCell[];
+  @OneToMany(() => ChartCell, (cell) => cell.version)
+  cells!: Relation<ChartCell[]>;
 
   @Column({ name: 'update_number', nullable: true, type: 'integer' })
   updateNumber!: number | null;

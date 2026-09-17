@@ -15,6 +15,10 @@ import type { EncArchiveDto } from '../src/ingestions/dtos/ingestion.dto.js';
 import { ChartDataset } from '../src/ingestions/entities/chart-dataset.entity.js';
 import { ChartIngestion } from '../src/ingestions/entities/chart-ingestion.entity.js';
 import { ChartVersion } from '../src/ingestions/entities/chart-version.entity.js';
+import { ChartCell } from '../src/ingestions/entities/chart-cell.entity.js';
+import { ChartCoverage } from '../src/ingestions/entities/chart-coverage.entity.js';
+import { ChartSurvey } from '../src/ingestions/entities/chart-survey.entity.js';
+import { ModelEncMetadata2026091800000 } from '../src/database/migrations/2026091800000-model-enc-metadata.js';
 import type {
   ProcessingJob,
   ProcessingResult,
@@ -24,6 +28,10 @@ import { IngestionPipelineService } from '../src/ingestions/services/ingestion-p
 import { IngestionsService } from '../src/ingestions/services/ingestions.service.js';
 import { LocalChartStorageService } from '../src/tiles/storage/local-chart-storage.service.js';
 import { TilesService } from '../src/tiles/tiles.service.js';
+
+// pg-mem returns DATE as a UTC Date object, unlike PostgreSQL's date-only string.
+// Keep its TypeORM hydration deterministic in this isolated test process.
+process.env.TZ = 'UTC';
 
 const ARCHIVE: EncArchiveDto = {
   catalogPresent: true,
@@ -43,13 +51,24 @@ const RESULT: ProcessingResult = {
       name: 'US5MIABC',
       updateNumber: 2,
       updatesApplied: [1, 2],
+      metadata: {
+        source: 'NOAA', agencyCode: 550,
+        issueDate: '2025-09-03', updateApplicationDate: '2025-09-03',
+        compilationScale: 22000, horizontalDatum: 2, verticalDatum: 16, soundingDatum: 12,
+        coveredAreaNames: ['Biscayne Bay'],
+        coverage: [{ type: 'Feature', properties: { CATCOV: 1 },
+          geometry: { type: 'Polygon', coordinates: [[[-80, 25], [-79, 25], [-79, 26], [-80, 25]]] } }],
+        metaObjects: { M_QUAL: [{ type: 'Feature', geometry: null,
+          properties: { CATZOC: 3, SORDAT: '20130820', SORIND: 'US,US,reprt,L-1633/13' } }] },
+        rawDatasetIdentification: { DSID_AGEN: 550, DSPM_SDAT: 12 },
+      },
     },
   ],
   manifestPath: 'soundg/versions/test/manifest.json',
   storagePath: 'soundg/versions/test',
 };
 
-async function createDatabase(): Promise<DataSource> {
+async function createDatabase(migrateMetadata = true): Promise<DataSource> {
   const memory = newDb({ autoCreateForeignKeyIndices: true });
   memory.public.registerFunction({
     implementation: () => 'maris_test',
@@ -60,8 +79,8 @@ async function createDatabase(): Promise<DataSource> {
     name: 'version',
   });
   const dataSource = (await memory.adapters.createTypeormDataSource({
-    entities: [ChartDataset, ChartIngestion, ChartVersion],
-    migrations: [CreateChartCatalog2026091700000],
+    entities: [ChartDataset, ChartIngestion, ChartVersion, ChartCell, ChartCoverage, ChartSurvey],
+    migrations: [CreateChartCatalog2026091700000, ...(migrateMetadata ? [ModelEncMetadata2026091800000] : [])],
     migrationsRun: true,
     synchronize: false,
     type: 'postgres',
@@ -174,8 +193,49 @@ test('successful processing produces ready metadata before publication', async (
       [ingestion.versionId],
     );
     assert.equal(versions[0]?.status, 'ready');
-    assert.deepEqual(versions[0]?.edition_metadata, RESULT.cells);
+    assert.deepEqual(versions[0]?.edition_metadata, []);
+    const cell = await database.getRepository(ChartCell).findOneOrFail({
+      where: { versionId: ingestion.versionId }, relations: { coverages: true, surveys: true },
+    });
+    assert.equal(cell.source, 'NOAA');
+    assert.equal(cell.edition, '4');
+    assert.equal(cell.updateNumber, 2);
+    assert.equal(cell.issueDate, '2025-09-03');
+    assert.deepEqual(cell.coveredAreaNames, ['Biscayne Bay']);
+    assert.equal(cell.coverages[0]?.category, 1);
+    assert.deepEqual(cell.coverages[0]?.geometry, RESULT.cells[0]?.metadata?.coverage[0]?.geometry);
+    assert.equal(cell.surveys[0]?.dataQuality, 3);
+    assert.equal(cell.surveys[0]?.surveyDate, '2013-08-20');
   } finally {
+    await database.destroy();
+  }
+});
+
+test('metadata migration backfills both legacy and enriched cells without changing active versions', async () => {
+  const database = await createDatabase(false);
+  const catalog = new ChartCatalogService(database);
+  const runner = database.createQueryRunner();
+  try {
+    const ingestion = await createIngestion(catalog);
+    await database.query('UPDATE chart_versions SET edition_metadata = $1 WHERE id = $2',
+      [JSON.stringify([...RESULT.cells, { name: 'LEGACY', edition: '1', updateNumber: 0, updatesApplied: [] }]), ingestion.versionId]);
+    await new ModelEncMetadata2026091800000().up(runner);
+    const version = await database.getRepository(ChartVersion).findOneOrFail({
+      where: { id: ingestion.versionId }, relations: { cells: { coverages: true, surveys: true } },
+    });
+    assert.equal(version.active, false);
+    assert.equal(version.cells.length, 2);
+    const miami = version.cells.find((cell) => cell.name === 'US5MIABC')!;
+    assert.equal(miami.source, 'NOAA');
+    assert.equal(miami.coverages[0]?.category, 1);
+    assert.equal(miami.surveys[0]?.dataQuality, 3);
+    assert.equal(miami.surveys[0]?.surveyDate, '2013-08-20');
+    const legacy = version.cells.find((cell) => cell.name === 'LEGACY')!;
+    assert.equal(legacy.issueDate, null);
+    assert.equal(legacy.source, null);
+    assert.deepEqual(legacy.coverages, []);
+  } finally {
+    await runner.release();
     await database.destroy();
   }
 });

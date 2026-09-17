@@ -8,3 +8,7 @@
 - [ ] Permitir alterar a visualização do mapa
 - [x] Vento
 - [x] Búlsola
+- [ ] Cache CDN Cloudfare para o vento?
+- [ ] Preciptação
+- [ ] Prognóstico de tempo
+- [ ] Direcão do vento na badge

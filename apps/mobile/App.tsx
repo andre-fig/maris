@@ -183,6 +183,13 @@ export default function App() {
           setIsZooming(false);
         }}
       >
+        <Layer
+          id="poi_transit"
+          type="symbol"
+          source="openmaptiles"
+          source-layer="poi"
+          filter={["match", ["get", "class"], ["airport", "rail"], true, false]}
+        />
         <Camera
           ref={cameraRef}
           key="gps-camera"
