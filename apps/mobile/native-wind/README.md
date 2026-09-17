@@ -57,8 +57,12 @@ shared state reference, never deletes the host twice.
    when render intervals exceed 35 ms; the app uses density 1 (up to 1,000 particles).
 
 The layer is inserted below the existing SOUNDG text layer when available.
-No map source/style, ENC data, GPS, compass, weather logic or existing UI was
-modified. No wind UI button was added in this task.
+`components/WindPanel.tsx` adds the wind toggle above the compass, using the
+shared BlurPanel, text and icon sizing. It starts collapsed/disabled, expands
+upward to show the NRK wind-speed legend in m/s, and collapses/disables on the
+next tap. The header uses SF Symbol `wind` on iOS and Material Symbol `air` on
+Android. Enabled wind opacity is 0.75. Existing map sources, ENC data, GPS,
+compass actions and weather logic are unchanged.
 
 ## Requests, cache and lifecycle
 

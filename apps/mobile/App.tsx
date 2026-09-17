@@ -13,6 +13,7 @@ import { isWeatherScaleVisible, ScaleRuler } from "./components/ScaleRuler";
 import { CompassPanel } from "./components/CompassPanel";
 import { UserLocationMarker } from "./components/UserLocationMarker";
 import { MapControlsPanel } from "./components/MapControlsPanel";
+import { WindPanel } from "./components/WindPanel";
 import { useDeviceLocation } from "./location/use-device-location";
 import { NativeWindLayer } from "@maris/native-wind";
 import {
@@ -53,6 +54,7 @@ export default function App() {
   const cameraRef = useRef<CameraRef>(null);
   const [locationActive, setLocationActive] = useState(false);
   const [courseUp, setCourseUp] = useState(false);
+  const [windEnabled, setWindEnabled] = useState(false);
   const locationTarget = useRef(false);
   const initialLocationApplied = useRef(false);
   const courseUpTransitionPending = useRef(false);
@@ -201,14 +203,18 @@ export default function App() {
         ) : null}
       </Map>
       <NativeWindLayer
-        enabled
-        opacity={0.65}
+        enabled={windEnabled}
+        opacity={0.75}
         density={1}
         animationSpeed={1}
         style={{ width: 0, height: 0, position: "absolute" }}
       />
       <View style={styles.controlsOverlay}>
         <View style={styles.controlsStack}>
+          <WindPanel
+            enabled={windEnabled}
+            onToggle={() => setWindEnabled((enabled) => !enabled)}
+          />
           <CompassPanel
             heading={deviceLocation.heading}
             onPress={() => {
