@@ -1,4 +1,4 @@
-import { Skia } from "@shopify/react-native-skia";
+import { AlphaType, ColorType, Skia } from "@shopify/react-native-skia";
 
 const MET_WIND_API = "https://beta.yr-maps.met.no/api/wind";
 const TILE_SIZE = 256;
@@ -90,7 +90,12 @@ async function loadTile(tile: { z: number; x: number; y: number }): Promise<Wind
       const image = Skia.Image.MakeImageFromEncoded(Skia.Data.fromBytes(bytes));
       if (!image) return null;
       const info = image.getImageInfo();
-      const pixels = image.readPixels() as Uint8Array | null;
+      const pixels = image.readPixels(0, 0, {
+        width: info.width,
+        height: info.height,
+        colorType: ColorType.RGBA_8888,
+        alphaType: AlphaType.Unpremul,
+      }) as Uint8Array | null;
       if (!pixels) return null;
       const value = { key, ...tile, width: info.width, height: info.height, pixels };
       tileCache.set(key, value);
