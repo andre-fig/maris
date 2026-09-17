@@ -226,7 +226,7 @@ export default function App() {
         enabled={windEnabled}
         opacity={0.8}
         density={0.75}
-        animationSpeed={10}
+        animationSpeed={20}
         style={{ width: 0, height: 0, position: "absolute" }}
       />
       <View pointerEvents="box-none" style={styles.controlsOverlay}>
