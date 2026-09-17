@@ -340,7 +340,7 @@ test('TileJSON resolves the active version from PostgreSQL', async () => {
     assert.equal(tileJson.version, ingestion.versionKey);
     assert.equal(
       tileJson.tiles[0],
-      `https://api.example.test/tiles/soundg/${ingestion.versionKey}/{z}/{x}/{y}.pbf`,
+      `https://api.example.test/tiles/soundg/${ingestion.versionKey}/{z}/{x}/{y}.pbf?empty=204-v1`,
     );
   } finally {
     await database.destroy();

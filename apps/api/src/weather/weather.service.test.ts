@@ -3,12 +3,29 @@ import { afterEach, test } from 'node:test';
 
 import type { ConfigService } from '@nestjs/config';
 
-import { WeatherService } from './weather.service.js';
+import { WeatherService, WEATHER_PROVIDER_TIMEOUT_MS } from './weather.service.js';
 
 const originalFetch = globalThis.fetch;
 
 afterEach(() => {
   globalThis.fetch = originalFetch;
+});
+
+test('two unresponsive providers abort within the five-second total budget', async () => {
+  assert.equal(WEATHER_PROVIDER_TIMEOUT_MS, 2_500);
+  let aborted = 0;
+  globalThis.fetch = async (_input, options) => new Promise((_resolve, reject) => {
+    options?.signal?.addEventListener('abort', () => { aborted++; reject(options.signal?.reason); }, { once: true });
+  });
+  // AbortSignal timeouts are unref'ed; keep this isolated test alive.
+  const keepAlive = setInterval(() => {}, 100);
+  try {
+    const start = Date.now();
+    const service = new WeatherService({ get: () => 'test-key' } as unknown as ConfigService);
+    await assert.rejects(service.getCurrentWeather(25,-80), /Weather providers are unavailable/);
+    assert.equal(aborted, 2);
+    assert.ok(Date.now()-start < 6_000);
+  } finally { clearInterval(keepAlive); }
 });
 
 test('maps only current OpenWeather fields into the public response', async () => {

@@ -16,6 +16,7 @@ import { MapControlsPanel } from "./components/MapControlsPanel";
 import { WindPanel } from "./components/WindPanel";
 import { useDeviceLocation } from "./location/use-device-location";
 import { NativeWindLayer } from "@maris/native-wind";
+import { MAP_AMBIENT_CACHE_BYTES } from "./offline/offline-areas";
 import {
   type MapCenter,
   useCurrentViewportWeather,
@@ -101,7 +102,7 @@ export default function App() {
   );
 
   useEffect(() => {
-    void OfflineManager.setMaximumAmbientCacheSize(256 * 1024 * 1024);
+    void OfflineManager.setMaximumAmbientCacheSize(MAP_AMBIENT_CACHE_BYTES);
   }, []);
 
   if (!deviceLocation) {

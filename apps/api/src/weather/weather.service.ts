@@ -9,6 +9,9 @@ import { ConfigService } from '@nestjs/config';
 import type { CurrentWeatherDto } from './dtos/current-weather.dto.js';
 import { mapWeatherApiCondition } from './weather-api-condition.js';
 
+// Primary keeps priority; bounded fallback without doubling an 8-second wait.
+export const WEATHER_PROVIDER_TIMEOUT_MS = 2_500;
+
 type OpenWeatherResponse = {
   coord: { lat: number; lon: number };
   dt: number;
@@ -75,7 +78,7 @@ export class WeatherService {
     url.searchParams.set('lon', longitude.toString());
     url.searchParams.set('units', 'metric');
     url.searchParams.set('appid', apiKey);
-    const response = await fetch(url, { signal: AbortSignal.timeout(8_000) });
+    const response = await fetch(url, { signal: AbortSignal.timeout(WEATHER_PROVIDER_TIMEOUT_MS) });
     if (!response.ok) throw new Error('OpenWeather rejected the request');
     const payload = (await response.json()) as OpenWeatherResponse;
     const condition = payload.weather[0];
@@ -98,7 +101,7 @@ export class WeatherService {
     const url = new URL('https://api.weatherapi.com/v1/current.json');
     url.searchParams.set('key', apiKey);
     url.searchParams.set('q', `${latitude},${longitude}`);
-    const response = await fetch(url, { signal: AbortSignal.timeout(8_000) });
+    const response = await fetch(url, { signal: AbortSignal.timeout(WEATHER_PROVIDER_TIMEOUT_MS) });
     if (!response.ok) throw new Error('WeatherAPI rejected the request');
     const payload = (await response.json()) as WeatherApiResponse;
     const current = payload.current;

@@ -23,6 +23,10 @@ export class TilesService {
       'soundg',
       active.version_key,
     );
+    // A new cache key bypasses legacy immutable 404s without changing artifacts
+    // or deleting offline packs using the original versioned URLs.
+    const tileUrl = this.chartStorage.getTileUrl(manifest, baseUrl);
+    const tileUrlWithEmptyPolicy = `${tileUrl}${tileUrl.includes('?') ? '&' : '?'}empty=204-v1`;
 
     return {
       bounds: manifest.bounds,
@@ -31,7 +35,7 @@ export class TilesService {
       name: manifest.name,
       scheme: 'xyz',
       tilejson: '3.0.0',
-      tiles: [this.chartStorage.getTileUrl(manifest, baseUrl)],
+      tiles: [tileUrlWithEmptyPolicy],
       vector_layers: manifest.vectorLayers,
       version: manifest.version,
     };

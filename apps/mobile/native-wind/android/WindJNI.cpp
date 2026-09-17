@@ -1,5 +1,6 @@
 #include "MapLibreCustomHost.hpp"
 #include "WindCore.hpp"
+#include "WindResources.hpp"
 #include "WindShaders.hpp"
 #include <GLES3/gl3.h>
 #include <android/log.h>
@@ -13,6 +14,8 @@ struct State {
   std::shared_ptr<maris::Field> field, staging;
   int generation = 0;
   float opacity = .65, density = .6, speed = 1;
+  bool lowMemory = false;
+  float quality = 1;
 };
 static std::mutex registryMutex;
 static std::map<jlong, std::shared_ptr<State>> registry;
@@ -64,15 +67,19 @@ class Host final : public mbgl::style::CustomLayerHost {
   std::vector<maris::ClipVertex> trailMesh;
   maris::RenderStats stats;
   std::chrono::steady_clock::time_point previous{};
-  float quality = 1;
+  maris::Quality quality;
+  GLuint trailBuffer = 0;
+  GLsync trailFence = nullptr;
+  size_t trailBytes = 0;
 
 public:
-  explicit Host(std::shared_ptr<State> state) : s(std::move(state)) {}
+  explicit Host(std::shared_ptr<State> state) : s(std::move(state)), quality(s->lowMemory) {}
   void initialize() override {
     heat = program(maris::glFragment().c_str());
     trails = program(maris::glParticle);
     glGenTextures(1, &texture);
     glGenBuffers(1, &buffer);
+    glGenBuffers(1, &trailBuffer);
     glGenVertexArrays(1, &vao);
     glBindVertexArray(vao);
     glBindBuffer(GL_ARRAY_BUFFER, buffer);
@@ -94,8 +101,21 @@ public:
       density = s->density;
       speed = s->speed;
     }
-    if (!field || !heat)
+    if (!field || !heat) {
+      if (uploaded) {
+        uploaded.reset();
+        if (texture) glDeleteTextures(1, &texture);
+        glGenTextures(1, &texture);
+        if (trailFence) glDeleteSync(trailFence);
+        trailFence = nullptr;
+        if (trailBuffer) glDeleteBuffers(1, &trailBuffer);
+        glGenBuffers(1, &trailBuffer);
+        trailBytes = 0;
+        particles = maris::Particles();
+        std::vector<maris::ClipVertex>().swap(trailMesh);
+      }
       return;
+    }
     stats.begin();
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, texture);
@@ -123,21 +143,23 @@ public:
     glUniform1f(glGetUniformLocation(heat, "opacity"), opacity);
     glBindVertexArray(vao);
     glBindBuffer(GL_ARRAY_BUFFER, buffer);
+    glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, sizeof(maris::ClipVertex), nullptr);
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(maris::ClipVertex), (void *)(4*sizeof(float)));
     auto vertices = maris::quad(field->plan, p.projectionMatrix.data(), p.zoom);
     glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices.data(),
                  GL_STREAM_DRAW);
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
     auto now = std::chrono::steady_clock::now();
-    double dt =
+    double delta =
         previous.time_since_epoch().count()
-            ? std::min(.05,
-                       std::chrono::duration<double>(now - previous).count())
+            ? std::chrono::duration<double>(now - previous).count()
             : 0;
+    double dt = std::min(.05, delta);
     previous = now;
-    quality = dt > .035 ? std::max(.2f, quality - .005f)
-                        : std::min(1.f, quality + .001f);
+    quality.frame(delta);
+    { std::lock_guard<std::mutex> lock(s->mutex); s->quality = quality.density; }
     const auto &lines = particles.update(*field, p.projectionMatrix.data(),
-                                         p.zoom, dt, density * quality, speed);
+                                         p.zoom, dt, density * quality.density, speed);
     if (!lines.empty() && trails) {
       GLint viewport[4];
       glGetIntegerv(GL_VIEWPORT, viewport);
@@ -145,9 +167,21 @@ public:
       glUseProgram(trails);
       glUniform1f(glGetUniformLocation(trails, "opacity"), opacity);
       glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
-      glBufferData(GL_ARRAY_BUFFER, trailMesh.size() * sizeof(maris::ClipVertex),
-                   trailMesh.data(), GL_STREAM_DRAW);
-      glDrawArrays(GL_TRIANGLES, 0, trailMesh.size());
+      GLenum ready = trailFence ? glClientWaitSync(trailFence, 0, 0) : GL_ALREADY_SIGNALED;
+      if (ready == GL_ALREADY_SIGNALED || ready == GL_CONDITION_SATISFIED) {
+        if (trailFence) glDeleteSync(trailFence);
+        glBindBuffer(GL_ARRAY_BUFFER, trailBuffer);
+        glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, sizeof(maris::ClipVertex), nullptr);
+        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(maris::ClipVertex), (void *)(4*sizeof(float)));
+        size_t bytes = trailMesh.size() * sizeof(maris::ClipVertex);
+        if (trailBytes < bytes) {
+          glBufferData(GL_ARRAY_BUFFER, bytes, nullptr, GL_STREAM_DRAW);
+          trailBytes = bytes;
+        }
+        glBufferSubData(GL_ARRAY_BUFFER, 0, bytes, trailMesh.data());
+        glDrawArrays(GL_TRIANGLES, 0, trailMesh.size());
+        trailFence = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+      }
     }
     glBindVertexArray(0);
 #ifndef NDEBUG
@@ -160,10 +194,15 @@ public:
   }
   void contextLost() override {
     heat = trails = texture = buffer = vao = 0;
+    trailBuffer = 0; trailFence = nullptr; trailBytes = 0;
     uploaded.reset();
+    particles = maris::Particles();
+    std::vector<maris::ClipVertex>().swap(trailMesh);
     previous = {};
   }
   void deinitialize() override {
+    if (trailFence) glDeleteSync(trailFence);
+    if (trailBuffer) glDeleteBuffers(1, &trailBuffer);
     if (heat)
       glDeleteProgram(heat);
     if (trails)
@@ -179,8 +218,10 @@ public:
 };
 extern "C" {
 JNIEXPORT jlongArray JNICALL Java_com_maris_wind_WindControl_create(JNIEnv *env,
-                                                                    jclass) {
+                                                                    jclass, jboolean lowMemory) {
   auto s = std::make_shared<State>();
+  s->lowMemory = lowMemory;
+  s->quality = lowMemory ? .5f : 1.f;
   jlong id;
   {
     std::lock_guard<std::mutex> lock(registryMutex);
@@ -196,11 +237,15 @@ JNIEXPORT void JNICALL Java_com_maris_wind_WindControl_release(JNIEnv *, jclass,
                                                                jlong id) {
   std::lock_guard<std::mutex> lock(registryMutex);
   registry.erase(id);
+  tileCache.clear();
 }
 JNIEXPORT jintArray JNICALL Java_com_maris_wind_WindControl_plan(
     JNIEnv *env, jclass, jdouble w, jdouble south, jdouble e, jdouble north,
-    jdouble zoom) {
-  auto p = maris::plan(w, south, e, north, zoom);
+    jdouble zoom, jlong id) {
+  auto s = state(id);
+  bool low = false;
+  if (s) { std::lock_guard<std::mutex> lock(s->mutex); low = s->lowMemory || s->quality < .7f; }
+  auto p = maris::plan(w, south, e, north, std::min(6., zoom) - (low ? 1 : 0), low ? 1024 : 2048);
   jint values[] = {p.z, p.left, p.top, p.right, p.bottom};
   auto a = env->NewIntArray(5);
   env->SetIntArrayRegion(a, 0, 5, values);
@@ -217,8 +262,10 @@ JNIEXPORT void JNICALL Java_com_maris_wind_WindControl_begin(JNIEnv *env,
   env->GetIntArrayRegion(array, 0, 5, p);
   std::lock_guard<std::mutex> lock(s->mutex);
   s->generation = gen;
+  maris::Plan next{p[0], p[1], p[2], p[3], p[4]};
+  if (s->field && !maris::overlaps(s->field->plan, next)) s->field.reset();
   s->staging =
-      std::make_shared<maris::Field>(maris::Plan{p[0], p[1], p[2], p[3], p[4]});
+      std::make_shared<maris::Field>(next);
 }
 JNIEXPORT jboolean JNICALL Java_com_maris_wind_WindControl_cached(
     JNIEnv *env, jclass, jlong id, jint gen, jint x, jint y, jstring url) {
@@ -270,5 +317,39 @@ JNIEXPORT void JNICALL Java_com_maris_wind_WindControl_configure(
   s->opacity = opacity;
   s->density = density;
   s->speed = speed;
+}
+JNIEXPORT jlong JNICALL Java_com_maris_wind_WindControl_restore(
+    JNIEnv *env, jclass, jlong id, jint gen, jstring path) {
+  auto s = state(id);
+  if (!s) return 0;
+  maris::Plan p;
+  { std::lock_guard<std::mutex> lock(s->mutex);
+    if (gen != s->generation || !s->staging || s->field) return 0;
+    p = s->staging->plan;
+  }
+  const char *text = env->GetStringUTFChars(path, nullptr);
+  auto snapshot = maris::SnapshotStore(text).load(p);
+  env->ReleaseStringUTFChars(path, text);
+  if (!snapshot.field) return 0;
+  std::lock_guard<std::mutex> lock(s->mutex);
+  if (gen != s->generation) return 0;
+  if (!s->field) s->field = snapshot.field;
+  return snapshot.savedAt;
+}
+JNIEXPORT void JNICALL Java_com_maris_wind_WindControl_save(
+    JNIEnv *env, jclass, jlong id, jint gen, jstring path, jstring catalog, jlong now) {
+  auto s = state(id);
+  if (!s) return;
+  std::shared_ptr<maris::Field> field;
+  { std::lock_guard<std::mutex> lock(s->mutex);
+    if (gen != s->generation) return;
+    field = s->staging;
+  }
+  if (!field) return;
+  const char *p = env->GetStringUTFChars(path, nullptr);
+  const char *c = env->GetStringUTFChars(catalog, nullptr);
+  maris::SnapshotStore(p).save(*field, c, now);
+  env->ReleaseStringUTFChars(path, p);
+  env->ReleaseStringUTFChars(catalog, c);
 }
 }

@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { AppState } from 'react-native';
+import { WEATHER_TTL_MS, WEATHER_RETRY_MS, WEATHER_REQUEST_TIMEOUT_MS, isWeatherFresh } from './weather-policy';
 
 export type MapCenter = [longitude: number, latitude: number];
 
@@ -86,14 +88,20 @@ export function useCurrentViewportWeather(
   const activeRequest = useRef<AbortController | undefined>(undefined);
   const activeRequestPoint = useRef<MapCenter | undefined>(undefined);
   const lastRequestedPoint = useRef<MapCenter | undefined>(undefined);
+  const lastSuccessAt = useRef(0);
+  const retryAt = useRef(0);
+  const foreground = useRef(AppState.currentState === 'active');
+  const cameraSeen = useRef(false);
   const requestGeneration = useRef(0);
   const enabledRef = useRef(enabled);
 
   const fetchWeather = useCallback(
     async (center: MapCenter) => {
-      if (touching.current || !enabledRef.current) return;
+      if (touching.current || !enabledRef.current || !foreground.current) return;
+      if (activeRequestPoint.current && distanceMetres(activeRequestPoint.current, center) < MINIMUM_FETCH_DISTANCE_METRES) return;
       if (
         lastRequestedPoint.current &&
+        isWeatherFresh(lastSuccessAt.current, Date.now()) &&
         distanceMetres(lastRequestedPoint.current, center) <
           MINIMUM_FETCH_DISTANCE_METRES
       ) {
@@ -105,7 +113,11 @@ export function useCurrentViewportWeather(
       const generation = ++requestGeneration.current;
       activeRequest.current = controller;
       activeRequestPoint.current = center;
-      lastRequestedPoint.current = center;
+      let timedOut = false;
+      const timeout = setTimeout(() => {
+        timedOut = true;
+        controller.abort();
+      }, WEATHER_REQUEST_TIMEOUT_MS);
 
       try {
         const query = new URLSearchParams({
@@ -119,17 +131,22 @@ export function useCurrentViewportWeather(
         const payload = (await response.json()) as CurrentWeather;
 
         if (generation === requestGeneration.current) {
+          lastRequestedPoint.current = center;
+          lastSuccessAt.current = Date.now();
+          retryAt.current = 0;
           setWeather(payload);
           setError(undefined);
         }
       } catch (requestError) {
         if (
           generation === requestGeneration.current &&
-          !(requestError instanceof Error && requestError.name === 'AbortError')
+          (timedOut || !(requestError instanceof Error && requestError.name === 'AbortError'))
         ) {
           setError('Clima indisponível');
+          retryAt.current = Date.now() + WEATHER_RETRY_MS;
         }
       } finally {
+        clearTimeout(timeout);
         if (generation === requestGeneration.current) {
           activeRequest.current = undefined;
           activeRequestPoint.current = undefined;
@@ -165,6 +182,7 @@ export function useCurrentViewportWeather(
   );
 
   const recordCameraCenter = useCallback((center: MapCenter) => {
+    cameraSeen.current = true;
     const timestamp = Date.now();
     samples.current = [
       ...samples.current.filter(
@@ -213,7 +231,7 @@ export function useCurrentViewportWeather(
       if (remainingTouches > 0) return;
       touching.current = false;
       if (!enabledRef.current) return;
-      scheduleFetch(predictInertialCenter(samples.current));
+      scheduleFetch(samples.current.length ? predictInertialCenter(samples.current) : pendingTarget.current);
     },
     [scheduleFetch],
   );
@@ -245,13 +263,39 @@ export function useCurrentViewportWeather(
   }, [enabled, scheduleFetch]);
 
   useEffect(() => {
-    pendingTarget.current = initialCenter;
+    if (!cameraSeen.current) pendingTarget.current = initialCenter;
+  }, [initialCenter]);
+
+  useEffect(() => {
+    const refresh = () => {
+      if (!enabledRef.current || !foreground.current || touching.current || debounceTimer.current || activeRequest.current) return;
+      const now = Date.now();
+      if (retryAt.current ? now >= retryAt.current : now - lastSuccessAt.current >= WEATHER_TTL_MS) {
+        scheduleFetch(pendingTarget.current);
+      }
+    };
+    const timer = setInterval(refresh, 1_000);
+    const subscription = AppState.addEventListener('change', (state) => {
+      foreground.current = state === 'active';
+      if (foreground.current) refresh();
+      else {
+        activeRequest.current?.abort();
+        activeRequest.current = undefined;
+        activeRequestPoint.current = undefined;
+        requestGeneration.current += 1;
+        if (debounceTimer.current) clearTimeout(debounceTimer.current);
+        debounceTimer.current = undefined;
+      }
+    });
 
     return () => {
+      clearInterval(timer);
+      subscription.remove();
       if (debounceTimer.current) clearTimeout(debounceTimer.current);
       activeRequest.current?.abort();
+      requestGeneration.current += 1;
     };
-  }, [initialCenter]);
+  }, [scheduleFetch]);
 
   return {
     error,

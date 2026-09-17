@@ -51,7 +51,7 @@ struct Plan {
   }
 };
 inline Plan plan(double west, double south, double east, double north,
-                 double zoom) {
+                 double zoom, int maxDimension = 2048) {
   if (east < west)
     east += 360.;
   for (int z = std::clamp(int(std::floor(zoom)), 0, 6);; --z) {
@@ -60,7 +60,7 @@ inline Plan plan(double west, double south, double east, double north,
            std::max(0, int(std::floor(my(north) * n)) - 1),
            int(std::floor(mx(east) * n)) + 1,
            std::min(n - 1, int(std::floor(my(south) * n)) + 1)};
-    if ((p.width() <= 2048 && p.height() <= 2048) || z == 0)
+    if ((p.width() <= maxDimension && p.height() <= maxDimension) || z == 0)
       return p;
   }
 }
@@ -100,6 +100,11 @@ struct Field {
     return true;
   }
 };
+inline bool overlaps(const Plan &a, const Plan &b) {
+  const double an = double(1 << a.z), bn = double(1 << b.z);
+  return a.left/an < (b.right+1)/bn && (a.right+1)/an > b.left/bn &&
+         a.top/an < (b.bottom+1)/bn && (a.bottom+1)/an > b.top/bn;
+}
 // Shared, bounded decoded-tile cache. URLs include MET revision and valid time.
 class TileCache {
   struct Entry {
@@ -124,9 +129,10 @@ public:
     std::lock_guard<std::mutex> lock(mutex);
     entries.remove_if([&](const Entry &e) { return e.url == url; });
     entries.push_front({url, std::vector<uint8_t>(rgba, rgba + 256 * 256 * 4)});
-    while (entries.size() > 128)
-      entries.pop_back(); // 32 MiB maximum
+    while (entries.size() > 32)
+      entries.pop_back(); // 8 MiB maximum; independent from HTTP disk cache.
   }
+  void clear() { std::lock_guard<std::mutex> lock(mutex); entries.clear(); }
 };
 struct Vertex {
   float x, y, u, v;
@@ -144,6 +150,8 @@ inline void buildTrailMesh(const std::vector<ClipVertex> &lines, double width,
                            double height, std::vector<ClipVertex> &mesh) {
   mesh.clear();
   if (width <= 0 || height <= 0) return;
+  if (mesh.capacity() < lines.size() * 3)
+    std::vector<ClipVertex>().swap(mesh);
   mesh.reserve(lines.size() * 3);
   for (size_t i = 0; i + 1 < lines.size(); i += 2) {
     auto a = lines[i], b = lines[i + 1];
@@ -226,8 +234,13 @@ public:
                                         double zoom, double dt, float density,
                                         float speed) {
     size_t count = size_t(std::clamp(density, 0.f, 1.f) * maximumParticleCount);
+    if (particles.capacity() < count) {
+      particles.reserve(maximumParticleCount);
+    }
     particles.resize(count);
     lines.clear();
+    if (lines.capacity() < count * (Particle::trailCapacity - 1) * 2)
+      std::vector<ClipVertex>().swap(lines);
     lines.reserve(count * (Particle::trailCapacity - 1) * 2);
     const auto bounds = viewport(m, zoom);
     for (auto &p : particles) {

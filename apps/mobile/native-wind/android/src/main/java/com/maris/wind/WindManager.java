@@ -2,6 +2,10 @@ package com.maris.wind;
 import com.facebook.react.uimanager.*;
 import com.facebook.react.uimanager.annotations.ReactProp;
 public class WindManager extends SimpleViewManager<WindControl> {
+  @Override
+  public java.util.Map<String, Object> getExportedCustomDirectEventTypeConstants() {
+    return java.util.Collections.singletonMap("topDataStatus", java.util.Collections.singletonMap("registrationName", "onDataStatus"));
+  }
   public String getName() { return "MarisWindControl"; }
   protected WindControl createViewInstance(ThemedReactContext context) {
     return new WindControl(context);

@@ -15,10 +15,10 @@ import org.maplibre.android.style.layers.CustomLayer;
 public class WindControl extends View
     implements Choreographer.FrameCallback, LifecycleEventListener {
   static { System.loadLibrary("maris-wind"); }
-  static native long[] create();
+  static native long[] create(boolean lowMemory);
   static native void release(long id);
   static native int[] plan(double west, double south, double east, double north,
-                           double zoom);
+                           double zoom, long id);
   static native void begin(long id, int gen, int[] p);
   static native void put(long id, int gen, int x, int y, ByteBuffer b,
                          String url);
@@ -26,6 +26,8 @@ public class WindControl extends View
   static native void publish(long id, int gen);
   static native void configure(long id, float opacity, float density,
                                float speed);
+  static native long restore(long id, int gen, String path);
+  static native void save(long id, int gen, String path, String catalog, long now);
   boolean enabled = false, active = true, attached = false;
   float opacity = .65f, density = .6f, speed = 1;
   MapView mapView;
@@ -38,17 +40,27 @@ public class WindControl extends View
   long checked = 0, loaded = 0;
   boolean validationApplied = false;
   long validationAfter = 0;
-  final ExecutorService worker = Executors.newSingleThreadExecutor();
+  static final ExecutorService worker = Executors.newSingleThreadExecutor();
   final OkHttpClient http;
   final ReactContext react;
+  final boolean lowMemory;
+  final String snapshotPath;
+  long savedAt = 0;
   WindControl(ReactContext context) {
     super(context);
     react = context;
+    android.app.ActivityManager manager = (android.app.ActivityManager)context.getSystemService(android.content.Context.ACTIVITY_SERVICE);
+    android.app.ActivityManager.MemoryInfo memory = new android.app.ActivityManager.MemoryInfo();
+    manager.getMemoryInfo(memory);
+    lowMemory = manager.isLowRamDevice() || memory.totalMem <= 3L*1024*1024*1024 || manager.getMemoryClass() <= 128;
+    File directory = new File(context.getNoBackupFilesDir(), "maris-wind");
+    directory.mkdirs();
+    snapshotPath = new File(directory, "last-field.bin").getAbsolutePath();
     setVisibility(INVISIBLE);
     http = new OkHttpClient.Builder()
                .cache(new Cache(new File(context.getCacheDir(), "wind"),
                                 32 * 1024 * 1024))
-               .callTimeout(15, TimeUnit.SECONDS)
+               .callTimeout(5, TimeUnit.SECONDS)
                .build();
     context.addLifecycleEventListener(this);
   }
@@ -80,6 +92,7 @@ public class WindControl extends View
   }
   void remove() {
     generation++;
+    http.dispatcher().cancelAll();
     if (layer != null && style != null)
       try {
         style.removeLayer(layer);
@@ -93,7 +106,7 @@ public class WindControl extends View
     lastKey = "";
   }
   public void doFrame(long nanos) {
-    if (!attached)
+    if (!attached || !active)
       return;
     if (enabled && active && opacity > 0) {
       if (mapView == null && getParent() instanceof View) {
@@ -136,7 +149,7 @@ public class WindControl extends View
         if (style != map.getStyle() || layer == null) {
           remove();
           style = map.getStyle();
-          long[] handle = create();
+          long[] handle = create(lowMemory);
           id = handle[0];
           layer = new CustomLayer("maris-native-wind", handle[1]);
           if (style.getLayer("miami-soundg-depth") != null)
@@ -151,7 +164,7 @@ public class WindControl extends View
           checked = nanos;
           var b = map.getProjection().getVisibleRegion().latLngBounds;
           int[] p = plan(b.getLonWest(), b.getLatSouth(), b.getLonEast(),
-                         b.getLatNorth(), map.getCameraPosition().zoom);
+                         b.getLatNorth(), map.getCameraPosition().zoom, id);
           String key = Arrays.toString(p);
           if (!key.equals(lastKey) || nanos - loaded > 60000000000L) {
             lastKey = key;
@@ -165,6 +178,16 @@ public class WindControl extends View
     } else if (layer != null)
       remove();
     Choreographer.getInstance().postFrameCallback(this);
+  }
+  void dataStatus(boolean stale, long timestamp, int gen) {
+    post(() -> {
+      if (gen != generation) return;
+      WritableMap event = Arguments.createMap();
+      event.putBoolean("stale", stale);
+      event.putDouble("savedAt", timestamp * 1000.);
+      react.getJSModule(com.facebook.react.uimanager.events.RCTEventEmitter.class)
+          .receiveEvent(getId(), "topDataStatus", event);
+    });
   }
   byte[] fetch(String url) throws Exception {
     Request r = new Request.Builder()
@@ -184,19 +207,21 @@ public class WindControl extends View
       try {
         if (gen != generation)
           return;
-        String source =
-            new JSONObject(
-                new String(
-                    fetch(
-                        "https://beta.yr-maps.met.no/api/wind/available.json"),
-                    java.nio.charset.StandardCharsets.UTF_8))
+        begin(target, gen, p);
+        long restored = restore(target, gen, snapshotPath);
+        if (restored > 0) {
+          savedAt = restored;
+          dataStatus(true, restored, gen);
+          post(() -> { if (map != null && gen == generation) map.triggerRepaint(); });
+        }
+        String catalog = new String(fetch("https://beta.yr-maps.met.no/api/wind/available.json"), java.nio.charset.StandardCharsets.UTF_8);
+        String source = new JSONObject(catalog)
                 .getJSONArray("times")
                 .getJSONObject(0)
                 .getJSONObject("tiles")
                 .getString("png");
         if (gen != generation)
           return;
-        begin(target, gen, p);
         int count = 0;
         for (int y = p[2]; y <= p[4]; y++)
           for (int x = p[1]; x <= p[3]; x++) {
@@ -241,7 +266,10 @@ public class WindControl extends View
             }
           }
         if (gen == generation) {
+          savedAt = System.currentTimeMillis() / 1000;
+          save(target, gen, snapshotPath, catalog, savedAt);
           publish(target, gen);
+          dataStatus(count != (p[3]-p[1]+1)*(p[4]-p[2]+1), savedAt, gen);
           post(() -> {
             if (map != null)
               map.triggerRepaint();
@@ -250,13 +278,19 @@ public class WindControl extends View
                                  (System.nanoTime() - start) / 1000000);
         }
       } catch (Exception error) {
+        dataStatus(true, savedAt, gen);
         Log.e("MarisWind", "MET field load failed", error);
       }
     });
   }
-  public void onHostResume() { active = true; }
+  public void onHostResume() {
+    active = true;
+    Choreographer.getInstance().removeFrameCallback(this);
+    if (attached) Choreographer.getInstance().postFrameCallback(this);
+  }
   public void onHostPause() {
     active = false;
+    Choreographer.getInstance().removeFrameCallback(this);
     remove();
   }
   public void onHostDestroy() { dispose(); }
@@ -265,7 +299,6 @@ public class WindControl extends View
     generation++;
     Choreographer.getInstance().removeFrameCallback(this);
     remove();
-    worker.shutdownNow();
     http.dispatcher().cancelAll();
     react.removeLifecycleEventListener(this);
   }
