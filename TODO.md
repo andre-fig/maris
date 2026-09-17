@@ -1,7 +1,7 @@
 - [ ] Mapa-base — em andamento
 - [ ] SOUNDG — em andamento
 - [x] Régua — concluído
-- [x] GPS — concluído
+- [ ] GPS — em andamento
 - [ ] Rotas — a fazer
 - [x] Tempo — concluído
 - [x] Ícone — concluído
