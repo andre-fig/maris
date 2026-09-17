@@ -74,7 +74,7 @@ export default function App() {
       <View pointerEvents="none" style={styles.scaleOverlay}>
         <ScaleRuler
           latitude={viewState.latitude}
-          maxWidth={Math.min(width - 96, 210)}
+          maxWidth={Math.min(width - 96, 175)}
           zoom={viewState.zoom}
         />
       </View>
