@@ -127,11 +127,12 @@ export function ScaleRuler({ latitude, maxWidth, visible, zoom }: ScaleRulerProp
       width: Math.min(maxWidth, totalMetres / metresPerPoint),
     };
   }, [latitude, maxWidth, zoom]);
+  const showImmediately = visible && !hidden;
 
   useEffect(() => {
     opacity.stopAnimation();
 
-    if (hidden || !visible) {
+    if (!showImmediately) {
       Animated.timing(opacity, {
         toValue: 0,
         duration: FADE_OUT_DURATION_MS,
@@ -141,10 +142,12 @@ export function ScaleRuler({ latitude, maxWidth, visible, zoom }: ScaleRulerProp
     }
 
     opacity.setValue(1);
-  }, [hidden, opacity, visible]);
+  }, [opacity, showImmediately]);
 
   return (
-    <Animated.View style={[styles.panel, { opacity }]}>
+    <Animated.View
+      style={[styles.panel, { opacity: showImmediately ? 1 : opacity }]}
+    >
       <View style={[styles.ruler, { width }]}>
         <View style={styles.labels}>
           {labels.map((label) => (
