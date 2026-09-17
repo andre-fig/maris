@@ -1,9 +1,10 @@
-- [ ] Mapa-base — em andamento
-- [ ] SOUNDG — em andamento
-- [x] Régua — concluído
-- [ ] GPS — em andamento
-- [ ] Rotas — a fazer
-- [x] Tempo — concluído
-- [x] Ícone do App — concluído
-- [ ] Ao invés de fallback em miami, enqt permissao/localizacao nao carrega, pegar pelo ip a localizacao estimada.
+- [x] Mapa-base
+- [ ] SOUNDG
+- [x] Régua
+- [x] GPS
+- [ ] Rotas
+- [x] Tempo
+- [x] Ícone do App
 - [ ] Permitir alterar a visualização do mapa
+- [x] Vento
+- [x] Búlsola
