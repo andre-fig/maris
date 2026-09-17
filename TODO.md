@@ -1,0 +1,4 @@
+- [ ] Mapa-base — em andamento
+- [ ] SOUNDG — em andamento
+- [x] Régua — concluído
+- [ ] GPS — a fazer
