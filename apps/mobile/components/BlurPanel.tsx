@@ -6,7 +6,7 @@ type BlurPanelProps = PropsWithChildren<{
   flexDirection?: "row" | "column";
 }>;
 
-export const BLUR_PANEL_ICON_SIZE = 20;
+export const BLUR_PANEL_ICON_SIZE = 32;
 
 export function BlurPanel({ children, flexDirection }: BlurPanelProps) {
   return (
@@ -23,6 +23,7 @@ export function BlurPanel({ children, flexDirection }: BlurPanelProps) {
 
 const styles = StyleSheet.create({
   panel: {
+    alignSelf: "flex-start",
     borderRadius: 16,
     overflow: "hidden",
     paddingHorizontal: 8,

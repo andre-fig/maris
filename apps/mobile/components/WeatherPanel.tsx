@@ -77,6 +77,5 @@ export function WeatherPanel({ weather, visible, style }: WeatherPanelProps) {
 const styles = StyleSheet.create({
   wrapper: {
     position: 'absolute',
-    alignSelf: 'flex-start',
   },
 });
