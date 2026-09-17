@@ -14,6 +14,15 @@ export function CompassPanel({ heading }: { heading: number | null }) {
           ]}
         >
           <Svg height="36" width="36" viewBox="0 0 36 36">
+            {GRAY_DIRECTIONS.map((rotation) => (
+              <Path
+                key={rotation}
+                d={GRAY_TICK_PATH}
+                fill="#8E8E93"
+                rotation={rotation}
+                origin="18, 18"
+              />
+            ))}
             <Path d={NORTH_TRIANGLE_PATH} fill="#FF3B30" />
             <Path d={EAST_TRIANGLE_PATH} fill="#FFFFFF" />
             <Path d={SOUTH_TRIANGLE_PATH} fill="#FFFFFF" />
@@ -25,7 +34,12 @@ export function CompassPanel({ heading }: { heading: number | null }) {
 }
 
 const NORTH_TRIANGLE_PATH =
-  "M18 1 Q18.4 1 18.6 2 L21.5 5 Q21.7 6 20.5 6 H15.5 Q14.3 6 14.5 5 L17.4 2 Q17.6 1 18 1 Z";
+  "M18 1 Q18.4 1 18.6 2 L21.25 5 Q21.45 6 20.35 6 H15.65 Q14.55 6 14.75 5 L17.4 2 Q17.6 1 18 1 Z";
+const GRAY_TICK_PATH = "M18 7 L19 9 H17 Z";
+const GRAY_DIRECTIONS = [
+  22.5, 45, 67.5, 112.5, 135, 157.5, 202.5, 225, 247.5, 292.5, 315,
+  337.5,
+];
 const EAST_TRIANGLE_PATH =
   "M35 18 Q35 18.3 34 18.5 L31 19 Q30 19.2 30 18.5 V17.5 Q30 16.8 31 17 L34 17.5 Q35 17.7 35 18 Z";
 const SOUTH_TRIANGLE_PATH =
