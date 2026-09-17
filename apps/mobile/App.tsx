@@ -9,18 +9,24 @@ import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, useWindowDimensions, View } from 'react-native';
 
 import { ScaleRuler } from './components/ScaleRuler';
+import {
+  type MapCenter,
+  useCurrentViewportWeather,
+} from './weather/current-weather';
 
 const MIAMI: [number, number] = [-80.1918, 25.7617];
 const BASE_MAP_STYLE = 'https://tiles.openfreemap.org/styles/bright';
 const API_URL =
   process.env.EXPO_PUBLIC_API_URL ??
   'https://api-production-7dc7.up.railway.app';
+const INITIAL_CENTER: MapCenter = MIAMI;
 
 export default function App() {
   const { width } = useWindowDimensions();
   const [viewState, setViewState] = useState({ latitude: MIAMI[1], zoom: 11 });
   const [isZooming, setIsZooming] = useState(false);
   const lastZoom = useRef(11);
+  const currentWeather = useCurrentViewportWeather(API_URL, INITIAL_CENTER);
 
   useEffect(() => {
     void OfflineManager.setMaximumAmbientCacheSize(256 * 1024 * 1024);
@@ -38,6 +44,10 @@ export default function App() {
         touchZoom
         touchRotate
         touchPitch={false}
+        onTouchStart={currentWeather.onTouchStart}
+        onTouchEnd={({ nativeEvent }) => {
+          currentWeather.onTouchEnd(nativeEvent.touches.length);
+        }}
         onRegionIsChanging={({ nativeEvent }) => {
           if (Math.abs(nativeEvent.zoom - lastZoom.current) > 0.0001) {
             setIsZooming(true);
@@ -48,6 +58,7 @@ export default function App() {
             latitude: nativeEvent.center[1],
             zoom: nativeEvent.zoom,
           });
+          currentWeather.onCameraChanging(nativeEvent.center);
         }}
         onRegionDidChange={({ nativeEvent }) => {
           lastZoom.current = nativeEvent.zoom;
@@ -55,6 +66,7 @@ export default function App() {
             latitude: nativeEvent.center[1],
             zoom: nativeEvent.zoom,
           });
+          currentWeather.onCameraDidChange(nativeEvent.center);
           setIsZooming(false);
         }}
       >
@@ -102,6 +114,7 @@ export default function App() {
           maxWidth={Math.min(width - 96, 175)}
           viewportWidth={width}
           visible={isZooming}
+          weather={currentWeather.weather}
           zoom={viewState.zoom}
         />
       </View>

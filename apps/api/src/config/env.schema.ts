@@ -11,6 +11,7 @@ export const envSchema = Joi.object({
   STORAGE_DIR: Joi.string().default('.storage'),
   CHART_STORAGE_DIR: Joi.string().default('.storage/chart-data'),
   CHART_ASSET_BASE_URL: Joi.string().uri().allow('').optional(),
+  OPENWEATHER_API_KEY: Joi.string().allow('').default(''),
 }).unknown(true);
 
 export function validateEnv(config: Record<string, unknown>) {

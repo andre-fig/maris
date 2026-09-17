@@ -2,6 +2,8 @@ import { BlurView } from 'expo-blur';
 import { useEffect, useMemo, useRef } from 'react';
 import { Animated, Platform, StyleSheet, Text, View } from 'react-native';
 
+import type { CurrentWeather } from '../weather/current-weather';
+
 type ScaleDefinition = {
   segmentMetres: number;
   segments: number;
@@ -13,6 +15,7 @@ type ScaleRulerProps = {
   maxWidth: number;
   viewportWidth: number;
   visible: boolean;
+  weather?: CurrentWeather;
   zoom: number;
 };
 
@@ -26,6 +29,27 @@ const WEATHER_BADGE_LEFT_MARGIN = 48;
 const WEATHER_BADGE_HORIZONTAL_PADDING = 3;
 const WEATHER_BADGE_VERTICAL_PADDING = 4;
 const SYSTEM_FONT = Platform.select({ ios: 'System', default: 'sans-serif' });
+
+const WEATHER_EMOJIS: Record<string, string> = {
+  '01d': '☀️',
+  '01n': '🌙',
+  '02d': '🌤️',
+  '02n': '☁️',
+  '03d': '🌥️',
+  '03n': '☁️',
+  '04d': '☁️',
+  '04n': '☁️',
+  '09d': '🌦️',
+  '09n': '🌧️',
+  '10d': '🌧️',
+  '10n': '🌧️',
+  '11d': '🌩️',
+  '11n': '🌩️',
+  '13d': '🌨️',
+  '13n': '🌨️',
+  '50d': '🌫️',
+  '50n': '🌫️',
+};
 
 const METRE_SCALES: ScaleDefinition[] = [
   { segmentMetres: 2, segments: 3, unit: 'm' },
@@ -112,6 +136,7 @@ export function ScaleRuler({
   maxWidth,
   viewportWidth,
   visible,
+  weather,
   zoom,
 }: ScaleRulerProps) {
   const opacity = useRef(new Animated.Value(0)).current;
@@ -143,6 +168,11 @@ export function ScaleRuler({
     };
   }, [latitude, maxWidth, zoom]);
   const showImmediately = visible && !hidden;
+  const weatherText = weather
+    ? `${WEATHER_EMOJIS[weather.icon_code] ?? '🌡️'} ${Math.round(
+        weather.temperature_celsius,
+      )}°`
+    : '…';
 
   useEffect(() => {
     opacity.stopAnimation();
@@ -187,7 +217,18 @@ export function ScaleRuler({
           tint="systemMaterialDark"
           style={StyleSheet.absoluteFill}
         />
-        <Text style={styles.weatherText}>☁️ 20°</Text>
+        <Text
+          accessibilityLabel={
+            weather
+              ? `${weather.condition}, ${Math.round(
+                  weather.temperature_celsius,
+                )} graus, umidade ${weather.humidity_percent} por cento, vento ${weather.wind_speed_metres_per_second} metros por segundo, precipitação ${weather.precipitation_millimetres_last_hour} milímetros na última hora`
+              : 'Carregando clima atual'
+          }
+          style={styles.weatherText}
+        >
+          {weatherText}
+        </Text>
       </Animated.View>
       <Animated.View
         style={[
