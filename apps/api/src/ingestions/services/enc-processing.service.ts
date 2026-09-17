@@ -55,10 +55,12 @@ export class EncProcessingService {
       if (baseCells.length === 0) throw new Error('No S-57 base cells extracted');
 
       const cells: ProcessedCell[] = [];
+      const soundingCells: string[] = [];
       for (const cell of baseCells.sort()) {
         const cellName = path.basename(cell, '.000').toUpperCase();
         const updatesApplied = await this.findUpdates(cell);
-        const metadata = await this.readCellMetadata(cell);
+        const { hasSoundings, ...metadata } = await this.readCellMetadata(cell);
+        if (hasSoundings) soundingCells.push(cell);
         cells.push({
           ...metadata,
           edition: metadata.edition,
@@ -84,7 +86,10 @@ export class EncProcessingService {
         };
       }
 
-      for (const [index, cell] of baseCells.sort().entries()) {
+      if (soundingCells.length === 0) {
+        throw new Error('No SOUNDG layer found in any ENC cell; no sounding tiles can be published');
+      }
+      for (const [index, cell] of soundingCells.entries()) {
         const cellName = path.basename(cell, '.000').toUpperCase();
         const arguments_ = [
           ...(index === 0 ? [] : ['-update', '-append']),
@@ -236,6 +241,7 @@ export class EncProcessingService {
     };
     const agencyCode = number('DSID_AGEN');
     return {
+      hasSoundings: layers.includes('SOUNDG'),
       edition: dsid.DSID_EDTN == null ? null : String(dsid.DSID_EDTN),
       updateNumber: number('DSID_UPDN') ?? 0,
       metadata: {
@@ -255,7 +261,7 @@ export class EncProcessingService {
     };
   }
 
-  private async run(command: string, arguments_: string[]) {
+  protected async run(command: string, arguments_: string[]) {
     try {
       await execFileAsync(command, arguments_, { maxBuffer: 16 * 1024 * 1024 });
     } catch (error) {

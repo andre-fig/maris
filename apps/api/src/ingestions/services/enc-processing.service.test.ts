@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -14,6 +16,7 @@ test('extracts real Miami S-57 coverage, dates, names, datums and spatial survey
       STORAGE_DIR: path.dirname(cell), CHART_STORAGE_DIR: path.dirname(cell),
     }));
     const result = await service.readCellMetadata(cell);
+    assert.equal(result.hasSoundings, true);
     assert.equal(result.edition, '2');
     assert.equal(result.updateNumber, 0);
     const metadata = result.metadata;
@@ -32,3 +35,76 @@ test('extracts real Miami S-57 coverage, dates, names, datums and spatial survey
     assert.ok(metadata.metaObjects.M_QUAL?.some((feature) => feature.properties.SURSTA === '20080713'
       && feature.properties.SUREND === '20080826' && feature.properties.SORIND));
   });
+
+const noSoundingsCell = fileURLToPath(new URL('../../../../../data/ENC_ROOT/US3FL1DF/US3FL1DF.000', import.meta.url));
+test('accepts metadata from the real US3FL1DF cell without SOUNDG',
+  { skip: !existsSync(noSoundingsCell) && 'Local ENC fixture not installed' }, async () => {
+    const service = new EncProcessingService(new ConfigService({ STORAGE_DIR: '/tmp', CHART_STORAGE_DIR: '/tmp' }));
+    const result = await service.readCellMetadata(noSoundingsCell);
+    assert.equal(result.hasSoundings, false);
+    assert.ok(result.metadata.coverage.length);
+  });
+
+test('mixed archive keeps every cell but creates GPKG from the first cell containing SOUNDG', async () => {
+  await checkArchive(['EMPTY', 'SOUND1', 'SOUND2'], false);
+});
+
+test('archive without SOUNDG fails explicitly without generating or publishing tiles', async () => {
+  await checkArchive(['EMPTY'], false);
+});
+
+test('actual conversion errors are not mistaken for absent SOUNDG', async () => {
+  await checkArchive(['EMPTY', 'SOUND1'], true);
+});
+
+async function checkArchive(names: string[], failConversion: boolean) {
+  const directory = await mkdtemp(path.join(tmpdir(), 'maris-soundg-test-'));
+  const commands: string[][] = [];
+  class Processor extends EncProcessingService {
+    override async readCellMetadata(filename: string) {
+      return {
+        hasSoundings: path.basename(filename).startsWith('SOUND'), edition: '1', updateNumber: 0,
+        metadata: {
+          source: null, agencyCode: null, issueDate: null, updateApplicationDate: null,
+          compilationScale: null, horizontalDatum: null, verticalDatum: null, soundingDatum: null,
+          coveredAreaNames: [], coverage: [], metaObjects: {}, rawDatasetIdentification: {},
+        },
+      };
+    }
+    protected override async run(command: string, args: string[]) {
+      commands.push([command, ...args]);
+      if (command === 'unzip') {
+        const target = args[args.indexOf('-d') + 1]!;
+        for (const name of names) await writeFile(path.join(target, `${name}.000`), 'fixture');
+      } else if (command === process.execPath) {
+        const target = path.join(directory, 'soundg/versions/test');
+        await mkdir(target, { recursive: true });
+        await writeFile(path.join(target, 'manifest.json'), JSON.stringify({ bounds: [-80, 25, -79, 26] }));
+      } else if (failConversion) {
+        throw new Error('conversion failed');
+      }
+    }
+  }
+  try {
+    const processor = new Processor(new ConfigService({ STORAGE_DIR: directory, CHART_STORAGE_DIR: directory }));
+    const processing = processor.process({ ingestionId: 'test', versionId: 'test', versionKey: 'test', archivePath: 'test.zip' });
+    if (failConversion) {
+      await assert.rejects(processing, /conversion failed/);
+      assert.ok(!commands.some(([command]) => command === process.execPath));
+    } else if (names.every((name) => name === 'EMPTY')) {
+      await assert.rejects(processing, /No SOUNDG layer found/);
+      assert.equal(commands.length, 1);
+    } else {
+      const result = await processing;
+      assert.deepEqual(result.cells.map((cell) => cell.name), names);
+      const conversions = commands.filter((args) => args.includes('-sql'));
+      assert.equal(conversions.length, 2);
+      assert.ok(conversions[0]!.includes('GPKG'));
+      assert.ok(!conversions[0]!.includes('-append'));
+      assert.ok(conversions[1]!.includes('-append'));
+      assert.ok(conversions.every((args) => !args.some((arg) => arg.endsWith('EMPTY.000'))));
+    }
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+}
