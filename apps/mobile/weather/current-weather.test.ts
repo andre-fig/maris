@@ -28,6 +28,55 @@ await writeFile(compiled, output.outputFiles[0].contents);
 });
 after(() => rm(directory,{recursive:true,force:true}));
 
+test('wind destination shares debounce and inertia prediction even when weather is hidden', async t => {
+  t.mock.timers.enable({apis:['Date','setTimeout','setInterval'],now:1_000_000});
+  const native = {currentState:'active',addEventListener: () => ({remove() {}})};
+  const globals = globalThis as typeof globalThis & {__weatherAppState?:typeof native; IS_REACT_ACT_ENVIRONMENT?:boolean};
+  globals.__weatherAppState = native;
+  globals.IS_REACT_ACT_ENVIRONMENT = true;
+  const useWeather = testRequire(compiled).useCurrentViewportWeather as typeof useCurrentViewportWeather;
+  const destinations: Array<[number, number]> = [];
+  let hook!: ReturnType<typeof useWeather>, renderer!: ReactTestRenderer;
+  const previous = globalThis.fetch;
+  let requests = 0;
+  globalThis.fetch = async () => { requests++; throw Error('Weather is hidden'); };
+  function Harness() {
+    hook = useWeather('https://test.invalid', [-80,25], false, center => destinations.push(center));
+    return null;
+  }
+  try {
+    await act(async () => { renderer = create(React.createElement(Harness)); });
+    await act(async () => {
+      hook.onTouchStart();
+      hook.onCameraChanging([-80,25]);
+      t.mock.timers.tick(100);
+      hook.onCameraChanging([-79.99,25]);
+      hook.onTouchEnd(0);
+      t.mock.timers.tick(999);
+    });
+    assert.equal(destinations.length, 0);
+    await act(async () => t.mock.timers.tick(1));
+    assert.ok(Math.abs(destinations[0][0] - (-79.945)) < 1e-8, 'predicts before moveend');
+    await act(async () => {
+      hook.onCameraDidChange([-79.97,25]);
+      t.mock.timers.tick(1000);
+    });
+    assert.deepEqual(destinations.at(-1), [-79.97,25], 'corrects with actual destination');
+    await act(async () => {
+      hook.onCameraDidChange([-79.96,25]);
+      hook.onTouchStart();
+      t.mock.timers.tick(2000);
+    });
+    assert.equal(destinations.length, 2, 'new drag cancels pending sample');
+    assert.equal(requests, 0);
+  } finally {
+    if (renderer) await act(async () => renderer.unmount());
+    globalThis.fetch = previous;
+    delete globals.__weatherAppState;
+    delete globals.IS_REACT_ACT_ENVIRONMENT;
+  }
+});
+
 test('restores fresh weather after the card is cleared and the camera returns before debounce', async (t) => {
   t.mock.timers.enable({apis:['Date','setTimeout','setInterval'],now:1_000_000});
   const native = {currentState:'active',addEventListener: () => ({remove() {}})};
@@ -41,7 +90,7 @@ test('restores fresh weather after the card is cleared and the camera returns be
   const previous = globalThis.fetch;
   globalThis.fetch = async () => {
     calls++;
-    return new Response(JSON.stringify({temperature_celsius:25,latitude:25,longitude:-80}));
+    return new Response(JSON.stringify({temperature_celsius:25,latitude:25,longitude:-80,wind_speed_metres_per_second:4}));
   };
   function Harness({enabled}:{enabled:boolean}) {
     hook = useWeather('https://test.invalid',[-80,25],enabled);
@@ -54,8 +103,14 @@ test('restores fresh weather after the card is cleared and the camera returns be
     const cached = hook.weather;
     assert.equal(cached?.temperature_celsius,25);
     assert.equal(calls,1);
+    assert.equal(hook.windSpeed,4);
+    await act(async () => hook.onCameraChanging([-79,25]));
+    assert.equal(hook.windSpeed,undefined,'old wind is hidden while moving to an unqueried area');
+    await act(async () => hook.onCameraChanging([-80,25]));
+    assert.equal(hook.windSpeed,4,'returning to valid cached data restores wind without fetching');
 
     await act(async () => renderer.update(React.createElement(Harness,{enabled:false})));
+    assert.equal(hook.windSpeed,undefined,'disabled weather cannot expose the old speed');
     await act(async () => hook.onCameraDidChange([-79,25]));
     await act(async () => renderer.update(React.createElement(Harness,{enabled:true})));
     assert.equal(hook.weather,undefined,'unrelated weather is hidden');
@@ -73,7 +128,7 @@ test('restores fresh weather after the card is cleared and the camera returns be
     await act(async () => hook.onCameraDidChange([-80,25]));
     await act(async () => { t.mock.timers.tick(1_000); });
     assert.equal(calls,2,'expired weather is fetched again');
-    assert.deepEqual(hook.weather,{temperature_celsius:25,latitude:25,longitude:-80});
+    assert.deepEqual(hook.weather,{temperature_celsius:25,latitude:25,longitude:-80,wind_speed_metres_per_second:4});
   } finally {
     if (renderer) await act(async () => renderer.unmount());
     globalThis.fetch = previous;

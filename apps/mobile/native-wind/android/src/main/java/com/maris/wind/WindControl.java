@@ -29,6 +29,20 @@ public class WindControl extends View
   static native void configure(long id, float opacity, float density,
                                float speed, boolean visible);
   static native boolean fadedOut(long id);
+  static native double speedAtCenter(long id, double longitude, double latitude);
+  com.facebook.react.bridge.ReadableArray sampleCoordinate;
+  void emitSample() {
+    if (sampleCoordinate == null || sampleCoordinate.size() != 2) return;
+    double lon = sampleCoordinate.getDouble(0), lat = sampleCoordinate.getDouble(1);
+    double value = speedAtCenter(id, lon, lat);
+    WritableMap event = Arguments.createMap();
+    if (value < 0) event.putNull("speed"); else event.putDouble("speed", value);
+    com.facebook.react.bridge.WritableArray coordinate = Arguments.createArray();
+    coordinate.pushDouble(lon); coordinate.pushDouble(lat);
+    event.putArray("coordinate", coordinate);
+    react.getJSModule(com.facebook.react.uimanager.events.RCTEventEmitter.class)
+        .receiveEvent(getId(), "topCenterWind", event);
+  }
   static native long restore(long id, int gen, String path);
   static native void save(long id, int gen, String path, String catalog, long now);
   boolean enabled = false, active = true, attached = false;
@@ -195,6 +209,7 @@ public class WindControl extends View
   void dataStatus(boolean stale, long timestamp, int gen) {
     post(() -> {
       if (gen != generation) return;
+      emitSample();
       WritableMap event = Arguments.createMap();
       event.putBoolean("stale", stale);
       event.putDouble("savedAt", timestamp * 1000.);

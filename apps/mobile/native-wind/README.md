@@ -63,6 +63,18 @@ shared state reference, never deletes the host twice.
    continue. The animation-speed multiplier does not affect these thresholds.
 
 The layer is inserted below the existing SOUNDG text layer when available.
+
+The native control samples the published atlas on `sampleCoordinate` changes,
+and again when a field load finishes, emitting `onCenterWind` with speed in m/s
+and the queried coordinate, or null speed for missing data. There is no periodic
+legend sampling. The coordinate comes directly from MapLibre's camera-changing
+events, including while the finger is down and during inertia. No debounce or
+predicted destination is used for the wind highlight. The weather request policy
+is independent and unchanged. Responses for obsolete points are ignored.
+Both platforms use shared bilinear sampling and dateline wrapping. The legend
+highlights the matching lower-bound interval without fetching additional data;
+closing/reopening clears the selection until the next native sample. During
+atlas transitions the selection uses the newly published field.
 `components/WindPanel.tsx` adds the wind toggle above the compass, using the
 shared BlurPanel, text and icon sizing. It starts collapsed/disabled, expands
 upward to show the NRK wind-speed legend in m/s, and collapses/disables on the

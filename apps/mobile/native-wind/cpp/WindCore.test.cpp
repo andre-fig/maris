@@ -40,6 +40,10 @@ int main() {
   float u, v;
   assert(field.sample(.5, .25, u, v));
   assert(std::abs(u - 2) < 1e-6 && std::abs(v - 2) < 1e-6);
+  const double sampleLatitude = std::atan(std::sinh(maris::pi * .5)) * 180 / maris::pi;
+  assert(std::abs(maris::speedAtCoordinate(&field, 0, sampleLatitude) - std::sqrt(8.)) < 1e-6);
+  assert(std::abs(maris::speedAtCoordinate(&field, 360, sampleLatitude) - std::sqrt(8.)) < 1e-6);
+  assert(maris::speedAtCoordinate(nullptr, 0, 0) == -1);
   b[3] = 0;
   field.put(1, 0, b.data(), 1024);
   assert(!field.sample(256.5 / 512., .5 / 512., u, v));

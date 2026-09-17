@@ -2,9 +2,14 @@ import { SymbolView } from "expo-symbols";
 import { useEffect, useRef, useState } from "react";
 import { Animated, Easing, Pressable, StyleSheet, View } from "react-native";
 
-import { BLUR_PANEL_ICON_SIZE, BlurPanel } from "./BlurPanel";
+import {
+  BLUR_PANEL_ICON_SIZE,
+  BLUR_PANEL_PADDING_VERTICAL,
+  BlurPanel,
+} from "./BlurPanel";
 import { BLUR_TEXT_LINE_HEIGHT, BlurText } from "./BlurText";
 import { FADE_OUT_DURATION_MS } from "./use-fade-visibility";
+import { formatWindLegendLabel, windLegendBand } from "./wind-legend-band";
 
 // Same wind-speed stops/colors as native-wind/cpp/WindShaders.hpp (NRK palette).
 const WIND_LEGEND = [
@@ -26,12 +31,27 @@ const EXPANDED_HEIGHT = LEGEND_TOP + WIND_LEGEND.length * LEGEND_ROW_HEIGHT;
 
 export function WindPanel({
   enabled,
+  centerWindSpeed,
+  currentWindSpeed,
+  unit = "m/s",
   onToggle,
 }: {
   enabled: boolean;
+  centerWindSpeed?: number | null;
+  currentWindSpeed?: number | null;
+  unit?: "m/s" | "km/h";
   onToggle: () => void;
 }) {
   const expansion = useRef(new Animated.Value(enabled ? 1 : 0)).current;
+  const selectedBand = enabled ? windLegendBand(centerWindSpeed) : -1;
+  const hasCurrentWind = typeof currentWindSpeed === "number" &&
+    Number.isFinite(currentWindSpeed) && currentWindSpeed >= 0;
+  const speedText = hasCurrentWind
+    ? `${Math.round(currentWindSpeed * (unit === "km/h" ? 3.6 : 1) * 10) / 10}`
+    : unit;
+  const reservedHeader = hasCurrentWind
+    ? (Math.round(currentWindSpeed * 3.6 * 10) / 10).toString()
+    : null;
   const [headerWidth, setHeaderWidth] = useState(0);
   const [legendWidth, setLegendWidth] = useState(0);
   const expandedWidth = Math.max(
@@ -54,14 +74,39 @@ export function WindPanel({
   }, [enabled, expansion]);
 
   return (
-    <BlurPanel flexDirection="column" alignSelf="flex-end">
+    <BlurPanel
+      flexDirection="column"
+      alignSelf="flex-end"
+      backgroundOverlay={
+        selectedBand >= 0 ? (
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              styles.selectedBand,
+              {
+                opacity: expansion,
+                top:
+                  BLUR_PANEL_PADDING_VERTICAL +
+                  LEGEND_TOP +
+                  selectedBand * LEGEND_ROW_HEIGHT,
+                height:
+                  LEGEND_ROW_HEIGHT +
+                  (selectedBand === WIND_LEGEND.length - 1
+                    ? BLUR_PANEL_PADDING_VERTICAL
+                    : 0),
+              },
+            ]}
+          />
+        ) : null
+      }
+    >
       <Animated.View
         style={[
           styles.content,
           {
             width: expansion.interpolate({
               inputRange: [0, 1],
-              outputRange: [BLUR_PANEL_ICON_SIZE, expandedWidth],
+              outputRange: [hasCurrentWind ? expandedWidth : BLUR_PANEL_ICON_SIZE, expandedWidth],
             }),
             height: expansion.interpolate({
               inputRange: [0, 1],
@@ -82,18 +127,37 @@ export function WindPanel({
         >
           <SymbolView
             name={{ ios: "wind", android: "air", web: "air" }}
-            size={enabled ? 20 : BLUR_PANEL_ICON_SIZE}
+            size={enabled ? 22 : BLUR_PANEL_ICON_SIZE}
+            style={{ width: BLUR_PANEL_ICON_SIZE, height: BLUR_PANEL_ICON_SIZE }}
             tintColor="#FFFFFF"
             type="monochrome"
           />
-          <Animated.View style={{ opacity: expansion }}>
-            <BlurText
-              style={{ fontSize: 12 }}
-              numberOfLines={1}
-              accessibilityLabel="Metros por segundo"
+          <Animated.View style={[styles.headerText, { opacity: hasCurrentWind ? 1 : expansion }]}>
+            <View
+              accessible={false}
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
+              style={styles.measurement}
             >
-              m/s
-            </BlurText>
+              {reservedHeader !== null ? (
+                <BlurText style={styles.speedValue} numberOfLines={1}>{reservedHeader}</BlurText>
+              ) : null}
+              <BlurText style={styles.headerMeasureText} numberOfLines={1}>km/h</BlurText>
+            </View>
+            {!enabled && hasCurrentWind ? (
+              <View style={styles.speedReadout} accessible accessibilityLabel={`Vento: ${speedText} ${unit}`}>
+                <BlurText style={styles.speedValue} numberOfLines={1}>{speedText}</BlurText>
+                <BlurText style={styles.speedUnit} numberOfLines={1}>{unit}</BlurText>
+              </View>
+            ) : <BlurText
+              style={[styles.legendText, styles.labelOverlay]}
+              numberOfLines={1}
+              accessibilityLabel={
+                unit === "km/h" ? "Quilômetros por hora" : "Metros por segundo"
+              }
+            >
+              {unit}
+            </BlurText>}
           </Animated.View>
         </Pressable>
         <Animated.View
@@ -116,8 +180,17 @@ export function WindPanel({
           <View>
             {WIND_LEGEND.map(({ label }) => (
               <View key={label} style={styles.legendRow}>
-                <BlurText style={{ fontSize: 12 }} numberOfLines={1}>
-                  {label}
+                <BlurText
+                  accessible={false}
+                  accessibilityElementsHidden
+                  importantForAccessibility="no-hide-descendants"
+                  style={[styles.legendText, styles.measurement]}
+                  numberOfLines={1}
+                >
+                  {formatWindLegendLabel(label, "km/h")}
+                </BlurText>
+                <BlurText style={[styles.legendText, styles.labelOverlay]} numberOfLines={1}>
+                  {formatWindLegendLabel(label, unit)}
                 </BlurText>
               </View>
             ))}
@@ -129,6 +202,14 @@ export function WindPanel({
 }
 
 const styles = StyleSheet.create({
+  headerMeasureText: { fontSize: 12, lineHeight: 14 },
+  headerText: { height: BLUR_PANEL_ICON_SIZE, justifyContent: "center" },
+  speedReadout: { position: "absolute", top: 0, bottom: 0, left: 0, right: 0, alignItems: "center", justifyContent: "center" },
+  speedValue: { fontSize: 16, lineHeight: 18 },
+  speedUnit: { fontSize: 10, lineHeight: 10, marginTop: -2 },
+  legendText: { fontSize: 12 },
+  measurement: { opacity: 0 },
+  labelOverlay: { position: "absolute", left: 0, top: 0 },
   content: { overflow: "hidden" },
   header: {
     position: "absolute",
@@ -149,6 +230,13 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   colorBar: { width: 12, borderRadius: 6, overflow: "hidden" },
+  selectedBand: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    height: LEGEND_ROW_HEIGHT,
+    backgroundColor: "rgba(0, 0, 0, 0.38)",
+  },
   band: { height: LEGEND_ROW_HEIGHT },
   legendRow: { height: LEGEND_ROW_HEIGHT, justifyContent: "center" },
 });

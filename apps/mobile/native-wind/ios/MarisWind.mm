@@ -20,6 +20,7 @@ static maris::TileCache tileCache;
 - (int)resolutionPenalty;
 - (int)maximumDimension;
 - (BOOL)fadeFinished;
+- (double)speedAtCenter:(CLLocationCoordinate2D)center;
 @end
 
 @implementation MarisWindLayer {
@@ -127,6 +128,9 @@ static maris::TileCache tileCache;
   depth.depthCompareFunction = MTLCompareFunctionAlways;
   depth.depthWriteEnabled = NO;
   _depth = [_device newDepthStencilStateWithDescriptor:depth];
+}
+- (double)speedAtCenter:(CLLocationCoordinate2D)center {
+  return maris::speedAtCoordinate(_field.get(), center.longitude, center.latitude);
 }
 - (NSData *)fetch:(NSString *)url cacheOnly:(BOOL)cacheOnly {
   dispatch_semaphore_t done = dispatch_semaphore_create(0);
@@ -426,6 +430,9 @@ static MLNMapView *findMap(UIView *view) {
 @property float density;
 @property float animationSpeed;
 @property (nonatomic, copy) RCTDirectEventBlock onDataStatus;
+@property (nonatomic, copy) RCTDirectEventBlock onCenterWind;
+@property (nonatomic, copy) NSArray<NSNumber *> *sampleCoordinate;
+- (void)emitSample;
 @end
 @implementation MarisWindControl {
   __weak MLNMapView *_map;
@@ -471,6 +478,16 @@ static MLNMapView *findMap(UIView *view) {
     _layer = nil;
     _map = nil;
   }
+}
+- (void)setSampleCoordinate:(NSArray<NSNumber *> *)coordinate {
+  _sampleCoordinate = [coordinate copy];
+  [self emitSample];
+}
+- (void)emitSample {
+  if (_sampleCoordinate.count != 2 || !_onCenterWind) return;
+  double speed = _layer ? [_layer speedAtCenter:CLLocationCoordinate2DMake(
+      _sampleCoordinate[1].doubleValue, _sampleCoordinate[0].doubleValue)] : -1;
+  _onCenterWind(@{@"speed": speed < 0 ? (id)NSNull.null : @(speed), @"coordinate": _sampleCoordinate});
 }
 - (void)tick:(CADisplayLink *)clock {
   if (UIApplication.sharedApplication.applicationState != UIApplicationStateActive) {
@@ -534,6 +551,7 @@ static MLNMapView *findMap(UIView *view) {
   __weak MarisWindControl *weak = self;
   _layer.dataStatus = ^(BOOL stale, double savedAt) {
     MarisWindControl *owner = weak;
+    [owner emitSample]; // New/restored atlas: retry the last requested destination.
     if (owner.onDataStatus) owner.onDataStatus(@{@"stale": @(stale), @"savedAt": @(savedAt * 1000)});
   };
   if (clock.timestamp - _check > .35) {
@@ -558,4 +576,6 @@ RCT_EXPORT_VIEW_PROPERTY(opacity, float)
 RCT_EXPORT_VIEW_PROPERTY(density, float)
 RCT_EXPORT_VIEW_PROPERTY(animationSpeed, float)
 RCT_EXPORT_VIEW_PROPERTY(onDataStatus, RCTDirectEventBlock)
+RCT_EXPORT_VIEW_PROPERTY(onCenterWind, RCTDirectEventBlock)
+RCT_EXPORT_VIEW_PROPERTY(sampleCoordinate, NSArray)
 @end

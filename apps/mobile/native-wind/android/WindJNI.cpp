@@ -347,6 +347,13 @@ JNIEXPORT void JNICALL Java_com_maris_wind_WindControl_put(JNIEnv *env, jclass,
   tileCache.put(text, data);
   env->ReleaseStringUTFChars(url, text);
 }
+JNIEXPORT jdouble JNICALL Java_com_maris_wind_WindControl_speedAtCenter(
+    JNIEnv *, jclass, jlong id, jdouble longitude, jdouble latitude) {
+  auto s = state(id);
+  if (!s) return -1;
+  std::lock_guard<std::mutex> lock(s->mutex);
+  return maris::speedAtCoordinate(s->field.get(), longitude, latitude);
+}
 JNIEXPORT jboolean JNICALL Java_com_maris_wind_WindControl_publish(JNIEnv *, jclass,
                                                                jlong id,
                                                                jint gen) {

@@ -5,6 +5,8 @@ export type WindLayerProps = ViewProps & {
   opacity?: number;
   density?: number;
   animationSpeed?: number;
+  sampleCoordinate?: [number, number] | null;
+  onCenterWind?: (event: NativeSyntheticEvent<{ speed: number | null; coordinate: [number, number] }>) => void;
   onDataStatus?: (event: NativeSyntheticEvent<{ stale: boolean; savedAt: number }>) => void;
 };
 

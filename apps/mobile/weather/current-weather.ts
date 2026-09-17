@@ -78,8 +78,12 @@ export function useCurrentViewportWeather(
   apiUrl: string,
   initialCenter: MapCenter,
   enabled: boolean,
+  onDestinationReady?: (center: MapCenter) => void,
 ) {
+  const destinationObserver = useRef(onDestinationReady);
+  destinationObserver.current = onDestinationReady;
   const [weather, setWeather] = useState<CurrentWeather>();
+  const [windSpeed, setWindSpeed] = useState<number>();
   const [error, setError] = useState<string>();
   const samples = useRef<CameraSample[]>([]);
   const touching = useRef(false);
@@ -114,11 +118,13 @@ export function useCurrentViewportWeather(
           MINIMUM_FETCH_DISTANCE_METRES
       ) {
         setWeather(lastSuccessfulWeather.current);
+        setWindSpeed(lastSuccessfulWeather.current.wind_speed_metres_per_second);
         setError(undefined);
         retryAt.current = 0;
         return;
       }
 
+      setWindSpeed(undefined);
       activeRequest.current?.abort();
       const controller = new AbortController();
       const generation = ++requestGeneration.current;
@@ -147,6 +153,9 @@ export function useCurrentViewportWeather(
           lastSuccessAt.current = Date.now();
           retryAt.current = 0;
           setWeather(payload);
+          const visibleCenter = samples.current.at(-1)?.center ?? pendingTarget.current;
+          setWindSpeed(distanceMetres(center, visibleCenter) < MINIMUM_FETCH_DISTANCE_METRES
+            ? payload.wind_speed_metres_per_second : undefined);
           setError(undefined);
         }
       } catch (requestError) {
@@ -171,7 +180,12 @@ export function useCurrentViewportWeather(
   const scheduleFetch = useCallback(
     (center: MapCenter) => {
       pendingTarget.current = center;
-      if (!enabledRef.current) return;
+      if (!lastSuccessfulPoint.current ||
+          !isWeatherFresh(lastSuccessAt.current, Date.now()) ||
+          distanceMetres(lastSuccessfulPoint.current, center) >= MINIMUM_FETCH_DISTANCE_METRES) {
+        setWindSpeed(undefined);
+      }
+      if (!enabledRef.current && !destinationObserver.current) return;
 
       // A new destination only invalidates an in-flight request when it is a
       // new weather destination (5 km rule). The old response is ignored by
@@ -187,6 +201,7 @@ export function useCurrentViewportWeather(
       if (debounceTimer.current) clearTimeout(debounceTimer.current);
       debounceTimer.current = setTimeout(() => {
         debounceTimer.current = undefined;
+        destinationObserver.current?.(pendingTarget.current);
         void fetchWeather(pendingTarget.current);
       }, DEBOUNCE_MS);
     },
@@ -194,6 +209,10 @@ export function useCurrentViewportWeather(
   );
 
   const recordCameraCenter = useCallback((center: MapCenter) => {
+    const valid = !activeRequest.current && lastSuccessfulPoint.current &&
+      isWeatherFresh(lastSuccessAt.current, Date.now()) &&
+      distanceMetres(lastSuccessfulPoint.current, center) < MINIMUM_FETCH_DISTANCE_METRES;
+    setWindSpeed(valid ? lastSuccessfulWeather.current?.wind_speed_metres_per_second : undefined);
     cameraSeen.current = true;
     const timestamp = Date.now();
     samples.current = [
@@ -208,7 +227,7 @@ export function useCurrentViewportWeather(
     (center: MapCenter) => {
       recordCameraCenter(center);
       if (
-        enabledRef.current &&
+        (enabledRef.current || destinationObserver.current) &&
         !touching.current &&
         debounceTimer.current
       ) {
@@ -222,7 +241,7 @@ export function useCurrentViewportWeather(
     (center: MapCenter) => {
       recordCameraCenter(center);
       pendingTarget.current = center;
-      if (touching.current || !enabledRef.current) return;
+      if (touching.current || (!enabledRef.current && !destinationObserver.current)) return;
 
       if (!debounceTimer.current) scheduleFetch(center);
     },
@@ -242,7 +261,7 @@ export function useCurrentViewportWeather(
     (remainingTouches: number) => {
       if (remainingTouches > 0) return;
       touching.current = false;
-      if (!enabledRef.current) return;
+      if (!enabledRef.current && !destinationObserver.current) return;
       scheduleFetch(samples.current.length ? predictInertialCenter(samples.current) : pendingTarget.current);
     },
     [scheduleFetch],
@@ -252,7 +271,7 @@ export function useCurrentViewportWeather(
     enabledRef.current = enabled;
 
     if (!enabled) {
-      if (debounceTimer.current) {
+      if (debounceTimer.current && !destinationObserver.current) {
         clearTimeout(debounceTimer.current);
         debounceTimer.current = undefined;
       }
@@ -316,5 +335,6 @@ export function useCurrentViewportWeather(
     onTouchEnd,
     onTouchStart,
     weather,
+    windSpeed: enabled ? windSpeed : undefined,
   };
 }

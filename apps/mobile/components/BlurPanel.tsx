@@ -1,17 +1,20 @@
 import { BlurView } from "expo-blur";
-import { PropsWithChildren } from "react";
+import { PropsWithChildren, type ReactNode } from "react";
 import { StyleSheet, View, type ViewStyle } from "react-native";
 
 type BlurPanelProps = PropsWithChildren<{
   flexDirection?: "row" | "column";
   shape?: "rectangle" | "circle";
   alignSelf?: ViewStyle["alignSelf"];
+  backgroundOverlay?: ReactNode;
 }>;
 
 export const BLUR_PANEL_ICON_SIZE = 28;
+export const BLUR_PANEL_PADDING_VERTICAL = 6;
 
 export function BlurPanel({
   children,
+  backgroundOverlay,
   flexDirection,
   shape = "rectangle",
   alignSelf = "flex-start",
@@ -29,6 +32,7 @@ export function BlurPanel({
         tint="systemMaterialDark"
         style={StyleSheet.absoluteFill}
       />
+      {backgroundOverlay}
       {children}
     </View>
   );
@@ -39,7 +43,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     overflow: "hidden",
     paddingHorizontal: 8,
-    paddingVertical: 6,
+    paddingVertical: BLUR_PANEL_PADDING_VERTICAL,
     gap: 8,
     alignItems: "center",
     justifyContent: "center",

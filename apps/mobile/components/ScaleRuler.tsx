@@ -110,6 +110,12 @@ function selectScale(maxMetres: number) {
   );
 }
 
+export function getScaleUnit(latitude: number, maxWidth: number, zoom: number): ScaleDefinition["unit"] {
+  const metresPerPoint =
+    (METRES_PER_PIXEL_AT_EQUATOR * Math.cos((latitude * Math.PI) / 180)) / 2 ** zoom;
+  return selectScale(metresPerPoint * maxWidth).unit;
+}
+
 export function isWeatherScaleVisible(
   latitude: number,
   maxWidth: number,

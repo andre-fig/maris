@@ -101,6 +101,14 @@ struct Field {
     return true;
   }
 };
+inline double speedAtCoordinate(const Field *field, double longitude, double latitude) {
+  if (!field) return -1;
+  double x = mx(longitude);
+  const double center = (field->plan.left + field->plan.right + 1.) / (2. * (1 << field->plan.z));
+  x += std::round(center - x); // Same world copy as the atlas at the dateline.
+  float u, v;
+  return field->sample(x, my(latitude), u, v) ? std::hypot(u, v) : -1;
+}
 inline bool overlaps(const Plan &a, const Plan &b) {
   const double an = double(1 << a.z), bn = double(1 << b.z);
   return a.left/an < (b.right+1)/bn && (a.right+1)/an > b.left/bn &&

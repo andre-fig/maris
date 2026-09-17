@@ -10,11 +10,12 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { StyleSheet, useWindowDimensions, View } from "react-native";
 
-import { isWeatherScaleVisible, ScaleRuler } from "./components/ScaleRuler";
+import { getScaleUnit, isWeatherScaleVisible, ScaleRuler } from "./components/ScaleRuler";
 import { CompassPanel } from "./components/CompassPanel";
 import { UserLocationMarker } from "./components/UserLocationMarker";
 import { MapControlsPanel } from "./components/MapControlsPanel";
 import { WindPanel } from "./components/WindPanel";
+import { windLegendBand } from "./components/wind-legend-band";
 import { useDeviceLocation } from "./location/use-device-location";
 import { NativeWindLayer } from "@maris/native-wind";
 import { MAP_AMBIENT_CACHE_BYTES } from "./offline/offline-areas";
@@ -64,6 +65,8 @@ export default function App() {
   const [locationActive, setLocationActive] = useState(false);
   const [courseUp, setCourseUp] = useState(false);
   const [windEnabled, setWindEnabled] = useState(false);
+  const [centerWindSpeed, setCenterWindSpeed] = useState<number | null>(null);
+  const [windSampleCoordinate, setWindSampleCoordinate] = useState<MapCenter | null>(null);
   const locationTarget = useRef(false);
   const initialLocationApplied = useRef(false);
   const courseUpTransitionPending = useRef(false);
@@ -157,6 +160,7 @@ export default function App() {
             bearing: nativeEvent.bearing,
           });
           currentWeather.onCameraChanging(nativeEvent.center);
+          if (windEnabled) setWindSampleCoordinate([...nativeEvent.center]);
         }}
         onRegionDidChange={({ nativeEvent }) => {
           lastZoom.current = nativeEvent.zoom;
@@ -174,6 +178,7 @@ export default function App() {
             bearing: nativeEvent.bearing,
           });
           currentWeather.onCameraDidChange(nativeEvent.center);
+          if (windEnabled) setWindSampleCoordinate([...nativeEvent.center]);
           void onViewportSettled().catch(() => {});
           setIsZooming(false);
         }}
@@ -227,6 +232,16 @@ export default function App() {
         opacity={0.8}
         density={0.75}
         animationSpeed={1}
+        sampleCoordinate={windEnabled ? windSampleCoordinate : null}
+        onCenterWind={({ nativeEvent }) => {
+          if (windEnabled && windSampleCoordinate &&
+              nativeEvent.coordinate[0] === windSampleCoordinate[0] &&
+              nativeEvent.coordinate[1] === windSampleCoordinate[1]) {
+            setCenterWindSpeed(previous =>
+              windLegendBand(previous) === windLegendBand(nativeEvent.speed)
+                ? previous : nativeEvent.speed);
+          }
+        }}
         style={{ width: 0, height: 0, position: "absolute" }}
       />
       <View pointerEvents="box-none" style={styles.controlsOverlay}>
@@ -271,7 +286,14 @@ export default function App() {
           />
           <WindPanel
             enabled={windEnabled}
-            onToggle={() => setWindEnabled((enabled) => !enabled)}
+            unit={getScaleUnit(viewState.latitude, scaleMaxWidth, viewState.zoom) === "km" ? "km/h" : "m/s"}
+            centerWindSpeed={centerWindSpeed}
+            currentWindSpeed={currentWeather.windSpeed}
+            onToggle={() => {
+              setCenterWindSpeed(null);
+              setWindSampleCoordinate([viewState.longitude, viewState.latitude]);
+              setWindEnabled((enabled) => !enabled);
+            }}
           />
         </View>
       </View>
