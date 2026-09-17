@@ -14,6 +14,7 @@ import { CompassPanel } from "./components/CompassPanel";
 import { UserLocationMarker } from "./components/UserLocationMarker";
 import { MapControlsPanel } from "./components/MapControlsPanel";
 import { useDeviceLocation } from "./location/use-device-location";
+import { NativeWindLayer } from "@maris/native-wind";
 import {
   type MapCenter,
   useCurrentViewportWeather,
@@ -199,6 +200,13 @@ export default function App() {
           />
         ) : null}
       </Map>
+      <NativeWindLayer
+        enabled
+        opacity={0.65}
+        density={0.6}
+        animationSpeed={1}
+        style={{ width: 0, height: 0, position: "absolute" }}
+      />
       <View style={styles.controlsOverlay}>
         <View style={styles.controlsStack}>
           <CompassPanel

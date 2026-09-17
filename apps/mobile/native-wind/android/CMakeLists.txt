@@ -1,0 +1,5 @@
+cmake_minimum_required(VERSION 3.22.1)
+project(maris_wind)
+add_library(maris-wind SHARED WindJNI.cpp)
+target_include_directories(maris-wind PRIVATE ../cpp)
+target_link_libraries(maris-wind GLESv3 log android)

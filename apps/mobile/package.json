@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@maris/native-wind": "link:./native-wind",
     "@expo/vector-icons": "^15.0.2",
     "@maplibre/maplibre-react-native": "11.3.10",
     "expo": "~57.0.23",

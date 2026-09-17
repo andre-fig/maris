@@ -1,0 +1,7 @@
+{
+  "name": "@maris/native-wind",
+  "version": "0.1.0",
+  "main": "index.tsx",
+  "react-native": "index.tsx",
+  "private": true
+}

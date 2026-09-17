@@ -81,8 +81,10 @@ Primary references:
 
 ## Validation status
 
-This file records an integration audit and design, **not an implemented layer**.
-No renderer, particles, bridge or benchmark has been delivered by this document.
-No FPS, CPU, GPU or memory measurements are claimed. These require physical
-device runs with rendering and GPU profiling, including map-only baselines and
-identical viewport/forecast inputs.
+The initial audit has now been followed by a native implementation in
+`apps/mobile/native-wind`. See its README for the implemented pipeline and
+`native-wind-validation.md` for actual validation results and open limitations.
+Particle simulation currently runs in shared native C++, not GPU compute. HTTP
+transport, PNG decoding and lifecycle remain platform-specific; decoded LRU,
+atlas, field mathematics and particle logic are shared. Full GPU profiling and
+controlled map-only baselines are still outstanding.

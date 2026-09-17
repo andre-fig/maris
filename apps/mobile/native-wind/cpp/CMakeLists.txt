@@ -1,0 +1,6 @@
+cmake_minimum_required(VERSION 3.22)
+project(MarisWindTests LANGUAGES CXX)
+enable_testing()
+add_executable(WindCoreTest WindCore.test.cpp)
+target_compile_features(WindCoreTest PRIVATE cxx_std_17)
+add_test(NAME WindCore COMMAND WindCoreTest)

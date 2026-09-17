@@ -9,5 +9,10 @@ apps/api/data/
 *.zip
 ios/
 android/
+!apps/mobile/native-wind/ios/
+!apps/mobile/native-wind/android/
+apps/mobile/native-wind/android/build/
+apps/mobile/native-wind/android/.cxx/
+apps/mobile/native-wind/android/.gradle/
 *.log
 .DS_Store

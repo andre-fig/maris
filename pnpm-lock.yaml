@@ -107,6 +107,9 @@ importers:
       '@maplibre/maplibre-react-native':
         specifier: 11.3.10
         version: 11.3.10(@types/geojson@7946.0.16)(@types/react@19.2.18)(expo@57.0.23)(react-native@0.86.3(@babel/core@7.29.7)(@types/react@19.2.18)(react@19.2.3))(react@19.2.3)
+      '@maris/native-wind':
+        specifier: link:./native-wind
+        version: link:native-wind
       expo:
         specifier: ~57.0.23
         version: 57.0.23(@babel/core@7.29.7)(@expo/dom-webview@57.0.1)(react-native@0.86.3(@babel/core@7.29.7)(@types/react@19.2.18)(react@19.2.3))(react@19.2.3)(typescript@6.0.3)

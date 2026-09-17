@@ -1,0 +1,21 @@
+buildscript {
+  repositories { google(); mavenCentral() }
+  dependencies { classpath 'com.android.tools.build:gradle:8.7.2' }
+}
+apply plugin: 'com.android.library'
+android {
+  namespace 'com.maris.wind'
+  compileSdk rootProject.ext.compileSdkVersion
+  ndkVersion '27.1.12297006'
+  defaultConfig {
+    minSdk 24
+    externalNativeBuild { cmake { cppFlags '-std=c++17 -fexceptions -frtti' } }
+  }
+  externalNativeBuild { cmake { path 'CMakeLists.txt'; version '3.22.1' } }
+}
+repositories { google(); mavenCentral() }
+dependencies {
+  implementation 'com.facebook.react:react-android'
+  implementation 'org.maplibre.gl:android-sdk-opengl:13.2.0'
+  implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+}
