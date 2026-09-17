@@ -91,7 +91,7 @@ const styles = StyleSheet.create({
   },
   scaleOverlay: {
     position: 'absolute',
-    top: 54,
+    top: 64,
     right: 0,
     left: 0,
     alignItems: 'center',
