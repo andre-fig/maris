@@ -24,7 +24,6 @@ const API_URL =
   "https://api-production-7dc7.up.railway.app";
 const DEFAULT_MAP_ZOOM = 14;
 const LOCATION_MATCH_THRESHOLD_KM = 0.08;
-const COURSE_UP_ANIMATION_MS = 60;
 
 function distanceKm(a: [number, number], b: [number, number]) {
   const [longitudeA, latitudeA] = a;
@@ -53,7 +52,6 @@ export default function App() {
   const [courseUp, setCourseUp] = useState(false);
   const locationTarget = useRef(false);
   const initialLocationApplied = useRef(false);
-  const lastCourseUpHeading = useRef<number | null>(null);
 
   useEffect(() => {
     if (deviceLocation && !initialLocationApplied.current) {
@@ -67,22 +65,12 @@ export default function App() {
       return;
     }
 
-    const previousHeading = lastCourseUpHeading.current;
-    const signedDelta = previousHeading === null
-      ? 360
-      : ((deviceLocation.heading - previousHeading + 540) % 360) - 180;
-    if (previousHeading !== null && Math.abs(signedDelta) < 1) return;
-    const targetHeading =
-      previousHeading === null
-        ? deviceLocation.heading
-        : previousHeading + signedDelta;
-    lastCourseUpHeading.current = targetHeading;
-
-    void cameraRef.current?.setStop({
-      bearing: targetHeading,
-      duration: COURSE_UP_ANIMATION_MS,
+    cameraRef.current?.jumpTo({
+      center: deviceLocation.coordinate,
+      zoom: viewState.zoom,
+      bearing: deviceLocation.heading,
     });
-  }, [courseUp, deviceLocation?.heading]);
+  }, [courseUp, deviceLocation?.heading, deviceLocation?.coordinate, viewState.zoom]);
 
   const scaleMaxWidth = Math.min(width - 96, 175);
   const currentWeather = useCurrentViewportWeather(
