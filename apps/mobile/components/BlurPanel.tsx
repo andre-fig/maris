@@ -3,14 +3,14 @@ import { PropsWithChildren } from "react";
 import { Platform, StyleProp, StyleSheet, View, ViewStyle } from "react-native";
 
 type BlurPanelProps = PropsWithChildren<{
-  style?: StyleProp<ViewStyle>;
+  flexDirection?: "row" | "column";
 }>;
 
 const SYSTEM_FONT = Platform.select({ ios: "System", default: "sans-serif" });
 
-export function BlurPanel({ children, style }: BlurPanelProps) {
+export function BlurPanel({ children, flexDirection }: BlurPanelProps) {
   return (
-    <View style={[styles.panel, style]}>
+    <View style={[styles.panel, { flexDirection }]}>
       <BlurView
         intensity={6}
         tint="systemMaterialDark"
@@ -22,6 +22,9 @@ export function BlurPanel({ children, style }: BlurPanelProps) {
 }
 
 const styles = StyleSheet.create({
+  wrapper: {
+    position: "absolute",
+  },
   panel: {
     borderRadius: 16,
     overflow: "hidden",
@@ -41,5 +44,9 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     fontVariant: ["tabular-nums"],
     lineHeight: 22,
+  },
+  icon: {
+    width: 20,
+    height: 20,
   },
 });

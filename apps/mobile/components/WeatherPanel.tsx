@@ -52,7 +52,7 @@ export function WeatherPanel({ weather, visible, style }: WeatherPanelProps) {
     <Animated.View style={[styles.wrapper, { opacity }, style]}>
       <BlurPanel
         key={displayWeather ? "weather-blur-visible" : "weather-blur-hidden"}
-        style={styles.panel}
+        flexDirection="row"
       >
         {weatherIcon ? (
           <SymbolView
@@ -62,7 +62,6 @@ export function WeatherPanel({ weather, visible, style }: WeatherPanelProps) {
               web: getAndroidWeatherSymbol(weatherIcon),
             }}
             size={20}
-            style={styles.icon}
             tintColor="#ffffff"
             type="hierarchical"
           />
@@ -75,7 +74,6 @@ export function WeatherPanel({ weather, visible, style }: WeatherPanelProps) {
                 )} graus, umidade ${weather.humidity_percent} por cento, vento ${weather.wind_speed_metres_per_second} metros por segundo, precipitação ${weather.precipitation_millimetres_last_hour} milímetros na última hora`
               : undefined
           }
-          style={styles.text}
         >
           {weather ? `${Math.round(weather.temperature_celsius)}°` : ""}
         </Text>
@@ -87,23 +85,5 @@ export function WeatherPanel({ weather, visible, style }: WeatherPanelProps) {
 const styles = StyleSheet.create({
   wrapper: {
     position: "absolute",
-  },
-  panel: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 16,
-  },
-  icon: {
-    width: 20,
-    height: 20,
-  },
-  text: {
-    color: "#ffffff",
-    fontFamily: SYSTEM_FONT,
-    fontSize: 18,
-    fontWeight: "600",
-    fontVariant: ["tabular-nums"],
-    lineHeight: 22,
   },
 });
