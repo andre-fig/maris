@@ -14,6 +14,7 @@ import { CompassPanel } from "./components/CompassPanel";
 import { UserLocationMarker } from "./components/UserLocationMarker";
 import { MapControlsPanel } from "./components/MapControlsPanel";
 import { WindOverlay } from "./components/WindOverlay";
+import { WindToggle } from "./components/WindToggle";
 import { useDeviceLocation } from "./location/use-device-location";
 import {
   type MapCenter,
@@ -53,6 +54,7 @@ export default function App() {
   const cameraRef = useRef<CameraRef>(null);
   const [locationActive, setLocationActive] = useState(false);
   const [courseUp, setCourseUp] = useState(false);
+  const [windEnabled, setWindEnabled] = useState(true);
   const locationTarget = useRef(false);
   const initialLocationApplied = useRef(false);
   const courseUpTransitionPending = useRef(false);
@@ -204,9 +206,11 @@ export default function App() {
         center={[viewState.longitude, viewState.latitude]}
         zoom={viewState.zoom}
         bearing={viewState.bearing}
+        enabled={windEnabled}
       />
       <View style={styles.controlsOverlay}>
         <View style={styles.controlsStack}>
+          <WindToggle enabled={windEnabled} onPress={() => setWindEnabled((value) => !value)} />
           <CompassPanel
             heading={deviceLocation.heading}
             onPress={() => {
