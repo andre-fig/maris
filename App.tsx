@@ -28,7 +28,7 @@ export default function App() {
         compass={false}
         scaleBar={false}
         touchZoom
-        touchRotate={false}
+        touchRotate
         touchPitch={false}
         onRegionIsChanging={({ nativeEvent }) => {
           setViewState({
