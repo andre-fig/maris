@@ -17,7 +17,7 @@ import { FileInterceptor } from "@nestjs/platform-express";
 import type { IngestionDto, UploadEncDto } from "./dtos/ingestion.dto.js";
 import { IngestionsService } from "./services/ingestions.service.js";
 
-@Controller("v1/ingestions")
+@Controller("ingestions")
 export class IngestionsController {
   constructor(
     @Inject(IngestionsService)

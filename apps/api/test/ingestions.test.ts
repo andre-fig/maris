@@ -38,7 +38,7 @@ test('receives a NOAA-style S-57 ZIP', async () => {
     'ENC_ROOT/US5MIABC/US5MIABC.001': new Uint8Array([3]),
   });
   const response = await request(app.getHttpServer())
-    .post('/v1/ingestions/enc')
+    .post('/ingestions/enc')
     .attach('file', Buffer.from(archive), {
       contentType: 'application/zip',
       filename: 'FL_ENCs.zip',
@@ -55,7 +55,7 @@ test('receives a NOAA-style S-57 ZIP', async () => {
 test('uses Nest exceptions for invalid ENC archives', async () => {
   const archive = zipSync({ 'ENC_ROOT/README.TXT': new Uint8Array([1]) });
   const response = await request(app.getHttpServer())
-    .post('/v1/ingestions/enc')
+    .post('/ingestions/enc')
     .attach('file', Buffer.from(archive), {
       contentType: 'application/zip',
       filename: 'invalid.zip',

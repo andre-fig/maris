@@ -58,12 +58,12 @@ pnpm dev:api
 
 ### Receber um conjunto ENC
 
-`POST /v1/ingestions/enc` recebe um único campo multipart chamado `file`.
+`POST /ingestions/enc` recebe um único campo multipart chamado `file`.
 
 ```bash
 curl --fail-with-body \
   -F 'file=@FL_ENCs.zip;type=application/zip' \
-  http://localhost:3001/v1/ingestions/enc
+  http://localhost:3001/ingestions/enc
 ```
 
 A API transmite o upload diretamente para disco, calcula SHA-256, valida a
@@ -76,7 +76,7 @@ Para consultar o manifesto:
 
 ```bash
 curl --fail-with-body \
-  http://localhost:3001/v1/ingestions/<id>
+  http://localhost:3001/ingestions/<id>
 ```
 
 Esta primeira rota encerra no estado `received`. A aplicação de updates S-57,
