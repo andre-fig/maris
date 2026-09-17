@@ -25,7 +25,8 @@ public class WindControl extends View
   static native boolean cached(long id, int gen, int x, int y, String url);
   static native void publish(long id, int gen);
   static native void configure(long id, float opacity, float density,
-                               float speed);
+                               float speed, boolean visible);
+  static native boolean fadedOut(long id);
   static native long restore(long id, int gen, String path);
   static native void save(long id, int gen, String path, String catalog, long now);
   boolean enabled = false, active = true, attached = false;
@@ -159,7 +160,7 @@ public class WindControl extends View
           else
             style.addLayer(layer);
         }
-        configure(id, opacity, density, speed);
+        configure(id, opacity, density, speed, true);
         if (nanos - checked > 350000000L) {
           checked = nanos;
           var b = map.getProjection().getVisibleRegion().latLngBounds;
@@ -172,11 +173,13 @@ public class WindControl extends View
             load(p, id, ++generation);
           }
         }
-        if (density > 0)
-          map.triggerRepaint();
+        map.triggerRepaint();
       }
-    } else if (layer != null)
-      remove();
+    } else if (layer != null) {
+      configure(id, opacity, density, speed, false);
+      if (fadedOut(id)) remove();
+      else if (map != null) map.triggerRepaint();
+    }
     Choreographer.getInstance().postFrameCallback(this);
   }
   void dataStatus(boolean stale, long timestamp, int gen) {

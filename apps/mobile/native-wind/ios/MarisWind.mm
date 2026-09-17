@@ -1,5 +1,6 @@
 #include "../cpp/WindCore.hpp"
 #include "../cpp/WindResources.hpp"
+#include "../cpp/WindFade.hpp"
 #include "../cpp/WindShaders.hpp"
 #import <ImageIO/ImageIO.h>
 #import <MapLibre/MapLibre.h>
@@ -13,10 +14,12 @@ static maris::TileCache tileCache;
 @property float windOpacity;
 @property float density;
 @property float animationSpeed;
+@property BOOL windVisible;
 @property (copy) void (^dataStatus)(BOOL stale, double savedAt);
 - (void)load:(maris::Plan)plan;
 - (int)resolutionPenalty;
 - (int)maximumDimension;
+- (BOOL)fadeFinished;
 @end
 
 @implementation MarisWindLayer {
@@ -35,6 +38,7 @@ static maris::TileCache tileCache;
   std::atomic<NSUInteger> _generation;
   double _loadedAt, _previous, _dataSavedAt;
   maris::Quality _quality;
+  maris::WindFade _fade;
   NSString *_snapshotPath;
   id<MTLBuffer> _buffers[3];
   std::shared_ptr<std::array<std::atomic_bool, 3>> _busy;
@@ -271,7 +275,7 @@ static maris::TileCache tileCache;
   [encoder setRenderPipelineState:_heat];
   [encoder setVertexBytes:vertices.data() length:sizeof(vertices) atIndex:0];
   [encoder setFragmentTexture:_texture atIndex:0];
-  float opacity = _windOpacity;
+  float opacity = _windOpacity * _fade.update(_windVisible, CACurrentMediaTime());
   [encoder setFragmentBytes:&opacity length:sizeof(opacity) atIndex:0];
   [encoder drawPrimitives:MTLPrimitiveTypeTriangleStrip
               vertexStart:0
@@ -319,6 +323,7 @@ static maris::TileCache tileCache;
   }
 }
 - (int)resolutionPenalty { return _quality.zoomPenalty(); }
+- (BOOL)fadeFinished { return !_field || _fade.value <= 0; }
 - (int)maximumDimension { return _quality.maxDimension(); }
 - (void)willMoveFromMapView:(MLNMapView *)map {
   ++_generation;
@@ -329,6 +334,7 @@ static maris::TileCache tileCache;
   _trails = nil;
   _depth = nil;
   _previous = 0;
+  _fade = maris::WindFade();
   _particles = maris::Particles();
   std::vector<maris::ClipVertex>().swap(_trailMesh);
   for (int i = 0; i < 3; ++i) _buffers[i] = nil;
@@ -402,13 +408,20 @@ static MLNMapView *findMap(UIView *view) {
   }
 }
 - (void)tick:(CADisplayLink *)clock {
-  BOOL active = _enabled && _opacity > 0 &&
-                UIApplication.sharedApplication.applicationState ==
-                    UIApplicationStateActive;
-  if (!active) {
+  if (UIApplication.sharedApplication.applicationState != UIApplicationStateActive) {
     if (_layer.style)
       [_layer.style removeLayer:_layer];
     _layer = nil;
+    return;
+  }
+  if (!_enabled || _opacity <= 0) {
+    _layer.windVisible = NO;
+    if ([_layer fadeFinished]) {
+      if (_layer.style) [_layer.style removeLayer:_layer];
+      _layer = nil;
+    } else {
+      [_layer setNeedsDisplay];
+    }
     return;
   }
   if (!_map) {
@@ -450,6 +463,7 @@ static MLNMapView *findMap(UIView *view) {
       [_map.style addLayer:_layer];
   }
   _layer.windOpacity = _opacity;
+  _layer.windVisible = YES;
   _layer.density = _density;
   _layer.animationSpeed = _animationSpeed;
   __weak MarisWindControl *weak = self;
@@ -463,8 +477,8 @@ static MLNMapView *findMap(UIView *view) {
     [_layer load:maris::plan(b.sw.longitude, b.sw.latitude, b.ne.longitude,
                              b.ne.latitude, std::min(6., _map.zoomLevel) - [_layer resolutionPenalty], [_layer maximumDimension])];
   }
-  if (_density > 0)
-    [_layer setNeedsDisplay];
+  // Includes static fields (density=0), which also need fade frames.
+  [_layer setNeedsDisplay];
 }
 @end
 @interface MarisWindControlManager : RCTViewManager

@@ -1,6 +1,7 @@
 #include "MapLibreCustomHost.hpp"
 #include "WindCore.hpp"
 #include "WindResources.hpp"
+#include "WindFade.hpp"
 #include "WindShaders.hpp"
 #include <GLES3/gl3.h>
 #include <android/log.h>
@@ -16,6 +17,7 @@ struct State {
   float opacity = .65, density = .6, speed = 1;
   bool lowMemory = false;
   float quality = 1;
+  bool visible = true, fadedOut = true;
 };
 static std::mutex registryMutex;
 static std::map<jlong, std::shared_ptr<State>> registry;
@@ -68,6 +70,7 @@ class Host final : public mbgl::style::CustomLayerHost {
   maris::RenderStats stats;
   std::chrono::steady_clock::time_point previous{};
   maris::Quality quality;
+  maris::WindFade fade;
   GLuint trailBuffer = 0;
   GLsync trailFence = nullptr;
   size_t trailBytes = 0;
@@ -94,14 +97,18 @@ public:
   void render(const mbgl::style::CustomLayerRenderParameters &p) override {
     std::shared_ptr<maris::Field> field;
     float opacity, density, speed;
+    bool visible;
     {
       std::lock_guard<std::mutex> lock(s->mutex);
       field = s->field;
       opacity = s->opacity;
       density = s->density;
       speed = s->speed;
+      visible = s->visible;
     }
     if (!field || !heat) {
+      fade = maris::WindFade();
+      { std::lock_guard<std::mutex> lock(s->mutex); s->fadedOut = true; }
       if (uploaded) {
         uploaded.reset();
         if (texture) glDeleteTextures(1, &texture);
@@ -116,6 +123,9 @@ public:
       }
       return;
     }
+    const double seconds = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
+    opacity *= fade.update(visible, seconds);
+    { std::lock_guard<std::mutex> lock(s->mutex); s->fadedOut = fade.value <= 0; }
     stats.begin();
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, texture);
@@ -199,6 +209,7 @@ public:
     particles = maris::Particles();
     std::vector<maris::ClipVertex>().swap(trailMesh);
     previous = {};
+    fade = maris::WindFade();
   }
   void deinitialize() override {
     if (trailFence) glDeleteSync(trailFence);
@@ -309,7 +320,7 @@ JNIEXPORT void JNICALL Java_com_maris_wind_WindControl_publish(JNIEnv *, jclass,
   }
 }
 JNIEXPORT void JNICALL Java_com_maris_wind_WindControl_configure(
-    JNIEnv *, jclass, jlong id, jfloat opacity, jfloat density, jfloat speed) {
+    JNIEnv *, jclass, jlong id, jfloat opacity, jfloat density, jfloat speed, jboolean visible) {
   auto s = state(id);
   if (!s)
     return;
@@ -317,6 +328,13 @@ JNIEXPORT void JNICALL Java_com_maris_wind_WindControl_configure(
   s->opacity = opacity;
   s->density = density;
   s->speed = speed;
+  s->visible = visible;
+}
+JNIEXPORT jboolean JNICALL Java_com_maris_wind_WindControl_fadedOut(JNIEnv *, jclass, jlong id) {
+  auto s = state(id);
+  if (!s) return true;
+  std::lock_guard<std::mutex> lock(s->mutex);
+  return s->fadedOut;
 }
 JNIEXPORT jlong JNICALL Java_com_maris_wind_WindControl_restore(
     JNIEnv *env, jclass, jlong id, jint gen, jstring path) {
