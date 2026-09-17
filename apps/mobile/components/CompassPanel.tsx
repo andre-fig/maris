@@ -2,6 +2,16 @@ import { StyleSheet, View } from "react-native";
 import Svg, { Path } from "react-native-svg";
 
 import { BlurPanel } from "./BlurPanel";
+import { BlurText } from './BlurText';
+
+function getCardinalDirection(heading: number | null) {
+  if (heading === null) return '';
+  const normalized = ((heading % 360) + 360) % 360;
+  if (normalized < 45 || normalized >= 315) return 'N';
+  if (normalized < 135) return 'L';
+  if (normalized < 225) return 'S';
+  return 'O';
+}
 
 export function CompassPanel({ heading }: { heading: number | null }) {
   return (
@@ -29,6 +39,11 @@ export function CompassPanel({ heading }: { heading: number | null }) {
             <Path d={WEST_TRIANGLE_PATH} fill="#FFFFFF" />
           </Svg>
         </View>
+        <View pointerEvents="none" style={styles.centerLabel}>
+          <BlurText style={styles.directionLabel}>
+            {getCardinalDirection(heading)}
+          </BlurText>
+        </View>
     </BlurPanel>
   );
 }
@@ -52,5 +67,19 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     position: "relative",
+  },
+  centerLabel: {
+    position: "absolute",
+    top: 12,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  directionLabel: {
+    fontSize: 12,
+    lineHeight: 14,
+    fontWeight: "700",
   },
 });
