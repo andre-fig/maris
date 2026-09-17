@@ -1,6 +1,7 @@
 import { Marker } from '@maplibre/maplibre-react-native';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { SymbolView } from 'expo-symbols';
-import { StyleSheet, View } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
 
 type UserLocationMarkerProps = {
   coordinate: [number, number];
@@ -21,18 +22,54 @@ export function UserLocationMarker({
         pointerEvents="none"
         style={[styles.marker, { transform: [{ rotate: `${rotation}deg` }] }]}
       >
-        <SymbolView
-          name={{
-            android: 'navigation',
-            ios: 'location.north.fill',
-            web: 'navigation',
-          }}
-          size={30}
-          style={styles.symbol}
-          tintColor="#0A84FF"
-          type="monochrome"
-          weight="semibold"
-        />
+        {Platform.OS === 'android' ? (
+          <>
+            <MaterialIcons
+              color="#0A84FF"
+              name="circle"
+              size={36}
+              style={styles.circle}
+            />
+            <MaterialIcons
+              color="#FFFFFF"
+              name="radio-button-unchecked"
+              size={36}
+              style={styles.circle}
+            />
+            <MaterialIcons
+              color="#FFFFFF"
+              name="navigation"
+              size={20}
+              style={styles.navigation}
+            />
+          </>
+        ) : (
+          <>
+            <SymbolView
+              name="circle.fill"
+              size={36}
+              style={styles.circle}
+              tintColor="#0A84FF"
+              type="monochrome"
+            />
+            <SymbolView
+              name="circle"
+              size={36}
+              style={styles.circle}
+              tintColor="#FFFFFF"
+              type="monochrome"
+              weight="semibold"
+            />
+            <SymbolView
+              name="location.north.fill"
+              size={20}
+              style={styles.navigation}
+              tintColor="#FFFFFF"
+              type="monochrome"
+              weight="bold"
+            />
+          </>
+        )}
       </View>
     </Marker>
   );
@@ -40,13 +77,19 @@ export function UserLocationMarker({
 
 const styles = StyleSheet.create({
   marker: {
-    width: 38,
-    height: 38,
+    width: 42,
+    height: 42,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  symbol: {
-    width: 30,
-    height: 30,
+  circle: {
+    position: 'absolute',
+    width: 36,
+    height: 36,
+  },
+  navigation: {
+    position: 'absolute',
+    width: 20,
+    height: 20,
   },
 });
