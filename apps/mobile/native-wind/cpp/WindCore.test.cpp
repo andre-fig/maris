@@ -54,10 +54,11 @@ int main() {
   assert(std::abs(bounds[0]) < 1e-10 && std::abs(bounds[3] - 1) < 1e-10);
   maris::Particles particles;
   bool exceedsPreviousTrailCapacity = false;
+  const size_t expectedParticles = size_t(.6f * maris::maximumParticleCount);
   for (int frame = 0; frame < 300; frame++) {
     const auto &lines = particles.update(global, screen, 0, 1. / 60, .6, 1);
-    assert(lines.size() <= 300 * (maris::Particle::trailCapacity - 1) * 2);
-    exceedsPreviousTrailCapacity |= lines.size() > 300 * (32 - 1) * 2;
+    assert(lines.size() <= expectedParticles * (maris::Particle::trailCapacity - 1) * 2);
+    exceedsPreviousTrailCapacity |= lines.size() > expectedParticles * (64 - 1) * 2;
     for (size_t i = 0; i + 1 < lines.size(); i += 2) {
       assert(std::isfinite(lines[i].x) && std::isfinite(lines[i].y));
       // R positive moves east; G positive moves north (up in this clip matrix).

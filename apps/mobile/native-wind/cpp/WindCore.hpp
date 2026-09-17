@@ -136,7 +136,8 @@ struct Vertex {
 struct ClipVertex {
   float x, y, z, w, u, v;
 };
-inline constexpr float trailWidthPixels = 2.5f;
+inline constexpr float trailWidthPixels = 4.f;
+inline constexpr size_t maximumParticleCount = 1000;
 // Expand in screen space: Metal lines are fixed-width and GLES wide-line
 // support varies by device. Triangles give both backends the same thickness.
 inline void buildTrailMesh(const std::vector<ClipVertex> &lines, double width,
@@ -184,7 +185,7 @@ inline std::array<ClipVertex, 4> quad(const Plan &p, const double *m,
           project((p.right + 1) / n, (p.bottom + 1) / n, 1, 1, m, zoom)};
 }
 struct Particle {
-  static constexpr size_t trailCapacity = 64;
+  static constexpr size_t trailCapacity = 96;
   double x = 0, y = 0;
   float age = 100, lifetime = 4;
   std::array<std::array<double, 2>, trailCapacity> trail{};
@@ -224,7 +225,7 @@ public:
   const std::vector<ClipVertex> &update(const Field &f, const double *m,
                                         double zoom, double dt, float density,
                                         float speed) {
-    size_t count = size_t(std::clamp(density, 0.f, 1.f) * 500);
+    size_t count = size_t(std::clamp(density, 0.f, 1.f) * maximumParticleCount);
     particles.resize(count);
     lines.clear();
     lines.reserve(count * (Particle::trailCapacity - 1) * 2);

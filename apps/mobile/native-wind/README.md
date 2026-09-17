@@ -48,13 +48,13 @@ shared state reference, never deletes the host twice.
    The RN bridge does not synchronize camera frames.
 8. Shared C++ particles bilinearly sample the same raw atlas, integrate with
    midpoint/RK2, respawn in the visible geographic envelope, and fade with a
-   randomized 2–5 second lifetime. Trails retain 64 geographic positions in
-   fixed ring buffers. Trails use screen-space triangle ribbons, 2.5 physical
+   randomized 2–5 second lifetime. Trails retain 96 geographic positions in
+   fixed ring buffers. Trails use screen-space triangle ribbons, 4 physical
    pixels wide on both platforms (`trailWidthPixels`), independent of zoom/pitch.
    Simulation is **CPU native**, drawing is GPU; this is
    not a GPU-compute implementation. Speed is visual (4 map pixels/s per m/s
    at animationSpeed 1), not physical parcel travel time. Density adapts down
-   when render intervals exceed 35 ms; at density 0.6 the maximum is 300.
+   when render intervals exceed 35 ms; at density 0.6 the maximum is 600.
 
 The layer is inserted below the existing SOUNDG text layer when available.
 No map source/style, ENC data, GPS, compass, weather logic or existing UI was
