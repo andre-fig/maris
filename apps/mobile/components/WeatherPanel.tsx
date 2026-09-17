@@ -1,13 +1,6 @@
 import { SymbolView } from "expo-symbols";
 import { useEffect, useRef } from "react";
-import {
-  Animated,
-  Platform,
-  StyleProp,
-  StyleSheet,
-  Text,
-  ViewStyle,
-} from "react-native";
+import { Animated, StyleProp, StyleSheet, ViewStyle } from "react-native";
 
 import type { CurrentWeather } from "../weather/current-weather";
 import {
@@ -16,14 +9,13 @@ import {
   openWeatherIconMap,
 } from "../weather/weather-icons";
 import { BlurPanel } from "./BlurPanel";
+import { BlurText } from './BlurText';
 
 type WeatherPanelProps = {
   weather?: CurrentWeather;
   visible: boolean;
   style?: StyleProp<ViewStyle>;
 };
-
-const SYSTEM_FONT = Platform.select({ ios: "System", default: "sans-serif" });
 
 export function WeatherPanel({ weather, visible, style }: WeatherPanelProps) {
   const opacity = useRef(new Animated.Value(0)).current;
@@ -49,7 +41,7 @@ export function WeatherPanel({ weather, visible, style }: WeatherPanelProps) {
   }, [displayWeather, opacity]);
 
   return (
-    <Animated.View style={[styles.wrapper, { opacity }, style]}>
+    <Animated.View style={[{ opacity }, style]}>
       <BlurPanel
         key={displayWeather ? "weather-blur-visible" : "weather-blur-hidden"}
         flexDirection="row"
@@ -66,7 +58,7 @@ export function WeatherPanel({ weather, visible, style }: WeatherPanelProps) {
             type="hierarchical"
           />
         ) : null}
-        <Text
+        <BlurText
           accessibilityLabel={
             weather
               ? `${weather.condition}, ${Math.round(
@@ -76,14 +68,8 @@ export function WeatherPanel({ weather, visible, style }: WeatherPanelProps) {
           }
         >
           {weather ? `${Math.round(weather.temperature_celsius)}°` : ""}
-        </Text>
+        </BlurText>
       </BlurPanel>
     </Animated.View>
   );
 }
-
-const styles = StyleSheet.create({
-  wrapper: {
-    position: "absolute",
-  },
-});
