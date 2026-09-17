@@ -1,6 +1,6 @@
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { SymbolView } from "expo-symbols";
-import { Platform, Pressable, View } from "react-native";
+import { Platform, Pressable, StyleSheet, View } from "react-native";
 
 import { BLUR_PANEL_ICON_SIZE, BlurPanel } from "./BlurPanel";
 
@@ -37,6 +37,7 @@ export function MapControlsPanel({
         accessibilityLabel="Centralizar na minha localização"
         accessibilityRole="button"
         onPress={onLocate}
+        style={({ pressed }) => [styles.action, pressed && styles.pressed]}
       >
         {isAndroid ? (
           <MaterialCommunityIcons
@@ -56,3 +57,14 @@ export function MapControlsPanel({
     </BlurPanel>
   );
 }
+
+const styles = StyleSheet.create({
+  action: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  pressed: {
+    opacity: 0.62,
+    transform: [{ scale: 0.92 }],
+  },
+});
