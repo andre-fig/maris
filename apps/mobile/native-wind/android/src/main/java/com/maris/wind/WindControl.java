@@ -41,7 +41,8 @@ public class WindControl extends View
   long id = 0;
   volatile int generation = 0;
   String lastKey = "";
-  long checked = 0, loaded = 0;
+  long checked = 0, nextLoadAt = 0;
+  boolean loading = false;
   boolean validationApplied = false;
   long validationAfter = 0;
   static final ExecutorService worker = Executors.newSingleThreadExecutor();
@@ -112,6 +113,8 @@ public class WindControl extends View
       release(id);
     id = 0;
     lastKey = "";
+    loading = false;
+    nextLoadAt = 0;
   }
   public void doFrame(long nanos) {
     if (!attached || !active)
@@ -174,9 +177,9 @@ public class WindControl extends View
           int[] p = plan(b.getLonWest(), b.getLatSouth(), b.getLonEast(),
                          b.getLatNorth(), map.getCameraPosition().zoom, id);
           String key = Arrays.toString(p);
-          if (!key.equals(lastKey) || nanos - loaded > 60000000000L) {
+          if (!key.equals(lastKey) || (!loading && nanos >= nextLoadAt)) {
             lastKey = key;
-            loaded = nanos;
+            loading = true;
             load(p, id, ++generation);
           }
         }
@@ -238,6 +241,7 @@ public class WindControl extends View
     cancelObsolete(gen);
     worker.submit(() -> {
       long start = System.nanoTime();
+      boolean complete = false;
       try {
         if (gen != generation)
           return;
@@ -266,6 +270,7 @@ public class WindControl extends View
         if (gen != generation)
           return;
         int count = 0;
+        boolean requestFailed = false;
         for (int y = p[2]; y <= p[4]; y++)
           for (int x = p[1]; x <= p[3]; x++) {
             if (gen != generation)
@@ -279,7 +284,9 @@ public class WindControl extends View
                 count++;
                 continue;
               }
-              byte[] data = fetch(url, gen, staleCatalog);
+              if (requestFailed) continue;
+              // Persisted catalog URLs remain usable after reconnection.
+              byte[] data = fetch(url, gen);
               BitmapFactory.Options options = new BitmapFactory.Options();
               options.inPreferredConfig = Bitmap.Config.ARGB_8888;
               options.inScaled = false;
@@ -305,6 +312,7 @@ public class WindControl extends View
               }
               bitmap.recycle();
             } catch (Exception error) {
+              requestFailed = true;
               Log.w("MarisWind", "Tile unavailable", error);
             }
           }
@@ -312,6 +320,7 @@ public class WindControl extends View
           long downloadedAt = System.currentTimeMillis() / 1000;
           save(target, gen, snapshotPath, catalog, downloadedAt);
           boolean accepted = publish(target, gen);
+          complete = !staleCatalog && accepted && count == (p[3]-p[1]+1)*(p[4]-p[2]+1);
           if (accepted) savedAt = downloadedAt;
           dataStatus(staleCatalog || !accepted || count != (p[3]-p[1]+1)*(p[4]-p[2]+1), savedAt, gen);
           post(() -> {
@@ -324,6 +333,13 @@ public class WindControl extends View
       } catch (Exception error) {
         dataStatus(true, savedAt, gen);
         Log.e("MarisWind", "MET field load failed", error);
+      } finally {
+        final boolean succeeded = complete;
+        post(() -> {
+          if (gen != generation) return;
+          loading = false;
+          nextLoadAt = System.nanoTime() + (succeeded ? 60000000000L : 5000000000L);
+        });
       }
     });
   }

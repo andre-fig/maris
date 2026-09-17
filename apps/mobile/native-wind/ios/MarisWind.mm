@@ -39,7 +39,8 @@ static maris::TileCache tileCache;
   NSURLSession *_session;
   dispatch_queue_t _loader;
   std::atomic<NSUInteger> _generation;
-  double _loadedAt, _previous, _dataSavedAt;
+  double _nextLoadAt, _previous, _dataSavedAt;
+  BOOL _loading;
   maris::Quality _quality;
   maris::WindFade _fade;
   NSString *_snapshotPath;
@@ -152,10 +153,10 @@ static maris::TileCache tileCache;
 - (void)load:(maris::Plan)p {
   NSString *key = @(p.key().c_str());
   double now = CACurrentMediaTime();
-  if ([key isEqual:_key] && now - _loadedAt < 60)
+  if ([key isEqual:_key] && (_loading || now < _nextLoadAt))
     return;
   _key = key;
-  _loadedAt = now;
+  _loading = YES;
   [self cancelActiveRequest];
   if (_field && !maris::overlaps(_field->plan, p)) {
     _oldField.reset(); _oldTexture = nil;
@@ -171,6 +172,8 @@ static maris::TileCache tileCache;
     MarisWindLayer *owner = weak;
     if (!owner || generation != owner->_generation)
       return;
+    BOOL complete = NO;
+    @try {
     maris::SnapshotStore store(owner->_snapshotPath.UTF8String);
     auto snapshot = restoreSnapshot ? store.load(p) : maris::Snapshot{};
     if (snapshot.field) {
@@ -211,6 +214,7 @@ static maris::TileCache tileCache;
     if (!staleCatalog)
       [catalog writeToFile:owner->_catalogPath atomically:YES];
     auto field = std::make_shared<maris::Field>(p);
+    BOOL requestFailed = NO;
     for (int y = p.top; y <= p.bottom; y++)
       for (int x = p.left; x <= p.right; x++) {
         @autoreleasepool {
@@ -226,9 +230,14 @@ static maris::TileCache tileCache;
                                             withString:@(y).stringValue];
           if (tileCache.copy(tile.UTF8String, *field, x, y))
             continue;
-          NSData *data = [owner fetch:tile cacheOnly:staleCatalog];
-          if (!data)
+          if (requestFailed) continue;
+          // A persisted catalog still contains valid immutable tile URLs.
+          // Allow missing tiles to load if connectivity returned meanwhile.
+          NSData *data = [owner fetch:tile];
+          if (!data) {
+            requestFailed = YES;
             continue;
+          }
           CGImageSourceRef source =
               CGImageSourceCreateWithData((__bridge CFDataRef)data, NULL);
           if (!source)
@@ -255,6 +264,7 @@ static maris::TileCache tileCache;
         }
       }
     if (generation != owner->_generation) return;
+    complete = !staleCatalog && field->complete();
     const double savedAt = NSDate.date.timeIntervalSince1970;
     std::string catalogText((const char *)catalog.bytes, catalog.length);
     store.save(*field, catalogText, int64_t(savedAt));
@@ -281,6 +291,15 @@ static maris::TileCache tileCache;
             field->received, CACurrentMediaTime() - now);
       [owner setNeedsDisplay];
     });
+    } @finally {
+      const BOOL succeeded = complete;
+      dispatch_async(dispatch_get_main_queue(), ^{
+        if (generation != owner->_generation) return;
+        owner->_loading = NO;
+        // Failed/partial loads must retry even if the camera never moves.
+        owner->_nextLoadAt = CACurrentMediaTime() + (succeeded ? 60 : 5);
+      });
+    }
   });
 }
 - (void)drawInMapView:(MLNMapView *)map

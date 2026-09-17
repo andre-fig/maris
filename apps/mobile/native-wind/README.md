@@ -69,14 +69,19 @@ compass actions and weather logic are unchanged.
 - Shared C++ decoded LRU: 32 tiles / approximately 8 MiB, keyed by full versioned URL.
 - Native HTTP disk cache: 32 MiB (NSURLCache / OkHttp), respects response headers.
 - The last valid catalog is persisted beside the field snapshots and can provide
-  versioned tile URLs while MET is unavailable; tiles are then requested from
-  the HTTP cache only.
+  versioned tile URLs while MET is unavailable; normal native HTTP caching still
+  allows missing tiles to download when connectivity returns.
 - Four complete persistent field snapshots are retained in a rotating ring;
   an individual field is capped at 16 MiB, for a maximum of approximately 64 MiB
   plus metadata.
 - One serial worker per attached control, unchanged viewport plan deduplicated;
   requests from older viewport generations are cancelled at the HTTP layer.
-- Catalog rechecked after 60 seconds; cached decoded tiles avoid repeat download
+- Successful loads are rechecked after 60 seconds; failed, partial or persisted-
+  catalog loads retry 5 seconds after completion even with a stationary camera.
+  The same plan cannot restart while in flight. After the first tile request
+  failure, remaining cache misses wait for the next attempt rather than stacking
+  network timeouts; decoded cache hits can still be composed.
+- Cached decoded tiles avoid repeat download
   and decoding. A new plan cancels queued generations logically; one ongoing
   HTTP request can finish, but its stale field is never published.
 - Complete staging atlas is published in one swap. Failed tiles stay transparent;
