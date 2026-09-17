@@ -82,8 +82,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
   },
   panel: {
-    paddingHorizontal: 3,
-    paddingVertical: 4,
     flexDirection: 'row',
     columnGap: 3,
     alignItems: 'center',

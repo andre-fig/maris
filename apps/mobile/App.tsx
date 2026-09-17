@@ -211,14 +211,14 @@ const styles = StyleSheet.create({
   },
   scaleOverlay: {
     position: 'absolute',
-    top: 64,
+    top: 48,
     right: 0,
     left: 0,
     alignItems: 'center',
   },
   controlsOverlay: {
     position: 'absolute',
-    right: 24,
-    bottom: 24,
+    right: 48,
+    bottom: 48,
   },
 });

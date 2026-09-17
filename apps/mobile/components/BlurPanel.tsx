@@ -22,6 +22,8 @@ export function BlurPanel({ children, style }: BlurPanelProps) {
 const styles = StyleSheet.create({
   panel: {
     overflow: 'hidden',
+    paddingHorizontal: 4,
+    paddingVertical: 4,
     backgroundColor: 'rgba(20, 34, 39, 0.18)',
     borderWidth: 0.5,
     borderColor: 'rgba(255, 255, 255, 0.32)',

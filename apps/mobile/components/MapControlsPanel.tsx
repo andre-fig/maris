@@ -60,7 +60,7 @@ export function MapControlsPanel({
 
 const styles = StyleSheet.create({
   panel: {
-    width: 46,
+    width: 54,
     borderRadius: 16,
   },
   section: {
