@@ -203,7 +203,7 @@ export default function App() {
       <NativeWindLayer
         enabled
         opacity={0.65}
-        density={0.6}
+        density={1}
         animationSpeed={1}
         style={{ width: 0, height: 0, position: "absolute" }}
       />

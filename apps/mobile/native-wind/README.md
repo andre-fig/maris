@@ -54,7 +54,7 @@ shared state reference, never deletes the host twice.
    Simulation is **CPU native**, drawing is GPU; this is
    not a GPU-compute implementation. Speed is visual (4 map pixels/s per m/s
    at animationSpeed 1), not physical parcel travel time. Density adapts down
-   when render intervals exceed 35 ms; at density 0.6 the maximum is 600.
+   when render intervals exceed 35 ms; the app uses density 1 (up to 1,000 particles).
 
 The layer is inserted below the existing SOUNDG text layer when available.
 No map source/style, ENC data, GPS, compass, weather logic or existing UI was
