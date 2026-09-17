@@ -6,6 +6,8 @@ type BlurPanelProps = PropsWithChildren<{
   flexDirection?: "row" | "column";
 }>;
 
+export const BLUR_PANEL_ICON_SIZE = 20;
+
 export function BlurPanel({ children, flexDirection }: BlurPanelProps) {
   return (
     <View style={[styles.panel, { flexDirection }]}>

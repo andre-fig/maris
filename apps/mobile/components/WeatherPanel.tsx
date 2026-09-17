@@ -8,7 +8,7 @@ import {
   iosWeatherIcons,
   openWeatherIconMap,
 } from "../weather/weather-icons";
-import { BlurPanel } from "./BlurPanel";
+import { BLUR_PANEL_ICON_SIZE, BlurPanel } from "./BlurPanel";
 import { BlurText } from './BlurText';
 
 type WeatherPanelProps = {
@@ -53,7 +53,7 @@ export function WeatherPanel({ weather, visible, style }: WeatherPanelProps) {
               ios: iosWeatherIcons[weatherIcon],
               web: getAndroidWeatherSymbol(weatherIcon),
             }}
-            size={20}
+            size={BLUR_PANEL_ICON_SIZE}
             tintColor="#ffffff"
             type="hierarchical"
           />

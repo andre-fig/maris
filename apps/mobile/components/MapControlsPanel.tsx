@@ -2,7 +2,7 @@ import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { SymbolView } from "expo-symbols";
 import { Platform, Pressable, View } from "react-native";
 
-import { BlurPanel } from "./BlurPanel";
+import { BLUR_PANEL_ICON_SIZE, BlurPanel } from "./BlurPanel";
 
 type MapControlsPanelProps = {
   locationActive: boolean;
@@ -22,12 +22,12 @@ export function MapControlsPanel({
           <MaterialCommunityIcons
             color="#FFFFFF"
             name="map-outline"
-            size={20}
+            size={BLUR_PANEL_ICON_SIZE}
           />
         ) : (
           <SymbolView
             name="map"
-            size={20}
+            size={BLUR_PANEL_ICON_SIZE}
             tintColor="#FFFFFF"
             type="monochrome"
           />
@@ -39,11 +39,15 @@ export function MapControlsPanel({
         onPress={onLocate}
       >
         {isAndroid ? (
-          <MaterialCommunityIcons color="#FFFFFF" name="near-me" size={20} />
+          <MaterialCommunityIcons
+            color="#FFFFFF"
+            name="near-me"
+            size={BLUR_PANEL_ICON_SIZE}
+          />
         ) : (
           <SymbolView
             name={locationActive ? "location.fill" : "location"}
-            size={20}
+            size={BLUR_PANEL_ICON_SIZE}
             tintColor="#FFFFFF"
             type="monochrome"
           />
