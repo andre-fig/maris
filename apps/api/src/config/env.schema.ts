@@ -10,7 +10,7 @@ export const envSchema = Joi.object({
   PORT: Joi.number().port().default(3001),
   STORAGE_DIR: Joi.string().default('.storage'),
   SOUNDINGS_GEOJSON_PATH: Joi.string().default('data/miami-soundg.json'),
-  TILESET_VERSION: Joi.string().default('miami-soundg-v1'),
+  TILESET_VERSION: Joi.string().default('miami-soundg-v2'),
 }).unknown(true);
 
 export function validateEnv(config: Record<string, unknown>) {

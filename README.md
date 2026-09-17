@@ -95,8 +95,8 @@ GET /tiles/soundg/{version}/{z}/{x}/{y}.pbf
 
 As URLs incluem a versão do tileset. Uma nova versão gera URLs diferentes e
 invalida o cache anterior sem precisar limpar manualmente os tiles existentes.
-Os PBFs usam cache HTTP imutável e a densidade de sondagens é reduzida nos
-níveis de zoom mais distantes.
+Os PBFs usam cache HTTP imutável e preservam todas as sondagens presentes na
+ENC em todos os níveis de zoom publicados.
 
 Para regenerar o dataset inicial diretamente das células S-57 em `data/`:
 

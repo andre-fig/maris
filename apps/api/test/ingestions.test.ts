@@ -70,11 +70,11 @@ test('publishes versioned MapLibre vector tiles on demand', async () => {
 
   assert.equal(metadata.statusCode, 200);
   assert.equal(metadata.body.tilejson, '3.0.0');
-  assert.equal(metadata.body.version, 'miami-soundg-v1');
+  assert.equal(metadata.body.version, 'miami-soundg-v2');
   assert.match(metadata.body.tiles[0], /\{z\}\/\{x\}\/\{y\}\.pbf$/);
 
   const tile = await request(app.getHttpServer()).get(
-    '/tiles/soundg/miami-soundg-v1/11/567/872.pbf',
+    '/tiles/soundg/miami-soundg-v2/11/567/872.pbf',
   );
 
   assert.equal(tile.statusCode, 200);
@@ -83,7 +83,7 @@ test('publishes versioned MapLibre vector tiles on demand', async () => {
   assert.ok(Number(tile.headers['content-length']) > 0);
 
   const cached = await request(app.getHttpServer())
-    .get('/tiles/soundg/miami-soundg-v1/11/567/872.pbf')
+    .get('/tiles/soundg/miami-soundg-v2/11/567/872.pbf')
     .set('if-none-match', tile.headers.etag);
   assert.equal(cached.statusCode, 304);
 });

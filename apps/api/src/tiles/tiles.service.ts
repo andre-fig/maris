@@ -95,7 +95,7 @@ export class TilesService implements OnModuleInit {
 
     if (!buffer) {
       const tile = this.index.getTile(z, x, y);
-      buffer = this.encodeTile(tile, z);
+      buffer = this.encodeTile(tile);
       this.remember(key, buffer);
     }
 
@@ -121,24 +121,11 @@ export class TilesService implements OnModuleInit {
     return [west, south, east, north] as [number, number, number, number];
   }
 
-  private encodeTile(tile: VectorTile | null, zoom: number) {
+  private encodeTile(tile: VectorTile | null) {
     if (!tile) return Buffer.alloc(0);
 
-    const sampling = zoom <= 9 ? 16 : zoom <= 10 ? 8 : zoom <= 11 ? 4 : 1;
-    const features =
-      sampling === 1
-        ? tile.features
-        : tile.features.filter((feature) => {
-            const id = String(feature.tags?.RCID ?? feature.id ?? '0');
-            let hash = 0;
-            for (const character of id) {
-              hash = (hash * 31 + character.charCodeAt(0)) | 0;
-            }
-            return Math.abs(hash) % sampling === 0;
-          });
-
     const encode = vtpbf.fromGeojsonVt as unknown as TileEncoder;
-    return Buffer.from(encode({ soundings: { ...tile, features } }));
+    return Buffer.from(encode({ soundings: tile }));
   }
 
   private remember(key: string, tile: Buffer) {
