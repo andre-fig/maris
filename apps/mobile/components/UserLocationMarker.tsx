@@ -38,37 +38,20 @@ export function UserLocationMarker({
             />
             <MaterialIcons
               color="#FFFFFF"
-              name="navigation"
+              name="assistant-navigation"
               size={20}
               style={styles.navigation}
             />
           </>
         ) : (
-          <>
-            <SymbolView
-              name="circle.fill"
-              size={36}
-              style={styles.circle}
-              tintColor="#0A84FF"
-              type="monochrome"
-            />
-            <SymbolView
-              name="circle"
-              size={36}
-              style={styles.circle}
-              tintColor="#FFFFFF"
-              type="monochrome"
-              weight="semibold"
-            />
-            <SymbolView
-              name="location.north.fill"
-              size={20}
-              style={styles.navigation}
-              tintColor="#FFFFFF"
-              type="monochrome"
-              weight="bold"
-            />
-          </>
+          <SymbolView
+            colors={['#FFFFFF', '#0A84FF']}
+            name="location.north.circle.fill"
+            size={38}
+            style={styles.integratedSymbol}
+            type="palette"
+            weight="semibold"
+          />
         )}
       </View>
     </Marker>
@@ -91,5 +74,9 @@ const styles = StyleSheet.create({
     position: 'absolute',
     width: 20,
     height: 20,
+  },
+  integratedSymbol: {
+    width: 38,
+    height: 38,
   },
 });
