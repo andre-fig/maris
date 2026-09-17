@@ -9,7 +9,7 @@ import {
 import { ConfigService } from "@nestjs/config";
 import yauzl, { type Entry, type ZipFile } from "yauzl";
 
-import type { EncArchiveDto } from "./dtos/ingestion.dto.js";
+import type { EncArchiveDto } from "../dtos/ingestion.dto.js";
 
 type InspectOptions = {
   maxEntries: number;

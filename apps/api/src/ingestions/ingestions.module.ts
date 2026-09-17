@@ -7,9 +7,9 @@ import { ConfigService } from '@nestjs/config';
 import { MulterModule } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 
-import { EncArchiveService } from './enc-archive.service.js';
+import { EncArchiveService } from './services/enc-archive.service.js';
 import { IngestionsController } from './ingestions.controller.js';
-import { IngestionsService } from './ingestions.service.js';
+import { IngestionsService } from './services/ingestions.service.js';
 
 @Module({
   imports: [

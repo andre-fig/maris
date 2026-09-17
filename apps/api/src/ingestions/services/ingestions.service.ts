@@ -10,7 +10,7 @@ import {
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 
-import type { IngestionDto } from "./dtos/ingestion.dto.js";
+import type { IngestionDto } from "../dtos/ingestion.dto.js";
 import { EncArchiveService } from "./enc-archive.service.js";
 
 const ACCEPTED_MIME_TYPES = new Set([
