@@ -113,7 +113,15 @@ export function ScaleRuler({ latitude, maxWidth, zoom }: ScaleRulerProps) {
               style={[
                 styles.segment,
                 index % 2 === 0 ? styles.segmentLight : styles.segmentDark,
-                index > 0 && styles.segmentDivider,
+              ]}
+            />
+          ))}
+          {Array.from({ length: segments - 1 }, (_, index) => (
+            <View
+              key={`divider-${index}`}
+              style={[
+                styles.segmentDivider,
+                { left: `${((index + 1) / segments) * 100}%` },
               ]}
             />
           ))}
@@ -150,12 +158,13 @@ const styles = StyleSheet.create({
     textShadowRadius: 2,
   },
   bar: {
-    height: 8,
+    height: 7,
     flexDirection: 'row',
     overflow: 'hidden',
+    backgroundColor: '#7fa9a1',
     borderWidth: 1,
     borderColor: '#000000',
-    borderRadius: 4,
+    borderRadius: 3.5,
   },
   segment: {
     flex: 1,
@@ -167,7 +176,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#28403e',
   },
   segmentDivider: {
-    borderLeftWidth: 1,
-    borderLeftColor: '#000000',
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    width: 1,
+    backgroundColor: '#000000',
   },
 });
