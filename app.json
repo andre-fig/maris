@@ -1,0 +1,20 @@
+{
+  "expo": {
+    "name": "Maris",
+    "slug": "maris",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.maris.navigation"
+    },
+    "android": {
+      "package": "com.maris.navigation"
+    },
+    "plugins": [
+      "@maplibre/maplibre-react-native"
+    ]
+  }
+}
