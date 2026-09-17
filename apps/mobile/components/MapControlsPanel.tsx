@@ -44,7 +44,7 @@ export function MapControlsPanel({
         {isAndroid ? (
           <MaterialCommunityIcons
             color="#FFFFFF"
-            name={courseUp ? "navigation" : "near-me"}
+            name={courseUp ? "navigation" : locationActive ? "near-me" : "navigation-variant-outline"}
             size={BLUR_PANEL_ICON_SIZE}
           />
         ) : (
