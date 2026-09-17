@@ -9,7 +9,7 @@ import {
 } from './BlurText';
 
 function getCardinalDirection(heading: number | null) {
-  if (heading === null) return '';
+  if (heading === null) return 'N';
   const normalized = ((heading % 360) + 360) % 360;
   if (normalized < 45 || normalized >= 315) return 'N';
   if (normalized < 135) return 'L';

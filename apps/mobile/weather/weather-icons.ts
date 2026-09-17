@@ -48,18 +48,18 @@ export const openWeatherIconMap: Record<string, WeatherIcon> = {
 };
 
 export const iosWeatherIcons: Record<WeatherIcon, SFSymbol> = {
-  CLEAR_DAY: 'sun.max',
-  CLEAR_NIGHT: 'moon.stars',
-  FEW_CLOUDS_DAY: 'cloud.sun',
-  FEW_CLOUDS_NIGHT: 'cloud.moon',
-  SCATTERED_CLOUDS: 'cloud',
+  CLEAR_DAY: 'sun.max.fill',
+  CLEAR_NIGHT: 'moon.stars.fill',
+  FEW_CLOUDS_DAY: 'cloud.sun.fill',
+  FEW_CLOUDS_NIGHT: 'cloud.moon.fill',
+  SCATTERED_CLOUDS: 'cloud.fill',
   BROKEN_CLOUDS: 'cloud.fill',
-  SHOWER_RAIN: 'cloud.drizzle',
-  RAIN: 'cloud.rain',
-  THUNDERSTORM: 'cloud.bolt',
-  SNOW: 'cloud.snow',
-  MIST: 'cloud.fog',
-  MIXED_PRECIP: 'cloud.sleet',
+  SHOWER_RAIN: 'cloud.drizzle.fill',
+  RAIN: 'cloud.rain.fill',
+  THUNDERSTORM: 'cloud.bolt.fill',
+  SNOW: 'cloud.snow.fill',
+  MIST: 'cloud.fog.fill',
+  MIXED_PRECIP: 'cloud.sleet.fill',
 };
 
 export const androidWeatherIcons: Record<WeatherIcon, string> = {
@@ -69,7 +69,7 @@ export const androidWeatherIcons: Record<WeatherIcon, string> = {
   FEW_CLOUDS_NIGHT: 'partly_cloudy_night',
   SCATTERED_CLOUDS: 'cloud',
   BROKEN_CLOUDS: 'cloud',
-  SHOWER_RAIN: 'rainy_light',
+  SHOWER_RAIN: 'rainy',
   RAIN: 'rainy',
   THUNDERSTORM: 'thunderstorm',
   SNOW: 'weather_snowy',
