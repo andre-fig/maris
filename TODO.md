@@ -3,5 +3,5 @@
 - [x] Régua — concluído
 - [ ] GPS — a fazer
 - [ ] Rotas — a fazer
-- [ ] Tempo — a fazer
+- [x] Tempo — concluído
 - [x] Ícone — concluído
