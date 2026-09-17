@@ -74,7 +74,7 @@ function formatValue(valueMetres: number, unit: ScaleDefinition['unit']) {
 }
 
 export function ScaleRuler({ latitude, maxWidth, zoom }: ScaleRulerProps) {
-  const { labels, width } = useMemo(() => {
+  const { labels, segments, width } = useMemo(() => {
     const metresPerPoint =
       (METRES_PER_PIXEL_AT_EQUATOR * Math.cos((latitude * Math.PI) / 180)) /
       2 ** zoom;
@@ -90,6 +90,7 @@ export function ScaleRuler({ latitude, maxWidth, zoom }: ScaleRulerProps) {
         const formatted = formatValue(value, scale.unit);
         return index === values.length - 1 ? `${formatted} ${scale.unit}` : formatted;
       }),
+      segments: scale.segments,
       width: Math.min(maxWidth, totalMetres / metresPerPoint),
     };
   }, [latitude, maxWidth, zoom]);
@@ -99,18 +100,20 @@ export function ScaleRuler({ latitude, maxWidth, zoom }: ScaleRulerProps) {
       <View style={[styles.ruler, { width }]}>
         <View style={styles.labels}>
           {labels.map((label) => (
-            <Text key={label} style={styles.label}>
-              {label}
-            </Text>
+            <View key={label}>
+              <Text style={[styles.label, styles.labelOutline]}>{label}</Text>
+              <Text style={styles.label}>{label}</Text>
+            </View>
           ))}
         </View>
-        <View style={styles.line}>
-          {labels.map((label, index) => (
+        <View style={styles.bar}>
+          {Array.from({ length: segments }, (_, index) => (
             <View
-              key={label}
+              key={index}
               style={[
-                styles.tick,
-                { left: `${(index / (labels.length - 1 || 1)) * 100}%` },
+                styles.segment,
+                index % 2 === 0 ? styles.segmentLight : styles.segmentDark,
+                index > 0 && styles.segmentDivider,
               ]}
             />
           ))}
@@ -122,40 +125,49 @@ export function ScaleRuler({ latitude, maxWidth, zoom }: ScaleRulerProps) {
 
 const styles = StyleSheet.create({
   panel: {
-    paddingHorizontal: 9,
-    paddingTop: 5,
-    paddingBottom: 7,
-    borderRadius: 8,
-    backgroundColor: 'rgba(248, 251, 251, 0.9)',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(23, 63, 77, 0.22)',
+    paddingHorizontal: 2,
   },
   ruler: {
-    height: 25,
+    height: 29,
   },
   labels: {
-    height: 16,
+    height: 18,
     flexDirection: 'row',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
   },
   label: {
-    color: '#173f4d',
-    fontSize: 10,
-    fontWeight: '600',
+    color: '#ffffff',
+    fontSize: 11,
+    fontWeight: '700',
     fontVariant: ['tabular-nums'],
   },
-  line: {
-    position: 'relative',
-    height: 8,
-    borderTopWidth: 1.5,
-    borderColor: '#173f4d',
-  },
-  tick: {
+  labelOutline: {
     position: 'absolute',
-    top: -1.5,
-    width: 1.5,
-    height: 8,
-    backgroundColor: '#173f4d',
+    color: '#000000',
+    textShadowColor: '#000000',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 1.5,
+  },
+  bar: {
+    height: 11,
+    flexDirection: 'row',
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: '#000000',
+    borderRadius: 5.5,
+  },
+  segment: {
+    flex: 1,
+  },
+  segmentLight: {
+    backgroundColor: '#7fa9a1',
+  },
+  segmentDark: {
+    backgroundColor: '#28403e',
+  },
+  segmentDivider: {
+    borderLeftWidth: 2,
+    borderLeftColor: '#000000',
   },
 });

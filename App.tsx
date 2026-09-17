@@ -30,7 +30,7 @@ export default function App() {
         touchZoom
         touchRotate={false}
         touchPitch={false}
-        onRegionDidChange={({ nativeEvent }) => {
+        onRegionIsChanging={({ nativeEvent }) => {
           setViewState({
             latitude: nativeEvent.center[1],
             zoom: nativeEvent.zoom,
@@ -91,7 +91,7 @@ const styles = StyleSheet.create({
   },
   scaleOverlay: {
     position: 'absolute',
-    top: 44,
+    top: 54,
     right: 0,
     left: 0,
     alignItems: 'center',
