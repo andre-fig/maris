@@ -218,7 +218,7 @@ const styles = StyleSheet.create({
   },
   controlsOverlay: {
     position: 'absolute',
-    right: 36,
-    bottom: 44,
+    right: 24,
+    bottom: 24,
   },
 });
