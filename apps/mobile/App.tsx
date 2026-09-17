@@ -229,8 +229,8 @@ export default function App() {
         animationSpeed={1}
         style={{ width: 0, height: 0, position: "absolute" }}
       />
-      <View style={styles.controlsOverlay}>
-        <View style={styles.controlsStack}>
+      <View pointerEvents="box-none" style={styles.controlsOverlay}>
+        <View pointerEvents="box-none" style={styles.controlsStack}>
           <CompassPanel
             heading={deviceLocation?.heading ?? null}
             mapBearing={viewState.bearing}
@@ -305,6 +305,10 @@ const styles = StyleSheet.create({
   },
   controlsOverlay: {
     position: "absolute",
+    // Keep the containing block independent of the animated legend width.
+    // Otherwise its intrinsic width and the child's right alignment can settle
+    // in separate layout passes during expansion.
+    left: 38,
     right: 38,
     bottom: 48,
   },

@@ -53,6 +53,17 @@ test("course up activates before heading is available and follows north without 
     await writeFile(compiled, output.outputFiles[0].contents);
     const App = require(compiled).default;
     await act(async () => { renderer = create(React.createElement(App)); });
+    const wind = () => renderer!.root.find(node => node.type === ("WindPanel" as unknown));
+    const stack = wind().parent!;
+    const overlay = stack.parent!;
+    assert.equal(overlay.props.style.left, 38);
+    assert.equal(overlay.props.style.right, 38);
+    assert.equal(overlay.props.pointerEvents, "box-none");
+    assert.equal(stack.props.pointerEvents, "box-none");
+    await act(async () => wind().props.onToggle());
+    assert.equal(wind().props.enabled, true);
+    assert.equal(wind().parent!.parent!.props.style, overlay.props.style,
+      "expansion must not change the containing block of the right-aligned controls");
     const controls = () => renderer!.root.find(node => node.type === ("MapControlsPanel" as unknown));
     assert.equal(controls().props.locationActive, true);
     await act(async () => controls().props.onLocate());
