@@ -25,7 +25,7 @@ export function CompassPanel({ heading }: { heading: number | null }) {
 }
 
 const NORTH_TRIANGLE_PATH =
-  "M18 1 Q18.4 1 18.6 2 L22 5 Q22.2 6 21 6 H15 Q13.8 6 14 5 L17.4 2 Q17.6 1 18 1 Z";
+  "M18 1 Q18.4 1 18.6 2 L21.5 5 Q21.7 6 20.5 6 H15.5 Q14.3 6 14.5 5 L17.4 2 Q17.6 1 18 1 Z";
 const EAST_TRIANGLE_PATH =
   "M35 18 Q35 18.3 34 18.5 L31 19 Q30 19.2 30 18.5 V17.5 Q30 16.8 31 17 L34 17.5 Q35 17.7 35 18 Z";
 const SOUTH_TRIANGLE_PATH =
