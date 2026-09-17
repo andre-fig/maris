@@ -15,6 +15,7 @@ type ScaleRulerProps = {
 
 const METRES_PER_PIXEL_AT_EQUATOR = 156543.03392;
 const MAX_SCALE_METRES = 1_000_000;
+const MIN_ACTIVATION_RATIO = 1.2;
 
 const METRE_SCALES: ScaleDefinition[] = [
   { segmentMetres: 2, segments: 3, unit: 'm' },
@@ -49,11 +50,24 @@ const KILOMETRE_SCALES: ScaleDefinition[] = [1, 10, 100].flatMap(
 );
 
 const SCALES = [...METRE_SCALES, ...KILOMETRE_SCALES]
-  .filter(({ segmentMetres, segments }) => segmentMetres * segments <= MAX_SCALE_METRES)
-  .sort(
-    (left, right) =>
-      left.segmentMetres * left.segments - right.segmentMetres * right.segments,
-  );
+  .filter(({ segmentMetres, segments }) => segmentMetres * segments <= MAX_SCALE_METRES);
+
+const SCALE_STEPS = SCALES.reduce<
+  Array<{ activationMetres: number; scale: ScaleDefinition }>
+>((steps, scale) => {
+  const totalMetres = scale.segmentMetres * scale.segments;
+  const previousActivation = steps.at(-1)?.activationMetres ?? 0;
+
+  steps.push({
+    activationMetres: Math.max(
+      totalMetres,
+      previousActivation * MIN_ACTIVATION_RATIO,
+    ),
+    scale,
+  });
+
+  return steps;
+}, []);
 
 const numberFormatter = new Intl.NumberFormat('pt-BR', {
   maximumFractionDigits: 2,
@@ -61,10 +75,10 @@ const numberFormatter = new Intl.NumberFormat('pt-BR', {
 
 function selectScale(maxMetres: number) {
   return (
-    [...SCALES]
+    [...SCALE_STEPS]
       .reverse()
-      .find(({ segmentMetres, segments }) => segmentMetres * segments <= maxMetres) ??
-    SCALES[0]
+      .find(({ activationMetres }) => activationMetres <= maxMetres)?.scale ??
+    SCALE_STEPS[0].scale
   );
 }
 
