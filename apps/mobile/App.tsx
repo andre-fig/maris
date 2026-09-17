@@ -53,6 +53,7 @@ export default function App() {
   const [courseUp, setCourseUp] = useState(false);
   const locationTarget = useRef(false);
   const initialLocationApplied = useRef(false);
+  const courseUpTransitionPending = useRef(false);
 
   useEffect(() => {
     if (deviceLocation && !initialLocationApplied.current) {
@@ -67,6 +68,11 @@ export default function App() {
       deviceLocation?.heading === null ||
       deviceLocation?.heading === undefined
     ) {
+      return;
+    }
+
+    if (courseUpTransitionPending.current) {
+      courseUpTransitionPending.current = false;
       return;
     }
 
@@ -201,6 +207,7 @@ export default function App() {
               locationTarget.current = true;
               const shouldEnableCourseUp =
                 locationActive && deviceLocation.heading !== null;
+              courseUpTransitionPending.current = shouldEnableCourseUp;
               cameraRef.current?.flyTo({
                 center: deviceLocation.coordinate,
                 zoom: shouldEnableCourseUp ? viewState.zoom : DEFAULT_MAP_ZOOM,
