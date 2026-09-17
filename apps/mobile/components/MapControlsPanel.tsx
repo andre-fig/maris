@@ -21,12 +21,12 @@ export function MapControlsPanel({
         {isAndroid ? (
           <MaterialCommunityIcons
             color="#FFFFFF"
-            name={locationActive ? 'map' : 'map-outline'}
+            name="map-outline"
             size={23}
           />
         ) : (
           <SymbolView
-            name={locationActive ? 'map.fill' : 'map'}
+            name="map"
             size={23}
             tintColor="#FFFFFF"
             type="monochrome"
