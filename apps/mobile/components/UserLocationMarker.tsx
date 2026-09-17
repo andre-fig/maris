@@ -24,7 +24,7 @@ export function UserLocationMarker({
         <SymbolView
           name={{
             android: 'navigation',
-            ios: 'location.north',
+            ios: 'location.north.fill',
             web: 'navigation',
           }}
           size={30}
