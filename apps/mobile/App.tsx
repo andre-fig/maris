@@ -209,7 +209,7 @@ const styles = StyleSheet.create({
   },
   controlsOverlay: {
     position: 'absolute',
-    right: 28,
-    bottom: 72,
+    right: 36,
+    bottom: 44,
   },
 });
