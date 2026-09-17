@@ -42,6 +42,7 @@ export default function App() {
   const deviceLocation = useDeviceLocation();
   const initialCenter: MapCenter = deviceLocation?.coordinate ?? [0, 0];
   const [viewState, setViewState] = useState({
+    longitude: initialCenter[0],
     latitude: initialCenter[1],
     zoom: DEFAULT_MAP_ZOOM,
     bearing: 0,
@@ -136,6 +137,7 @@ export default function App() {
             setCourseUp(false);
           }
           setViewState({
+            longitude: nativeEvent.center[0],
             latitude: nativeEvent.center[1],
             zoom: nativeEvent.zoom,
             bearing: nativeEvent.bearing,
@@ -152,6 +154,7 @@ export default function App() {
             setLocationActive(isAtLocation);
           }
           setViewState({
+            longitude: nativeEvent.center[0],
             latitude: nativeEvent.center[1],
             zoom: nativeEvent.zoom,
             bearing: nativeEvent.bearing,
@@ -201,10 +204,10 @@ export default function App() {
           <CompassPanel
             heading={deviceLocation.heading}
             onPress={() => {
-              locationTarget.current = true;
+              locationTarget.current = false;
               setCourseUp(false);
               cameraRef.current?.flyTo({
-                center: deviceLocation.coordinate,
+                center: [viewState.longitude, viewState.latitude],
                 zoom: viewState.zoom,
                 bearing: 0,
                 duration: 500,
