@@ -212,10 +212,6 @@ export default function App() {
       />
       <View style={styles.controlsOverlay}>
         <View style={styles.controlsStack}>
-          <WindPanel
-            enabled={windEnabled}
-            onToggle={() => setWindEnabled((enabled) => !enabled)}
-          />
           <CompassPanel
             heading={deviceLocation.heading}
             onPress={() => {
@@ -249,6 +245,10 @@ export default function App() {
               setLocationActive(true);
               setCourseUp(shouldEnableCourseUp);
             }}
+          />
+          <WindPanel
+            enabled={windEnabled}
+            onToggle={() => setWindEnabled((enabled) => !enabled)}
           />
         </View>
       </View>
