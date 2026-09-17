@@ -19,6 +19,9 @@ const MAX_SCALE_METRES = 1_500_000;
 const MAX_VISIBLE_SCALE_METRES = 1_000_000;
 const MIN_ACTIVATION_RATIO = 1.2;
 const FADE_OUT_DURATION_MS = 400;
+const WEATHER_MAX_SCALE_METRES = 10_000;
+const WEATHER_BADGE_WIDTH = 68;
+const WEATHER_BADGE_GAP = 8;
 
 const METRE_SCALES: ScaleDefinition[] = [
   { segmentMetres: 2, segments: 3, unit: 'm' },
@@ -102,7 +105,8 @@ function formatValue(valueMetres: number, unit: ScaleDefinition['unit']) {
 
 export function ScaleRuler({ latitude, maxWidth, visible, zoom }: ScaleRulerProps) {
   const opacity = useRef(new Animated.Value(0)).current;
-  const { hidden, labels, segments, width } = useMemo(() => {
+  const weatherOpacity = useRef(new Animated.Value(0)).current;
+  const { hidden, labels, segments, showWeather, width } = useMemo(() => {
     const metresPerPoint =
       (METRES_PER_PIXEL_AT_EQUATOR * Math.cos((latitude * Math.PI) / 180)) /
       2 ** zoom;
@@ -124,6 +128,7 @@ export function ScaleRuler({ latitude, maxWidth, visible, zoom }: ScaleRulerProp
         return index === values.length - 1 ? `${formatted} ${scale.unit}` : formatted;
       }),
       segments: scale.segments,
+      showWeather: selectedTotalMetres <= WEATHER_MAX_SCALE_METRES,
       width: Math.min(maxWidth, totalMetres / metresPerPoint),
     };
   }, [latitude, maxWidth, zoom]);
@@ -144,47 +149,100 @@ export function ScaleRuler({ latitude, maxWidth, visible, zoom }: ScaleRulerProp
     opacity.setValue(1);
   }, [opacity, showImmediately]);
 
+  useEffect(() => {
+    weatherOpacity.stopAnimation();
+
+    if (!showWeather) {
+      Animated.timing(weatherOpacity, {
+        toValue: 0,
+        duration: FADE_OUT_DURATION_MS,
+        useNativeDriver: true,
+      }).start();
+      return;
+    }
+
+    weatherOpacity.setValue(1);
+  }, [showWeather, weatherOpacity]);
+
   return (
-    <Animated.View
-      style={[styles.panel, { opacity: showImmediately ? 1 : opacity }]}
+    <View
+      style={[
+        styles.container,
+        {
+          width: width + WEATHER_BADGE_WIDTH + WEATHER_BADGE_GAP,
+          transform: [
+            { translateX: -(WEATHER_BADGE_WIDTH + WEATHER_BADGE_GAP) / 2 },
+          ],
+        },
+      ]}
     >
-      <View style={[styles.ruler, { width }]}>
-        <View style={styles.labels}>
-          {labels.map((label) => (
-            <View key={label}>
-              <Text style={[styles.label, styles.labelOutline]}>{label}</Text>
-              <Text style={styles.label}>{label}</Text>
-            </View>
-          ))}
+      <Animated.View
+        style={[
+          styles.weatherBadge,
+          { opacity: showWeather ? 1 : weatherOpacity },
+        ]}
+      >
+        <Text style={styles.weatherText}>☁️ 20°</Text>
+      </Animated.View>
+      <Animated.View
+        style={{ opacity: showImmediately ? 1 : opacity, width }}
+      >
+        <View style={styles.ruler}>
+          <View style={styles.labels}>
+            {labels.map((label) => (
+              <View key={label}>
+                <Text style={[styles.label, styles.labelOutline]}>{label}</Text>
+                <Text style={styles.label}>{label}</Text>
+              </View>
+            ))}
+          </View>
+          <View style={styles.bar}>
+            {Array.from({ length: segments }, (_, index) => (
+              <View
+                key={index}
+                style={[
+                  styles.segment,
+                  index % 2 === 0 ? styles.segmentLight : styles.segmentDark,
+                ]}
+              />
+            ))}
+            {Array.from({ length: segments - 1 }, (_, index) => (
+              <View
+                key={`divider-${index}`}
+                style={[
+                  styles.segmentDivider,
+                  { left: `${((index + 1) / segments) * 100}%` },
+                ]}
+              />
+            ))}
+          </View>
         </View>
-        <View style={styles.bar}>
-          {Array.from({ length: segments }, (_, index) => (
-            <View
-              key={index}
-              style={[
-                styles.segment,
-                index % 2 === 0 ? styles.segmentLight : styles.segmentDark,
-              ]}
-            />
-          ))}
-          {Array.from({ length: segments - 1 }, (_, index) => (
-            <View
-              key={`divider-${index}`}
-              style={[
-                styles.segmentDivider,
-                { left: `${((index + 1) / segments) * 100}%` },
-              ]}
-            />
-          ))}
-        </View>
-      </View>
-    </Animated.View>
+      </Animated.View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  panel: {
-    paddingHorizontal: 2,
+  container: {
+    height: 26,
+    flexDirection: 'row',
+  },
+  weatherBadge: {
+    height: 26,
+    width: WEATHER_BADGE_WIDTH,
+    marginRight: WEATHER_BADGE_GAP,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(20, 34, 39, 0.7)',
+    borderWidth: 1,
+    borderColor: 'rgba(0, 0, 0, 0.72)',
+    borderRadius: 8,
+  },
+  weatherText: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '600',
+    fontVariant: ['tabular-nums'],
   },
   ruler: {
     height: 26,
