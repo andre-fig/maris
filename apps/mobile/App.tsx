@@ -231,14 +231,17 @@ export default function App() {
             onLocate={() => {
               if (!deviceLocation) return;
               locationTarget.current = true;
-              const shouldEnableCourseUp =
-                locationActive && deviceLocation.heading !== null;
-              courseUpTransitionPending.current = shouldEnableCourseUp;
+              // Selecting the mode must not depend on a sensor sample already
+              // being available. The effect waits for heading (including 0°).
+              const shouldEnableCourseUp = locationActive;
+              const canAlignHeading =
+                shouldEnableCourseUp && deviceLocation.heading !== null;
+              courseUpTransitionPending.current = canAlignHeading;
               cameraRef.current?.flyTo({
                 center: deviceLocation.coordinate,
                 zoom: shouldEnableCourseUp ? viewState.zoom : DEFAULT_MAP_ZOOM,
-                ...(shouldEnableCourseUp
-                  ? { bearing: deviceLocation.heading ?? 0 }
+                ...(canAlignHeading
+                  ? { bearing: deviceLocation.heading! }
                   : {}),
                 duration: 500,
               });
