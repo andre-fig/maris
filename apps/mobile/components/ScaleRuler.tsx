@@ -23,7 +23,6 @@ const MIN_ACTIVATION_RATIO = 1.2;
 const FADE_OUT_DURATION_MS = 400;
 const WEATHER_MAX_SCALE_METRES = 10_000;
 const WEATHER_BADGE_LEFT_MARGIN = 20;
-const WEATHER_BADGE_HORIZONTAL_PADDING = 8;
 const WEATHER_BADGE_VERTICAL_PADDING = 4;
 const SYSTEM_FONT = Platform.select({ ios: 'System', default: 'sans-serif' });
 
@@ -246,15 +245,14 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 0,
     left: WEATHER_BADGE_LEFT_MARGIN,
-    paddingHorizontal: WEATHER_BADGE_HORIZONTAL_PADDING,
     paddingVertical: WEATHER_BADGE_VERTICAL_PADDING,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
     backgroundColor: 'rgba(20, 34, 39, 0.18)',
     borderWidth: 0.5,
-    borderColor: 'rgba(0, 0, 0, 0.72)',
-    borderRadius: 8,
+    borderColor: 'rgba(255, 255, 255, 0.32)',
+    borderRadius: 11,
   },
   weatherText: {
     color: '#ffffff',
