@@ -104,6 +104,7 @@ async function checkArchive(names: string[], failConversion: boolean) {
       assert.ok(conversions[1]!.includes('-append'));
       assert.ok(conversions.every((args) => !args.some((arg) => arg.endsWith('EMPTY.000'))));
     }
+    assert.equal(existsSync(path.join(directory, '.processing/test')), false);
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

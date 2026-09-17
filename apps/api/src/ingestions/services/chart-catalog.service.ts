@@ -130,7 +130,7 @@ export class ChartCatalogService {
         })
         .where('id = :ingestionId', { ingestionId })
         .andWhere('status IN (:...statuses)', {
-          statuses: ['received', 'validating', 'processing'],
+          statuses: ['received', 'validating', 'processing', 'failed'],
         })
         .execute();
       if (ingestionResult.affected !== 1) return false;
@@ -147,7 +147,7 @@ export class ChartCatalogService {
         })
         .where('ingestion_id = :ingestionId', { ingestionId })
         .andWhere('status IN (:...statuses)', {
-          statuses: ['received', 'validating', 'processing'],
+          statuses: ['received', 'validating', 'processing', 'failed'],
         })
         .execute();
       return true;

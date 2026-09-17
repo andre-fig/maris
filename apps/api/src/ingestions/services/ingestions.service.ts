@@ -69,7 +69,7 @@ export class IngestionsService {
         sizeBytes: file.size,
         storagePath: path.relative(this.storageDirectory, archivePath),
       });
-      this.dispatcher.dispatch({
+      await this.dispatcher.dispatch({
         archivePath: ingestion.storagePath,
         ingestionId: ingestion.id,
         versionId: ingestion.versionId,

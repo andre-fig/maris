@@ -27,9 +27,10 @@ export class IngestionPipelineService {
     );
   }
 
-  async run(job: ProcessingJob) {
+  async run(job: ProcessingJob, propagateFailure = false) {
     try {
       const current = await this.catalog.findIngestion(job.ingestionId);
+      if (current?.status === 'published') return;
       if (current?.status === 'ready') {
         await this.catalog.publishReadyVersion(job.versionId);
         this.logger.log(`Published recovered chart version ${job.versionKey}`);
@@ -50,6 +51,7 @@ export class IngestionPipelineService {
         error instanceof Error ? error.stack : String(error),
       );
       await this.catalog.markFailed(job.ingestionId, error);
+      if (propagateFailure) throw error;
     }
   }
 }

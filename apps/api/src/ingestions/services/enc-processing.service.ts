@@ -5,6 +5,7 @@ import { promisify } from 'node:util';
 
 import { Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { ProcessingCleanupService } from './processing-cleanup.service.js';
 
 import type {
   EncMetadataFeature,
@@ -24,7 +25,11 @@ export class EncProcessingService {
   private readonly chartStorageDirectory: string;
   private readonly storageDirectory: string;
 
-  constructor(@Inject(ConfigService) config: ConfigService) {
+  constructor(
+    @Inject(ConfigService) config: ConfigService,
+    @Inject(ProcessingCleanupService)
+    private readonly cleanup: ProcessingCleanupService = new ProcessingCleanupService(config),
+  ) {
     this.storageDirectory = path.resolve(
       config.getOrThrow<string>('STORAGE_DIR'),
     );
@@ -158,7 +163,10 @@ export class EncProcessingService {
 
       return { bounds: manifest.bounds, cells, manifestPath, storagePath };
     } finally {
-      await rm(workDirectory, { force: true, recursive: true });
+      await Promise.all([
+        rm(workDirectory, { force: true, recursive: true, maxRetries: 3 }),
+        this.cleanup.cleanVersion(job.versionKey),
+      ]);
     }
   }
 

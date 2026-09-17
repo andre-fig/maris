@@ -84,11 +84,24 @@ curl --fail-with-body \
   http://localhost:3001/ingestions/<id>
 ```
 
-Depois da resposta `received`, o dispatcher inicia automaticamente o pipeline.
+Depois da resposta `received`, BullMQ enfileira a ingestão no Redis (`REDIS_URL`).
+O consumidor roda dentro da API, com concorrência local/global 1. São até três
+tentativas com backoff exponencial de 30 segundos; falta de espaço e ausência
+total de SOUNDG não são repetidas automaticamente. O ID da ingestão deduplica jobs.
+PostgreSQL reconcilia trabalhos pendentes com Redis a cada 30 segundos, inclusive
+quando o upload foi persistido mas Redis estava indisponível. Redis deve usar
+volume persistente e `maxmemory-policy=noeviction`.
 Os estados persistidos são `received`, `validating`, `processing`, `ready`,
 `failed` e `published`. O trabalho pesado roda em processos GDAL/gerador
 separados do processo HTTP. Ingestões interrompidas são retomadas na próxima
 inicialização da API.
+
+Extrações e intermediários são apagados em `finally`; tiles incompletos também são
+removidos pelo processo pai caso o gerador falhe. Antes de retomar a fila, a API
+limpa temporários órfãos. ZIPs originais e versões publicadas são preservados.
+Esta implantação continua com uma única réplica da API/volume; não habilitar
+réplicas compartilhando a limpeza sem implementar coordenação do storage.
+BullMQ não reduz o espaço necessário para gerar os tiles de uma ingestão grande.
 
 ## Pipeline e tiles vetoriais
 
@@ -172,8 +185,7 @@ e ZIPs continuam no filesystem; metadados e publicação ficam no PostgreSQL.
 
 - a implementação de storage é o filesystem/volume do Railway; ainda não existe
   adaptador S3/R2 nem CDN externa;
-- o dispatcher de processamento é interno à API e executa um processo por job;
-  ainda não existe uma fila externa;
+- a fila é BullMQ/Redis, mas o consumidor ainda compartilha CPU/RAM/disco com a API;
 - o manifesto permanece como artefato no filesystem, enquanto sua localização,
   versão e estado ficam registrados no PostgreSQL;
 - a política de retenção ainda não foi implementada; por isso nenhuma versão

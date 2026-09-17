@@ -2,6 +2,7 @@ import Joi from 'joi';
 
 export const envSchema = Joi.object({
   DATABASE_URL: Joi.string().uri({ scheme: ['postgres', 'postgresql'] }).required(),
+  REDIS_URL: Joi.string().uri({ scheme: ['redis', 'rediss'] }).required(),
   HOST: Joi.string().default('0.0.0.0'),
   MAX_ARCHIVE_ENTRIES: Joi.number().integer().positive().default(10_000),
   MAX_UNCOMPRESSED_BYTES: Joi.number().integer().positive().default(2_147_483_648),

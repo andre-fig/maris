@@ -14,6 +14,7 @@ import { IngestionsController } from './ingestions.controller.js';
 import { IngestionsService } from './services/ingestions.service.js';
 import { IngestionPipelineService } from './services/ingestion-pipeline.service.js';
 import { ProcessingDispatcherService } from './services/processing-dispatcher.service.js';
+import { ProcessingCleanupService } from './services/processing-cleanup.service.js';
 
 @Module({
   imports: [
@@ -51,6 +52,7 @@ import { ProcessingDispatcherService } from './services/processing-dispatcher.se
     IngestionPipelineService,
     IngestionsService,
     ProcessingDispatcherService,
+    ProcessingCleanupService,
   ],
   exports: [ChartCatalogService],
 })
