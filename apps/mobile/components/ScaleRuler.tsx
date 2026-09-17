@@ -1,3 +1,4 @@
+import { BlurView } from 'expo-blur';
 import { useEffect, useMemo, useRef } from 'react';
 import { Animated, Platform, StyleSheet, Text, View } from 'react-native';
 
@@ -21,7 +22,7 @@ const MAX_VISIBLE_SCALE_METRES = 1_000_000;
 const MIN_ACTIVATION_RATIO = 1.2;
 const FADE_OUT_DURATION_MS = 400;
 const WEATHER_MAX_SCALE_METRES = 10_000;
-const WEATHER_BADGE_WIDTH = 68;
+const WEATHER_BADGE_WIDTH = 56;
 const WEATHER_BADGE_LEFT_MARGIN = 16;
 const SYSTEM_FONT = Platform.select({ ios: 'System', default: 'sans-serif' });
 
@@ -180,6 +181,11 @@ export function ScaleRuler({
           { opacity: showWeather ? 1 : weatherOpacity },
         ]}
       >
+        <BlurView
+          intensity={55}
+          tint="systemMaterialDark"
+          style={StyleSheet.absoluteFill}
+        />
         <Text style={styles.weatherText}>☁️ 20°</Text>
       </Animated.View>
       <Animated.View
@@ -243,7 +249,8 @@ const styles = StyleSheet.create({
     width: WEATHER_BADGE_WIDTH,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(20, 34, 39, 0.7)',
+    overflow: 'hidden',
+    backgroundColor: 'rgba(20, 34, 39, 0.18)',
     borderWidth: 1,
     borderColor: 'rgba(0, 0, 0, 0.72)',
     borderRadius: 8,
