@@ -18,7 +18,7 @@ const METRES_PER_PIXEL_AT_EQUATOR = 156543.03392;
 const MAX_SCALE_METRES = 1_000_000;
 const MAX_VISIBLE_SCALE_METRES = 750_000;
 const MIN_ACTIVATION_RATIO = 1.2;
-const FADE_OUT_DURATION_MS = 180;
+const FADE_OUT_DURATION_MS = 400;
 
 const METRE_SCALES: ScaleDefinition[] = [
   { segmentMetres: 2, segments: 3, unit: 'm' },
