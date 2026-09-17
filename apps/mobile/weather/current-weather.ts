@@ -88,6 +88,9 @@ export function useCurrentViewportWeather(
   const activeRequest = useRef<AbortController | undefined>(undefined);
   const activeRequestPoint = useRef<MapCenter | undefined>(undefined);
   const lastRequestedPoint = useRef<MapCenter | undefined>(undefined);
+  // Keep the successful payload independently from the visible card, which
+  // can be cleared when zooming back into a different part of the map.
+  const lastSuccessfulWeather = useRef<CurrentWeather | undefined>(undefined);
   const lastSuccessAt = useRef(0);
   const retryAt = useRef(0);
   const foreground = useRef(AppState.currentState === 'active');
@@ -100,11 +103,15 @@ export function useCurrentViewportWeather(
       if (touching.current || !enabledRef.current || !foreground.current) return;
       if (activeRequestPoint.current && distanceMetres(activeRequestPoint.current, center) < MINIMUM_FETCH_DISTANCE_METRES) return;
       if (
+        lastSuccessfulWeather.current &&
         lastRequestedPoint.current &&
         isWeatherFresh(lastSuccessAt.current, Date.now()) &&
         distanceMetres(lastRequestedPoint.current, center) <
           MINIMUM_FETCH_DISTANCE_METRES
       ) {
+        setWeather(lastSuccessfulWeather.current);
+        setError(undefined);
+        retryAt.current = 0;
         return;
       }
 
@@ -131,6 +138,7 @@ export function useCurrentViewportWeather(
         const payload = (await response.json()) as CurrentWeather;
 
         if (generation === requestGeneration.current) {
+          lastSuccessfulWeather.current = payload;
           lastRequestedPoint.current = center;
           lastSuccessAt.current = Date.now();
           retryAt.current = 0;

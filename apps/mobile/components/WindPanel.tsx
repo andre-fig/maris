@@ -82,7 +82,7 @@ export function WindPanel({
         >
           <SymbolView
             name={{ ios: "wind", android: "air", web: "air" }}
-            size={enabled ? 18 : BLUR_PANEL_ICON_SIZE}
+            size={enabled ? 20 : BLUR_PANEL_ICON_SIZE}
             tintColor="#FFFFFF"
             type="monochrome"
           />
@@ -116,7 +116,7 @@ export function WindPanel({
           <View>
             {WIND_LEGEND.map(({ label }) => (
               <View key={label} style={styles.legendRow}>
-                <BlurText style={{ fontSize: 11 }} numberOfLines={1}>
+                <BlurText style={{ fontSize: 12 }} numberOfLines={1}>
                   {label}
                 </BlurText>
               </View>
