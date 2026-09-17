@@ -9,7 +9,11 @@ import {
 } from "./BlurPanel";
 import { BLUR_TEXT_LINE_HEIGHT, BlurText } from "./BlurText";
 import { FADE_OUT_DURATION_MS } from "./use-fade-visibility";
-import { formatWindLegendLabel, windLegendBand } from "./wind-legend-band";
+import {
+  formatWindLegendLabel,
+  METRES_PER_SECOND_TO_KNOTS,
+  windLegendBand,
+} from "./wind-legend-band";
 
 // Same wind-speed stops/colors as native-wind/cpp/WindShaders.hpp (NRK palette).
 const WIND_LEGEND = [
@@ -33,13 +37,11 @@ export function WindPanel({
   enabled,
   centerWindSpeed,
   currentWindSpeed,
-  unit = "m/s",
   onToggle,
 }: {
   enabled: boolean;
   centerWindSpeed?: number | null;
   currentWindSpeed?: number | null;
-  unit?: "m/s" | "km/h";
   onToggle: () => void;
 }) {
   const expansion = useRef(new Animated.Value(enabled ? 1 : 0)).current;
@@ -47,10 +49,10 @@ export function WindPanel({
   const hasCurrentWind = typeof currentWindSpeed === "number" &&
     Number.isFinite(currentWindSpeed) && currentWindSpeed >= 0;
   const speedText = hasCurrentWind
-    ? `${Math.round(currentWindSpeed * (unit === "km/h" ? 3.6 : 1) * 10) / 10}`
-    : unit;
+    ? `${Math.round(currentWindSpeed * METRES_PER_SECOND_TO_KNOTS * 10) / 10}`
+    : "kn";
   const reservedHeader = hasCurrentWind
-    ? (Math.round(currentWindSpeed * 3.6 * 10) / 10).toString()
+    ? (Math.round(currentWindSpeed * METRES_PER_SECOND_TO_KNOTS * 10) / 10).toString()
     : null;
   const [headerWidth, setHeaderWidth] = useState(0);
   const [legendWidth, setLegendWidth] = useState(0);
@@ -142,21 +144,21 @@ export function WindPanel({
               {reservedHeader !== null ? (
                 <BlurText style={styles.speedValue} numberOfLines={1}>{reservedHeader}</BlurText>
               ) : null}
-              <BlurText style={styles.headerMeasureText} numberOfLines={1}>km/h</BlurText>
+              <BlurText style={styles.headerMeasureText} numberOfLines={1}>kn</BlurText>
             </View>
             {!enabled && hasCurrentWind ? (
-              <View style={styles.speedReadout} accessible accessibilityLabel={`Vento: ${speedText} ${unit}`}>
+              <View style={styles.speedReadout} accessible accessibilityLabel={`Vento: ${speedText} kn`}>
                 <BlurText style={styles.speedValue} numberOfLines={1}>{speedText}</BlurText>
-                <BlurText style={styles.speedUnit} numberOfLines={1}>{unit}</BlurText>
+                <BlurText style={styles.speedUnit} numberOfLines={1}>kn</BlurText>
               </View>
             ) : <BlurText
               style={[styles.legendText, styles.labelOverlay]}
               numberOfLines={1}
               accessibilityLabel={
-                unit === "km/h" ? "Quilômetros por hora" : "Metros por segundo"
+                "Nós"
               }
             >
-              {unit}
+              kn
             </BlurText>}
           </Animated.View>
         </Pressable>
@@ -187,10 +189,10 @@ export function WindPanel({
                   style={[styles.legendText, styles.measurement]}
                   numberOfLines={1}
                 >
-                  {formatWindLegendLabel(label, "km/h")}
+                  {formatWindLegendLabel(label, "kn")}
                 </BlurText>
                 <BlurText style={[styles.legendText, styles.labelOverlay]} numberOfLines={1}>
-                  {formatWindLegendLabel(label, unit)}
+                  {formatWindLegendLabel(label, "kn")}
                 </BlurText>
               </View>
             ))}

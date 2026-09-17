@@ -10,6 +10,7 @@ import {
 import { BLUR_PANEL_ICON_SIZE, BlurPanel } from "./BlurPanel";
 import { BlurText } from "./BlurText";
 import { useFadeVisibility } from "./use-fade-visibility";
+import { METRES_PER_SECOND_TO_KNOTS } from "./wind-legend-band";
 
 type WeatherPanelProps = {
   weather?: CurrentWeather;
@@ -22,6 +23,9 @@ export function WeatherPanel({ weather, visible, style }: WeatherPanelProps) {
   const { mounted, opacity } = useFadeVisibility(displayWeather);
   const weatherIcon = weather
     ? openWeatherIconMap[weather.icon_code]
+    : undefined;
+  const windSpeedInKnots = weather
+    ? Math.round(weather.wind_speed_metres_per_second * METRES_PER_SECOND_TO_KNOTS * 10) / 10
     : undefined;
 
   if (!mounted) return null;
@@ -58,7 +62,7 @@ export function WeatherPanel({ weather, visible, style }: WeatherPanelProps) {
             weather
               ? `${weather.condition}, ${Math.round(
                   weather.temperature_celsius,
-                )} graus, umidade ${weather.humidity_percent} por cento, vento ${weather.wind_speed_metres_per_second} metros por segundo, precipitação ${weather.precipitation_millimetres_last_hour} milímetros na última hora`
+                )} graus, umidade ${weather.humidity_percent} por cento, vento ${windSpeedInKnots} nós, precipitação ${weather.precipitation_millimetres_last_hour} milímetros na última hora`
               : undefined
           }
         >

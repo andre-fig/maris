@@ -10,7 +10,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { StyleSheet, useWindowDimensions, View } from "react-native";
 
-import { getScaleUnit, isWeatherScaleVisible, ScaleRuler } from "./components/ScaleRuler";
+import { isWeatherScaleVisible, ScaleRuler } from "./components/ScaleRuler";
 import { CompassPanel } from "./components/CompassPanel";
 import { UserLocationMarker } from "./components/UserLocationMarker";
 import { MapControlsPanel } from "./components/MapControlsPanel";
@@ -293,7 +293,6 @@ export default function App() {
           />
           <WindPanel
             enabled={windEnabled}
-            unit={getScaleUnit(viewState.latitude, scaleMaxWidth, viewState.zoom) === "km" ? "km/h" : "m/s"}
             centerWindSpeed={centerWindSpeed}
             currentWindSpeed={currentWeather.windSpeed}
             onToggle={() => {
