@@ -182,7 +182,7 @@ export function ScaleRuler({
         ]}
       >
         <BlurView
-          intensity={55}
+          intensity={40}
           tint="systemMaterialDark"
           style={StyleSheet.absoluteFill}
         />
@@ -251,14 +251,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     overflow: 'hidden',
     backgroundColor: 'rgba(20, 34, 39, 0.18)',
-    borderWidth: 1,
+    borderWidth: 0.5,
     borderColor: 'rgba(0, 0, 0, 0.72)',
     borderRadius: 8,
   },
   weatherText: {
     color: '#ffffff',
     fontFamily: SYSTEM_FONT,
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '600',
     fontVariant: ['tabular-nums'],
   },
