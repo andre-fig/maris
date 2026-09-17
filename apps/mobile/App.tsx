@@ -1,24 +1,30 @@
 import {
   Camera,
-  GeoJSONSource,
   Layer,
   Map,
+  OfflineManager,
+  VectorSource,
 } from '@maplibre/maplibre-react-native';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, useWindowDimensions, View } from 'react-native';
 
-import soundings from './assets/data/miami-soundg.json';
 import { ScaleRuler } from './components/ScaleRuler';
 
 const MIAMI: [number, number] = [-80.1918, 25.7617];
 const BASE_MAP_STYLE = 'https://tiles.openfreemap.org/styles/bright';
-const SOUNDINGS = soundings as unknown as GeoJSON.FeatureCollection<GeoJSON.Point>;
+const API_URL =
+  process.env.EXPO_PUBLIC_API_URL ??
+  'https://api-production-7dc7.up.railway.app';
 
 export default function App() {
   const { width } = useWindowDimensions();
   const [viewState, setViewState] = useState({ latitude: MIAMI[1], zoom: 11 });
   const [isZooming, setIsZooming] = useState(false);
   const lastZoom = useRef(11);
+
+  useEffect(() => {
+    void OfflineManager.setMaximumAmbientCacheSize(256 * 1024 * 1024);
+  }, []);
 
   return (
     <View style={styles.container}>
@@ -58,10 +64,14 @@ export default function App() {
             zoom: 11,
           }}
         />
-        <GeoJSONSource id="miami-soundg" data={SOUNDINGS}>
+        <VectorSource
+          id="miami-soundg"
+          url={`${API_URL}/tiles/soundg.json`}
+        >
           <Layer
             id="miami-soundg-depth"
             type="symbol"
+            source-layer="soundings"
             beforeId="water_name_point_label"
             minzoom={10}
             layout={{
@@ -84,7 +94,7 @@ export default function App() {
               'text-halo-width': 1,
             }}
           />
-        </GeoJSONSource>
+        </VectorSource>
       </Map>
       <View pointerEvents="none" style={styles.scaleOverlay}>
         <ScaleRuler

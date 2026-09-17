@@ -83,6 +83,31 @@ Esta primeira rota encerra no estado `received`. A aplicação de updates S-57,
 normalização via GDAL e publicação cartográfica serão etapas assíncronas do
 pipeline, sem executar processamento pesado dentro da requisição HTTP.
 
+## Tiles vetoriais
+
+O `SOUNDG` de Miami é publicado como MVT/PBF. O app consulta o TileJSON e o
+MapLibre Native baixa somente os tiles necessários para a viewport atual:
+
+```text
+GET /tiles/soundg.json
+GET /tiles/soundg/{version}/{z}/{x}/{y}.pbf
+```
+
+As URLs incluem a versão do tileset. Uma nova versão gera URLs diferentes e
+invalida o cache anterior sem precisar limpar manualmente os tiles existentes.
+Os PBFs usam cache HTTP imutável e a densidade de sondagens é reduzida nos
+níveis de zoom mais distantes.
+
+Para regenerar o dataset inicial diretamente das células S-57 em `data/`:
+
+```bash
+bash apps/api/scripts/import-soundg.sh
+```
+
+No mobile, a `VectorSource` do MapLibre administra seleção `z/x/y`, requisições
+concorrentes, cancelamento, deduplicação e cache ambiente. A mesma fonte poderá
+ser usada futuramente por pacotes offline e prefetch de rotas.
+
 ## Verificação
 
 ```bash

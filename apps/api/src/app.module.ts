@@ -5,6 +5,7 @@ import { validateEnv } from './config/env.schema.js';
 import { DatabaseModule } from './database/database.module.js';
 import { HealthModule } from './health/health.module.js';
 import { IngestionsModule } from './ingestions/ingestions.module.js';
+import { TilesModule } from './tiles/tiles.module.js';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { IngestionsModule } from './ingestions/ingestions.module.js';
     DatabaseModule,
     HealthModule,
     IngestionsModule,
+    TilesModule,
   ],
 })
 export class AppModule {}
