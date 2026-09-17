@@ -10,6 +10,7 @@ import { useEffect, useRef, useState } from "react";
 import { StyleSheet, useWindowDimensions, View } from "react-native";
 
 import { isWeatherScaleVisible, ScaleRuler } from "./components/ScaleRuler";
+import { CompassPanel } from "./components/CompassPanel";
 import { UserLocationMarker } from "./components/UserLocationMarker";
 import { MapControlsPanel } from "./components/MapControlsPanel";
 import { useDeviceLocation } from "./location/use-device-location";
@@ -181,10 +182,12 @@ export default function App() {
         ) : null}
       </Map>
       <View style={styles.controlsOverlay}>
-        <MapControlsPanel
-          locationActive={locationActive}
-          courseUp={courseUp}
-          onLocate={() => {
+        <View style={styles.controlsStack}>
+          <CompassPanel />
+          <MapControlsPanel
+            locationActive={locationActive}
+            courseUp={courseUp}
+            onLocate={() => {
             if (!deviceLocation) return;
             locationTarget.current = true;
             const shouldEnableCourseUp = locationActive && deviceLocation.heading !== null;
@@ -198,8 +201,9 @@ export default function App() {
             });
             setLocationActive(true);
             setCourseUp(shouldEnableCourseUp);
-          }}
-        />
+            }}
+          />
+        </View>
       </View>
       <View pointerEvents="none" style={styles.scaleOverlay}>
         <ScaleRuler
@@ -233,5 +237,9 @@ const styles = StyleSheet.create({
     position: "absolute",
     right: 48,
     bottom: 48,
+  },
+  controlsStack: {
+    alignItems: "flex-end",
+    gap: 8,
   },
 });
