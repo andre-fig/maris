@@ -34,21 +34,26 @@ test("Android location icon loses its fill off GPS and preserves centered/course
     await writeFile(compiled, output.outputFiles[0].contents);
     const { MapControlsPanel } = require(compiled);
     let presses = 0;
+    let mapPresses = 0;
     const panel = (locationActive: boolean, courseUp: boolean) => React.createElement(MapControlsPanel, {
-      locationActive, courseUp, onLocate: () => { presses++; },
+      locationActive, courseUp,
+      onLocate: () => { presses++; },
+      onMapPress: () => { mapPresses++; },
     });
     await act(async () => { renderer = create(panel(true, false)); });
     const icons = () => renderer!.root.findAll(node => node.type === ("MaterialCommunityIcons" as unknown));
-    assert.equal(icons()[1].props.name, "near-me");
+    assert.equal(icons()[0].props.name, "near-me");
     await act(async () => { renderer!.update(panel(false, false)); });
-    assert.equal(icons()[1].props.name, "navigation-variant-outline");
-    assert.equal(icons()[0].props.name, "map-outline");
+    assert.equal(icons()[0].props.name, "navigation-variant-outline");
+    assert.equal(icons()[1].props.name, "map-outline");
     await act(async () => { renderer!.update(panel(true, true)); });
-    assert.equal(icons()[1].props.name, "navigation");
+    assert.equal(icons()[0].props.name, "navigation");
     await act(async () => { renderer!.update(panel(false, false)); });
-    assert.equal(icons()[1].props.name, "navigation-variant-outline");
-    renderer!.root.find(node => node.props.accessibilityRole === "button").props.onPress();
+    assert.equal(icons()[0].props.name, "navigation-variant-outline");
+    renderer!.root.find(node => node.props.accessibilityLabel === "Centralizar na minha localização").props.onPress();
     assert.equal(presses, 1);
+    renderer!.root.find(node => node.props.accessibilityLabel === "Abrir opções do mapa").props.onPress();
+    assert.equal(mapPresses, 1);
   } finally {
     if (renderer) await act(async () => { renderer!.unmount(); });
     globals.IS_REACT_ACT_ENVIRONMENT = previous;

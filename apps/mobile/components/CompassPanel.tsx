@@ -17,6 +17,12 @@ function getCardinalDirection(heading: number | null) {
   return 'O';
 }
 
+function getDirectionIndex(heading: number | null) {
+  if (heading === null) return 0;
+  const normalized = ((heading % 360) + 360) % 360;
+  return Math.round(normalized / 22.5) % 16;
+}
+
 export function CompassPanel({
   heading,
   mapBearing,
@@ -26,6 +32,9 @@ export function CompassPanel({
   mapBearing: number;
   onPress: () => void;
 }) {
+  const direction = getCardinalDirection(heading);
+  const directionIndex = getDirectionIndex(heading);
+
   return (
     <Pressable
       accessibilityLabel="Orientar mapa para o norte"
@@ -47,15 +56,15 @@ export function CompassPanel({
               <Path
                 key={rotation}
                 d={GRAY_TICK_PATH}
-                fill="#8E8E93"
+                fill={directionIndex === Math.round(rotation / 22.5) ? "#FFD60A" : "#8E8E93"}
                 rotation={rotation}
                 origin="18, 18"
               />
             ))}
-            <Path d={NORTH_TRIANGLE_PATH} fill="#FF3B30" />
-            <Path d={EAST_TRIANGLE_PATH} fill="#FFFFFF" />
-            <Path d={SOUTH_TRIANGLE_PATH} fill="#FFFFFF" />
-            <Path d={WEST_TRIANGLE_PATH} fill="#FFFFFF" />
+            <Path d={NORTH_TRIANGLE_PATH} fill={directionIndex === 0 ? "#FFD60A" : "#FF3B30"} />
+            <Path d={EAST_TRIANGLE_PATH} fill={directionIndex === 4 ? "#FFD60A" : "#FFFFFF"} />
+            <Path d={SOUTH_TRIANGLE_PATH} fill={directionIndex === 8 ? "#FFD60A" : "#FFFFFF"} />
+            <Path d={WEST_TRIANGLE_PATH} fill={directionIndex === 12 ? "#FFD60A" : "#FFFFFF"} />
           </Svg>
         </View>
         <View pointerEvents="none" style={styles.centerLabel}>

@@ -8,10 +8,12 @@ import {
   VectorSource,
 } from "@maplibre/maplibre-react-native";
 import { useEffect, useRef, useState } from "react";
-import { StyleSheet, useWindowDimensions, View } from "react-native";
+import { ScrollView, StyleSheet, useWindowDimensions, View } from "react-native";
 
 import { isWeatherScaleVisible, ScaleRuler } from "./components/ScaleRuler";
 import { CompassPanel } from "./components/CompassPanel";
+import { BlurBottomSheet } from "./components/BlurBottomSheet";
+import { BlurText } from "./components/BlurText";
 import { UserLocationMarker } from "./components/UserLocationMarker";
 import { MapControlsPanel } from "./components/MapControlsPanel";
 import { WindPanel } from "./components/WindPanel";
@@ -31,6 +33,25 @@ const API_URL =
   process.env.EXPO_PUBLIC_API_URL ??
   "https://api-production-7dc7.up.railway.app";
 const LOCATION_MATCH_THRESHOLD_KM = 0.08;
+
+const MOCK_CHART_INFORMATION = [
+  ["Fonte", "NOAA"],
+  ["Célula ENC", "US5MIABC"],
+  ["Edição", "2"],
+  ["Atualização", "0"],
+  ["Data de emissão", "03/09/2025"],
+  ["Última atualização aplicada", "03/09/2025"],
+  ["Escala de compilação", "1:22.000"],
+  [
+    "Cobertura",
+    "Biscayne Bay, Key Biscayne, Biscayne Channel, No Name Harbor e Cape Florida Channel",
+  ],
+  ["Qualidade dos dados", "CATZOC A1"],
+  ["Datum horizontal", "WGS 84"],
+  ["Referência de profundidade", "datum vertical informado pela ENC"],
+  ["Fonte do levantamento", "NOAA / levantamento hidrográfico oficial"],
+  ["Data do levantamento", "conforme registro da área coberta"],
+] as const;
 
 function distanceKm(a: [number, number], b: [number, number]) {
   const [longitudeA, latitudeA] = a;
@@ -65,6 +86,8 @@ export default function App() {
   const [locationActive, setLocationActive] = useState(false);
   const [courseUp, setCourseUp] = useState(false);
   const [windEnabled, setWindEnabled] = useState(false);
+  const [mapSheetVisible, setMapSheetVisible] = useState(false);
+  const [mapSheetCloseSignal, setMapSheetCloseSignal] = useState(0);
   const [centerWindSpeed, setCenterWindSpeed] = useState<number | null>(null);
   const [windSampleCoordinate, setWindSampleCoordinate] = useState<MapCenter | null>(null);
   const locationTarget = useRef(false);
@@ -134,7 +157,10 @@ export default function App() {
         touchRotate
         touchPitch={false}
         onDidFinishLoadingMap={() => { void onViewportSettled().catch(() => {}); }}
-        onTouchStart={currentWeather.onTouchStart}
+        onTouchStart={() => {
+          currentWeather.onTouchStart();
+          if (mapSheetVisible) setMapSheetCloseSignal((signal) => signal + 1);
+        }}
         onTouchEnd={({ nativeEvent }) => {
           currentWeather.onTouchEnd(nativeEvent.touches.length);
         }}
@@ -270,6 +296,7 @@ export default function App() {
           <MapControlsPanel
             locationActive={locationActive}
             courseUp={courseUp}
+            onMapPress={() => setMapSheetVisible(true)}
             onLocate={() => {
               if (!deviceLocation) return;
               locationTarget.current = true;
@@ -313,11 +340,74 @@ export default function App() {
           zoom={viewState.zoom}
         />
       </View>
+      <BlurBottomSheet
+        visible={mapSheetVisible}
+        closeSignal={mapSheetCloseSignal}
+        onClose={() => setMapSheetVisible(false)}
+      >
+        <BlurText style={styles.sheetTitle}>Informações da carta</BlurText>
+        <ScrollView
+          style={styles.chartInfoList}
+          contentContainerStyle={styles.chartInfoContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {MOCK_CHART_INFORMATION.map(([label, value], index) => (
+            <View key={label} style={styles.chartInfoRow}>
+              <BlurText style={styles.chartInfoLabel}>{label}</BlurText>
+              <BlurText style={styles.chartInfoValue}>{value}</BlurText>
+              {index < MOCK_CHART_INFORMATION.length - 1 ? (
+                <View style={styles.chartInfoDivider} />
+              ) : null}
+            </View>
+          ))}
+        </ScrollView>
+      </BlurBottomSheet>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  sheetTitle: {
+    fontSize: 22,
+    fontWeight: "700",
+    lineHeight: 28,
+    marginBottom: 10,
+  },
+  chartInfoList: {
+    maxHeight: 520,
+  },
+  chartInfoContent: {
+    paddingBottom: 4,
+  },
+  chartInfoRow: {
+    minHeight: 38,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 8,
+    position: "relative",
+  },
+  chartInfoLabel: {
+    flex: 0.9,
+    color: "rgba(255, 255, 255, 0.62)",
+    fontSize: 13,
+    fontWeight: "500",
+    lineHeight: 18,
+  },
+  chartInfoValue: {
+    flex: 1.1,
+    fontSize: 14,
+    lineHeight: 19,
+    textAlign: "right",
+  },
+  chartInfoDivider: {
+    position: "absolute",
+    right: 0,
+    bottom: 0,
+    left: 0,
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: "rgba(255, 255, 255, 0.18)",
+  },
   container: {
     flex: 1,
   },

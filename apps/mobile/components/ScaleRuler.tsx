@@ -8,7 +8,7 @@ import { useFadeVisibility } from './use-fade-visibility';
 type ScaleDefinition = {
   segmentMetres: number;
   segments: number;
-  unit: "m" | "km";
+  unit: "m" | "NM";
 };
 
 type ScaleRulerProps = {
@@ -30,45 +30,34 @@ const SYSTEM_FONT = Platform.select({ ios: "System", default: "sans-serif" });
 const METRE_SCALES: ScaleDefinition[] = [
   { segmentMetres: 2, segments: 3, unit: "m" },
   { segmentMetres: 5, segments: 2, unit: "m" },
-  { segmentMetres: 5, segments: 3, unit: "m" },
   { segmentMetres: 12, segments: 1, unit: "m" },
+  { segmentMetres: 5, segments: 3, unit: "m" },
   { segmentMetres: 12, segments: 2, unit: "m" },
   { segmentMetres: 12, segments: 3, unit: "m" },
   { segmentMetres: 25, segments: 2, unit: "m" },
   { segmentMetres: 25, segments: 3, unit: "m" },
   { segmentMetres: 50, segments: 2, unit: "m" },
-  { segmentMetres: 50, segments: 3, unit: "m" },
   { segmentMetres: 125, segments: 1, unit: "m" },
+  { segmentMetres: 50, segments: 3, unit: "m" },
   { segmentMetres: 125, segments: 2, unit: "m" },
   { segmentMetres: 125, segments: 3, unit: "m" },
   { segmentMetres: 250, segments: 2, unit: "m" },
   { segmentMetres: 250, segments: 3, unit: "m" },
-  { segmentMetres: 500, segments: 2, unit: "m" },
-  { segmentMetres: 500, segments: 3, unit: "m" },
 ];
 
-const KILOMETRE_SCALES: ScaleDefinition[] = [1, 10, 100].flatMap(
-  (multiplier) => [
-    { segmentMetres: 1_250 * multiplier, segments: 1, unit: "km" as const },
-    { segmentMetres: 1_250 * multiplier, segments: 2, unit: "km" as const },
-    { segmentMetres: 1_250 * multiplier, segments: 3, unit: "km" as const },
-    { segmentMetres: 2_500 * multiplier, segments: 2, unit: "km" as const },
-    { segmentMetres: 2_500 * multiplier, segments: 3, unit: "km" as const },
-    ...(multiplier === 100
-      ? [
-          {
-            segmentMetres: 5_000 * multiplier,
-            segments: 1,
-            unit: "km" as const,
-          },
-        ]
-      : []),
-    { segmentMetres: 5_000 * multiplier, segments: 2, unit: "km" as const },
-    { segmentMetres: 5_000 * multiplier, segments: 3, unit: "km" as const },
-  ],
-);
+const METRES_PER_NAUTICAL_MILE = 1_852;
+const NAUTICAL_MILE_SCALES: ScaleDefinition[] = [
+  [0.5, 1], [0.5, 2], [0.5, 3], [1, 2], [1, 3],
+  [2.5, 2], [5, 2], [5, 3], [10, 2], [10, 3],
+  [25, 2], [25, 3], [50, 2], [50, 3], [100, 2],
+  [100, 3], [250, 2], [250, 3],
+].map(([segmentNauticalMiles, segments]) => ({
+  segmentMetres: segmentNauticalMiles * METRES_PER_NAUTICAL_MILE,
+  segments,
+  unit: "NM",
+}));
 
-const SCALES = [...METRE_SCALES, ...KILOMETRE_SCALES].filter(
+const SCALES = [...METRE_SCALES, ...NAUTICAL_MILE_SCALES].filter(
   ({ segmentMetres, segments }) => segmentMetres * segments <= MAX_SCALE_METRES,
 );
 
@@ -129,7 +118,7 @@ export function isWeatherScaleVisible(
 }
 
 function formatValue(valueMetres: number, unit: ScaleDefinition["unit"]) {
-  const value = unit === "km" ? valueMetres / 1_000 : valueMetres;
+  const value = unit === "NM" ? valueMetres / METRES_PER_NAUTICAL_MILE : valueMetres;
   return numberFormatter.format(value);
 }
 
@@ -160,9 +149,7 @@ export function ScaleRuler({
       hidden,
       labels: values.map((value, index) => {
         const formatted = formatValue(value, scale.unit);
-        return index === values.length - 1
-          ? `${formatted} ${scale.unit}`
-          : formatted;
+        return index === values.length - 1 ? `${formatted}${scale.unit === "m" ? "m" : " NM"}` : formatted;
       }),
       segments: scale.segments,
       showWeather: isWeatherScaleVisible(latitude, maxWidth, zoom),
