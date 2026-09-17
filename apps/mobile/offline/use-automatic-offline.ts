@@ -10,6 +10,7 @@ import type { MapRef } from "@maplibre/maplibre-react-native";
 import { offlineAreas } from "./offline-areas";
 import { activeAreas, type AreaRevision } from "./offline-engine";
 import type { AreaBounds } from "./offline-style";
+import { DEFAULT_MAP_ZOOM } from "../map-config";
 
 export const OFFLINE_VIEWPORT_DEBOUNCE_MS = 1500;
 const CATALOG_TTL_MS = 10 * 60_000;
@@ -66,7 +67,8 @@ export function useAutomaticOffline(
     try {
       const records = await offlineAreas.list();
       const existing = activeAreas(records).find((r) =>
-        contains(r, target.bounds),
+        contains(r, target.bounds) &&
+        r.minZoom <= DEFAULT_MAP_ZOOM && r.maxZoom >= DEFAULT_MAP_ZOOM,
       );
       const retry = records.find(
         (r) => r.state === "failed" && contains(r, target.bounds),
@@ -100,8 +102,8 @@ export function useAutomaticOffline(
           name: `${((s + n) / 2).toFixed(3)}, ${((w + e) / 2).toFixed(3)}`,
           areaId: existing?.areaId ?? retry?.areaId,
           bounds,
-          minZoom: 10,
-          maxZoom: 16,
+          minZoom: DEFAULT_MAP_ZOOM,
+          maxZoom: DEFAULT_MAP_ZOOM,
           apiUrl,
           baseStyleUrl,
         },

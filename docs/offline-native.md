@@ -10,6 +10,12 @@ muda o centro, o zoom ou a simbologia. O GPS continua sendo o centro inicial;
 sem uma posição disponível, é possível abrir o centro da última área persistida,
 sem fabricar um marcador GPS.
 
+Novos downloads incluem somente o nível `DEFAULT_MAP_ZOOM` (atualmente 14),
+com `minZoom = maxZoom`, compartilhado com abertura e centralização no GPS em
+`apps/mobile/map-config.ts`. A faixa 10–16 acima é apenas o gatilho da viewport,
+não a faixa baixada. Outros zooms não têm cobertura offline garantida.
+Pacotes antigos já baixados são preservados; não são apagados para reduzir a faixa.
+
 `use-automatic-offline.ts` coordena a viewport; `offline-engine.ts` coordena
 revisões; `offline-areas.ts` adapta filesystem e `OfflineManager` do MapLibre.
 O hook mantém progresso/erro internos, sem exibição adicional conforme solicitado.

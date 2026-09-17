@@ -19,6 +19,7 @@ import { useDeviceLocation } from "./location/use-device-location";
 import { NativeWindLayer } from "@maris/native-wind";
 import { MAP_AMBIENT_CACHE_BYTES } from "./offline/offline-areas";
 import { useAutomaticOffline } from "./offline/use-automatic-offline";
+import { DEFAULT_MAP_ZOOM } from "./map-config";
 import {
   type MapCenter,
   useCurrentViewportWeather,
@@ -28,7 +29,6 @@ const BASE_MAP_STYLE = "https://tiles.openfreemap.org/styles/bright";
 const API_URL =
   process.env.EXPO_PUBLIC_API_URL ??
   "https://api-production-7dc7.up.railway.app";
-const DEFAULT_MAP_ZOOM = 14;
 const LOCATION_MATCH_THRESHOLD_KM = 0.08;
 
 function distanceKm(a: [number, number], b: [number, number]) {
