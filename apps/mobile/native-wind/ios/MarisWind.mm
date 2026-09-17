@@ -22,6 +22,7 @@ static maris::TileCache tileCache;
   id<MTLTexture> _texture;
   std::shared_ptr<maris::Field> _field;
   maris::Particles _particles;
+  std::vector<maris::ClipVertex> _trailMesh;
   maris::RenderStats _stats;
   BOOL _measure;
   NSString *_key;
@@ -238,16 +239,19 @@ static maris::TileCache tileCache;
   const auto &lines = _particles.update(*f, matrix, context.zoomLevel, dt,
                                         _density * _quality, _animationSpeed);
   if (!lines.empty() && _trails) {
+    CGSize size = map.backendResource.mtkView.drawableSize;
+    maris::buildTrailMesh(lines, size.width, size.height, _trailMesh);
+    if (_trailMesh.empty()) return;
     // Metal setVertexBytes is limited to 4 KiB; stream through a native buffer.
     id<MTLBuffer> buffer =
-        [_device newBufferWithBytes:lines.data()
-                             length:lines.size() * sizeof(maris::ClipVertex)
+        [_device newBufferWithBytes:_trailMesh.data()
+                             length:_trailMesh.size() * sizeof(maris::ClipVertex)
                             options:MTLResourceStorageModeShared];
     [encoder setRenderPipelineState:_trails];
     [encoder setVertexBuffer:buffer offset:0 atIndex:0];
-    [encoder drawPrimitives:MTLPrimitiveTypeLine
+    [encoder drawPrimitives:MTLPrimitiveTypeTriangle
                 vertexStart:0
-                vertexCount:lines.size()];
+                vertexCount:_trailMesh.size()];
   }
   if (_measure && _stats.end()) {
     task_vm_info_data_t memory{};

@@ -136,6 +136,33 @@ struct Vertex {
 struct ClipVertex {
   float x, y, z, w, u, v;
 };
+inline constexpr float trailWidthPixels = 2.5f;
+// Expand in screen space: Metal lines are fixed-width and GLES wide-line
+// support varies by device. Triangles give both backends the same thickness.
+inline void buildTrailMesh(const std::vector<ClipVertex> &lines, double width,
+                           double height, std::vector<ClipVertex> &mesh) {
+  mesh.clear();
+  if (width <= 0 || height <= 0) return;
+  mesh.reserve(lines.size() * 3);
+  for (size_t i = 0; i + 1 < lines.size(); i += 2) {
+    auto a = lines[i], b = lines[i + 1];
+    if (a.w <= 0 || b.w <= 0) continue;
+    double dx = (b.x / b.w - a.x / a.w) * width;
+    double dy = (b.y / b.w - a.y / a.w) * height;
+    double length = std::hypot(dx, dy);
+    if (!std::isfinite(length) || length < 1e-8) continue;
+    float ox = float(-dy / length * trailWidthPixels / width);
+    float oy = float(dx / length * trailWidthPixels / height);
+    auto edge = [&](ClipVertex p, float side) {
+      p.x += ox * p.w * side; p.y += oy * p.w * side;
+      p.v = side;
+      return p;
+    };
+    auto al = edge(a, -1), ar = edge(a, 1);
+    auto bl = edge(b, -1), br = edge(b, 1);
+    mesh.insert(mesh.end(), {al, ar, bl, bl, ar, br});
+  }
+}
 inline ClipVertex project(double x, double y, float u, float v, const double *m,
                           double zoom) {
   double world = 512. * std::exp2(zoom);

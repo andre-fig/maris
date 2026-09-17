@@ -49,7 +49,9 @@ shared state reference, never deletes the host twice.
 8. Shared C++ particles bilinearly sample the same raw atlas, integrate with
    midpoint/RK2, respawn in the visible geographic envelope, and fade with a
    randomized 2–5 second lifetime. Trails retain 64 geographic positions in
-   fixed ring buffers. Simulation is **CPU native**, drawing is GPU; this is
+   fixed ring buffers. Trails use screen-space triangle ribbons, 2.5 physical
+   pixels wide on both platforms (`trailWidthPixels`), independent of zoom/pitch.
+   Simulation is **CPU native**, drawing is GPU; this is
    not a GPU-compute implementation. Speed is visual (4 map pixels/s per m/s
    at animationSpeed 1), not physical parcel travel time. Density adapts down
    when render intervals exceed 35 ms; at density 0.6 the maximum is 300.

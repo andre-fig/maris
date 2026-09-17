@@ -2,6 +2,13 @@
 #include <cassert>
 #include <iostream>
 int main() {
+  std::vector<maris::ClipVertex> mesh;
+  maris::buildTrailMesh({{0, 0, 0, 1, 1, 0}, {1, 0, 0, 2, 1, 0}}, 400, 800, mesh);
+  assert(mesh.size() == 6);
+  assert(std::abs((mesh[1].y - mesh[0].y) * 800 / 2 - maris::trailWidthPixels) < 1e-6);
+  assert(std::abs((mesh[5].y / mesh[5].w - mesh[2].y / mesh[2].w) * 800 / 2 - maris::trailWidthPixels) < 1e-6);
+  maris::buildTrailMesh({{0, 0, 0, 1, 1, 0}, {0, 0, 0, 1, 1, 0}}, 400, 800, mesh);
+  assert(mesh.empty());
   assert(std::abs(maris::my(0) - .5) < 1e-10);
   auto p = maris::plan(-80.2, 25.7, -80.1, 25.8, 14);
   assert(p.z == 6 && p.width() <= 1024 && p.height() <= 1024);

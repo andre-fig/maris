@@ -61,6 +61,7 @@ class Host final : public mbgl::style::CustomLayerHost {
   std::shared_ptr<maris::Field> uploaded;
   GLuint heat = 0, trails = 0, texture = 0, buffer = 0, vao = 0;
   maris::Particles particles;
+  std::vector<maris::ClipVertex> trailMesh;
   maris::RenderStats stats;
   std::chrono::steady_clock::time_point previous{};
   float quality = 1;
@@ -138,13 +139,15 @@ public:
     const auto &lines = particles.update(*field, p.projectionMatrix.data(),
                                          p.zoom, dt, density * quality, speed);
     if (!lines.empty() && trails) {
+      GLint viewport[4];
+      glGetIntegerv(GL_VIEWPORT, viewport);
+      maris::buildTrailMesh(lines, viewport[2], viewport[3], trailMesh);
       glUseProgram(trails);
       glUniform1f(glGetUniformLocation(trails, "opacity"), opacity);
       glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
-      glLineWidth(1);
-      glBufferData(GL_ARRAY_BUFFER, lines.size() * sizeof(maris::ClipVertex),
-                   lines.data(), GL_STREAM_DRAW);
-      glDrawArrays(GL_LINES, 0, lines.size());
+      glBufferData(GL_ARRAY_BUFFER, trailMesh.size() * sizeof(maris::ClipVertex),
+                   trailMesh.data(), GL_STREAM_DRAW);
+      glDrawArrays(GL_TRIANGLES, 0, trailMesh.size());
     }
     glBindVertexArray(0);
 #ifndef NDEBUG
