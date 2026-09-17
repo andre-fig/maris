@@ -2,3 +2,4 @@
 - [ ] SOUNDG — em andamento
 - [x] Régua — concluído
 - [ ] GPS — a fazer
+- [ ] Rotas — a fazer
