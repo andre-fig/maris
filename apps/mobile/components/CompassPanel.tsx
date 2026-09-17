@@ -2,10 +2,16 @@ import { StyleSheet, View } from "react-native";
 
 import { BlurPanel } from "./BlurPanel";
 
-export function CompassPanel() {
+export function CompassPanel({ heading }: { heading: number | null }) {
   return (
     <BlurPanel shape="circle">
-        <View pointerEvents="none" style={styles.compass}>
+        <View
+          pointerEvents="none"
+          style={[
+            styles.compass,
+            { transform: [{ rotate: `${-(heading ?? 0)}deg` }] },
+          ]}
+        >
           <View style={[styles.triangle, styles.north]} />
           <View style={[styles.triangle, styles.east]} />
           <View style={[styles.triangle, styles.south]} />

@@ -198,7 +198,7 @@ export default function App() {
       </Map>
       <View style={styles.controlsOverlay}>
         <View style={styles.controlsStack}>
-          <CompassPanel />
+          <CompassPanel heading={deviceLocation.heading} />
           <MapControlsPanel
             locationActive={locationActive}
             courseUp={courseUp}
