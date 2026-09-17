@@ -62,7 +62,11 @@ export default function App() {
   }, [deviceLocation]);
 
   useEffect(() => {
-    if (!courseUp || deviceLocation?.heading === null || deviceLocation?.heading === undefined) {
+    if (
+      !courseUp ||
+      deviceLocation?.heading === null ||
+      deviceLocation?.heading === undefined
+    ) {
       return;
     }
 
@@ -71,7 +75,12 @@ export default function App() {
       zoom: viewState.zoom,
       bearing: deviceLocation.heading,
     });
-  }, [courseUp, deviceLocation?.heading, deviceLocation?.coordinate, viewState.zoom]);
+  }, [
+    courseUp,
+    deviceLocation?.heading,
+    deviceLocation?.coordinate,
+    viewState.zoom,
+  ]);
 
   const scaleMaxWidth = Math.min(width - 96, 175);
   const currentWeather = useCurrentViewportWeather(
@@ -183,24 +192,25 @@ export default function App() {
       </Map>
       <View style={styles.controlsOverlay}>
         <View style={styles.controlsStack}>
-          <CompassPanel />
+          {courseUp ? <CompassPanel /> : null}
           <MapControlsPanel
             locationActive={locationActive}
             courseUp={courseUp}
             onLocate={() => {
-            if (!deviceLocation) return;
-            locationTarget.current = true;
-            const shouldEnableCourseUp = locationActive && deviceLocation.heading !== null;
-            cameraRef.current?.flyTo({
-              center: deviceLocation.coordinate,
-              zoom: shouldEnableCourseUp ? viewState.zoom : DEFAULT_MAP_ZOOM,
-              ...(shouldEnableCourseUp
-                ? { bearing: deviceLocation.heading ?? 0 }
-                : {}),
-              duration: 500,
-            });
-            setLocationActive(true);
-            setCourseUp(shouldEnableCourseUp);
+              if (!deviceLocation) return;
+              locationTarget.current = true;
+              const shouldEnableCourseUp =
+                locationActive && deviceLocation.heading !== null;
+              cameraRef.current?.flyTo({
+                center: deviceLocation.coordinate,
+                zoom: shouldEnableCourseUp ? viewState.zoom : DEFAULT_MAP_ZOOM,
+                ...(shouldEnableCourseUp
+                  ? { bearing: deviceLocation.heading ?? 0 }
+                  : {}),
+                duration: 500,
+              });
+              setLocationActive(true);
+              setCourseUp(shouldEnableCourseUp);
             }}
           />
         </View>
@@ -235,7 +245,7 @@ const styles = StyleSheet.create({
   },
   controlsOverlay: {
     position: "absolute",
-    right: 48,
+    right: 38,
     bottom: 48,
   },
   controlsStack: {
