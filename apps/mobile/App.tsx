@@ -1,5 +1,6 @@
 import {
   Camera,
+  type CameraRef,
   Layer,
   Map,
   OfflineManager,
@@ -13,6 +14,7 @@ import {
   ScaleRuler,
 } from './components/ScaleRuler';
 import { UserLocationMarker } from './components/UserLocationMarker';
+import { MapControlsPanel } from './components/MapControlsPanel';
 import { useDeviceLocation } from './location/use-device-location';
 import {
   type MapCenter,
@@ -35,7 +37,9 @@ export default function App() {
   });
   const [isZooming, setIsZooming] = useState(false);
   const lastZoom = useRef(11);
+  const cameraRef = useRef<CameraRef>(null);
   const deviceLocation = useDeviceLocation();
+  const [locationActive, setLocationActive] = useState(false);
   const scaleMaxWidth = Math.min(width - 96, 175);
   const currentWeather = useCurrentViewportWeather(
     API_URL,
@@ -88,6 +92,7 @@ export default function App() {
         }}
       >
         <Camera
+          ref={cameraRef}
           initialViewState={{
             center: MIAMI,
             zoom: 11,
@@ -132,6 +137,19 @@ export default function App() {
           />
         ) : null}
       </Map>
+      <View style={styles.controlsOverlay}>
+        <MapControlsPanel
+          locationActive={locationActive}
+          onLocate={() => {
+            if (!deviceLocation) return;
+            cameraRef.current?.flyTo({
+              center: deviceLocation.coordinate,
+              duration: 500,
+            });
+            setLocationActive(true);
+          }}
+        />
+      </View>
       <View pointerEvents="none" style={styles.scaleOverlay}>
         <ScaleRuler
           latitude={viewState.latitude}
@@ -159,5 +177,10 @@ const styles = StyleSheet.create({
     right: 0,
     left: 0,
     alignItems: 'center',
+  },
+  controlsOverlay: {
+    position: 'absolute',
+    right: 16,
+    bottom: 28,
   },
 });

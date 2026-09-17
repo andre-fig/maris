@@ -1,14 +1,8 @@
-import { BlurView } from 'expo-blur';
-import { SymbolView } from 'expo-symbols';
 import { useEffect, useMemo, useRef } from 'react';
 import { Animated, Platform, StyleSheet, Text, View } from 'react-native';
 
 import type { CurrentWeather } from '../weather/current-weather';
-import {
-  getAndroidWeatherSymbol,
-  iosWeatherIcons,
-  openWeatherIconMap,
-} from '../weather/weather-icons';
+import { WeatherPanel } from './WeatherPanel';
 
 type ScaleDefinition = {
   segmentMetres: number;
@@ -31,9 +25,6 @@ const MAX_VISIBLE_SCALE_METRES = 1_000_000;
 const MIN_ACTIVATION_RATIO = 1.2;
 const FADE_OUT_DURATION_MS = 400;
 const WEATHER_MAX_SCALE_METRES = 10_000;
-const WEATHER_BADGE_LEFT_MARGIN = 48;
-const WEATHER_BADGE_HORIZONTAL_PADDING = 3;
-const WEATHER_BADGE_VERTICAL_PADDING = 4;
 const SYSTEM_FONT = Platform.select({ ios: 'System', default: 'sans-serif' });
 
 const METRE_SCALES: ScaleDefinition[] = [
@@ -137,7 +128,6 @@ export function ScaleRuler({
   zoom,
 }: ScaleRulerProps) {
   const opacity = useRef(new Animated.Value(0)).current;
-  const weatherOpacity = useRef(new Animated.Value(0)).current;
   const { hidden, labels, segments, showWeather, width } = useMemo(() => {
     const metresPerPoint =
       (METRES_PER_PIXEL_AT_EQUATOR * Math.cos((latitude * Math.PI) / 180)) /
@@ -165,11 +155,6 @@ export function ScaleRuler({
     };
   }, [latitude, maxWidth, zoom]);
   const showImmediately = visible && !hidden;
-  const displayWeather = showWeather && weather !== undefined;
-  const weatherIcon = weather
-    ? openWeatherIconMap[weather.icon_code]
-    : undefined;
-  const weatherText = weather ? `${Math.round(weather.temperature_celsius)}°` : '';
 
   useEffect(() => {
     opacity.stopAnimation();
@@ -186,61 +171,15 @@ export function ScaleRuler({
     opacity.setValue(1);
   }, [opacity, showImmediately]);
 
-  useEffect(() => {
-    if (displayWeather) {
-      weatherOpacity.stopAnimation();
-      weatherOpacity.setValue(1);
-      return;
-    }
-
-    const fadeOut = Animated.timing(weatherOpacity, {
-      toValue: 0,
-      duration: FADE_OUT_DURATION_MS,
-      useNativeDriver: true,
-    });
-
-    fadeOut.start();
-
-    return () => fadeOut.stop();
-  }, [displayWeather, weatherOpacity]);
-
   return (
-    <View style={[styles.container, { width: viewportWidth }]}>
-      <Animated.View
-        style={[styles.weatherBadge, { opacity: weatherOpacity }]}
-      >
-        <BlurView
-          intensity={6}
-          key={displayWeather ? 'weather-blur-visible' : 'weather-blur-hidden'}
-          tint="systemMaterialDark"
-          style={StyleSheet.absoluteFill}
-        />
-        {weatherIcon ? (
-          <SymbolView
-            name={{
-              android: getAndroidWeatherSymbol(weatherIcon),
-              ios: iosWeatherIcons[weatherIcon],
-              web: getAndroidWeatherSymbol(weatherIcon),
-            }}
-            size={20}
-            style={styles.weatherIcon}
-            tintColor="#ffffff"
-            type="hierarchical"
-          />
-        ) : null}
-        <Text
-          accessibilityLabel={
-            weather
-              ? `${weather.condition}, ${Math.round(
-                  weather.temperature_celsius,
-                )} graus, umidade ${weather.humidity_percent} por cento, vento ${weather.wind_speed_metres_per_second} metros por segundo, precipitação ${weather.precipitation_millimetres_last_hour} milímetros na última hora`
-              : undefined
-          }
-          style={styles.weatherText}
-        >
-          {weatherText}
-        </Text>
-      </Animated.View>
+    <View
+      style={[styles.container, { width: viewportWidth }]}
+    >
+      <WeatherPanel
+        style={styles.weatherBadge}
+        visible={showWeather}
+        weather={weather}
+      />
       <Animated.View
         style={[
           styles.rulerContainer,
@@ -295,32 +234,8 @@ const styles = StyleSheet.create({
     top: 0,
   },
   weatherBadge: {
-    position: 'absolute',
     top: 0,
-    left: WEATHER_BADGE_LEFT_MARGIN,
-    paddingHorizontal: WEATHER_BADGE_HORIZONTAL_PADDING,
-    paddingVertical: WEATHER_BADGE_VERTICAL_PADDING,
-    flexDirection: 'row',
-    columnGap: 3,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-    backgroundColor: 'rgba(20, 34, 39, 0.18)',
-    borderWidth: 0.5,
-    borderColor: 'rgba(255, 255, 255, 0.32)',
-    borderRadius: 11,
-  },
-  weatherText: {
-    color: '#ffffff',
-    fontFamily: SYSTEM_FONT,
-    fontSize: 18,
-    fontWeight: '600',
-    fontVariant: ['tabular-nums'],
-    lineHeight: 22,
-  },
-  weatherIcon: {
-    width: 20,
-    height: 20,
+    left: 48,
   },
   ruler: {
     height: 26,
