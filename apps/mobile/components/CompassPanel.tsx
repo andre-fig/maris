@@ -40,8 +40,8 @@ const styles = StyleSheet.create({
   east: {
     top: 14,
     right: 0,
-    borderTopWidth: 3,
-    borderBottomWidth: 3,
+    borderTopWidth: 2,
+    borderBottomWidth: 2,
     borderLeftWidth: 8,
     borderTopColor: "transparent",
     borderBottomColor: "transparent",
@@ -50,8 +50,8 @@ const styles = StyleSheet.create({
   south: {
     bottom: 0,
     left: 14,
-    borderLeftWidth: 3,
-    borderRightWidth: 3,
+    borderLeftWidth: 2,
+    borderRightWidth: 2,
     borderTopWidth: 8,
     borderLeftColor: "transparent",
     borderRightColor: "transparent",
@@ -60,8 +60,8 @@ const styles = StyleSheet.create({
   west: {
     top: 14,
     left: 0,
-    borderTopWidth: 3,
-    borderBottomWidth: 3,
+    borderTopWidth: 2,
+    borderBottomWidth: 2,
     borderRightWidth: 8,
     borderTopColor: "transparent",
     borderBottomColor: "transparent",
