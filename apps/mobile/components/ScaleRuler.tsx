@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react';
-import { Animated, StyleSheet, Text, View } from 'react-native';
+import { Animated, Platform, StyleSheet, Text, View } from 'react-native';
 
 type ScaleDefinition = {
   segmentMetres: number;
@@ -22,6 +22,7 @@ const FADE_OUT_DURATION_MS = 400;
 const WEATHER_MAX_SCALE_METRES = 10_000;
 const WEATHER_BADGE_WIDTH = 68;
 const WEATHER_BADGE_GAP = 8;
+const SYSTEM_FONT = Platform.select({ ios: 'System', default: 'sans-serif' });
 
 const METRE_SCALES: ScaleDefinition[] = [
   { segmentMetres: 2, segments: 3, unit: 'm' },
@@ -240,6 +241,7 @@ const styles = StyleSheet.create({
   },
   weatherText: {
     color: '#ffffff',
+    fontFamily: SYSTEM_FONT,
     fontSize: 13,
     fontWeight: '600',
     fontVariant: ['tabular-nums'],
@@ -255,6 +257,7 @@ const styles = StyleSheet.create({
   },
   label: {
     color: '#ffffff',
+    fontFamily: SYSTEM_FONT,
     fontSize: 11,
     fontWeight: '700',
     fontVariant: ['tabular-nums'],
