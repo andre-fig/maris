@@ -1,5 +1,5 @@
 import { SymbolView } from "expo-symbols";
-import { Animated, StyleProp, StyleSheet, ViewStyle } from "react-native";
+import { Animated, StyleProp, StyleSheet, View, ViewStyle } from "react-native";
 
 import type { CurrentWeather } from "../weather/current-weather";
 import {
@@ -31,18 +31,28 @@ export function WeatherPanel({ weather, visible, style }: WeatherPanelProps) {
         key={displayWeather ? "weather-blur-visible" : "weather-blur-hidden"}
         flexDirection="row"
       >
-        {weatherIcon ? (
-          <SymbolView
-            name={{
-              android: getAndroidWeatherSymbol(weatherIcon),
-              ios: iosWeatherIcons[weatherIcon],
-              web: getAndroidWeatherSymbol(weatherIcon),
-            }}
-            size={BLUR_PANEL_ICON_SIZE}
-            tintColor="#ffffff"
-            type="hierarchical"
-          />
-        ) : null}
+        <View style={styles.condition}>
+          {weatherIcon ? (
+            <SymbolView
+              name={{
+                android: getAndroidWeatherSymbol(weatherIcon),
+                ios: iosWeatherIcons[weatherIcon],
+                web: getAndroidWeatherSymbol(weatherIcon),
+              }}
+              size={20}
+              tintColor="#ffffff"
+              type="hierarchical"
+            />
+          ) : null}
+          {typeof weather?.rain_probability_percent === "number" ? (
+            <BlurText
+              style={styles.rainChance}
+              accessibilityLabel={`Chance de chuva na próxima hora: ${Math.round(weather.rain_probability_percent)} por cento`}
+            >
+              {Math.round(weather.rain_probability_percent)}%
+            </BlurText>
+          ) : null}
+        </View>
         <BlurText
           accessibilityLabel={
             weather
@@ -60,7 +70,13 @@ export function WeatherPanel({ weather, visible, style }: WeatherPanelProps) {
 }
 
 const styles = StyleSheet.create({
-  wrapper: {
-    position: "absolute",
+  condition: { minWidth: 20, alignItems: "center" },
+  rainChance: {
+    alignSelf: "stretch",
+    textAlign: "center",
+    transform: [{ translateX: 2 }],
+    color: "#8ED8FF",
+    fontSize: 10,
+    lineHeight: 10,
   },
 });

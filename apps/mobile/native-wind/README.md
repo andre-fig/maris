@@ -52,9 +52,15 @@ shared state reference, never deletes the host twice.
    fixed ring buffers. Trails use screen-space triangle ribbons, 5 physical
    pixels wide on both platforms (`trailWidthPixels`), independent of zoom/pitch.
    Simulation is **CPU native**, drawing is GPU; this is
-   not a GPU-compute implementation. Speed is visual (4 map pixels/s per m/s
-   at animationSpeed 1), not physical parcel travel time. Density adapts down
+   not a GPU-compute implementation. Speed is visual: 4 map pixels/s per m/s
+   at animationSpeed 1, not physical parcel travel time. Density adapts down
    when render intervals exceed 35 ms; the app uses density 0.75 (up to 750 particles).
+   Local particle visibility additionally follows decoded wind magnitude:
+   below 1.1 m/s: 0%; 1.1–2.2: 20%; 2.2–3.3: 40%; 3.3–4.4: 60%;
+   4.4–5.5: 80%; at least 5.5: 100% (lower bounds inclusive).
+   Five stable particle groups apply these fractions without redistributing
+   hidden candidates to windy areas. Hidden trails reset; lifetimes/advection
+   continue. The animation-speed multiplier does not affect these thresholds.
 
 The layer is inserted below the existing SOUNDG text layer when available.
 `components/WindPanel.tsx` adds the wind toggle above the compass, using the

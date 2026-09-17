@@ -219,6 +219,16 @@ struct Particle {
   std::array<std::array<double, 2>, trailCapacity> trail{};
   size_t head = 0, size = 0;
 };
+// Five equally sized groups: retain 0/20/40/60/80/100% locally, using
+// decoded MET m/s, never the animation-speed multiplier.
+inline int windParticleGroups(float metersPerSecond) {
+  if (metersPerSecond < 1.1f) return 0;
+  if (metersPerSecond < 2.2f) return 1;
+  if (metersPerSecond < 3.3f) return 2;
+  if (metersPerSecond < 4.4f) return 3;
+  if (metersPerSecond < 5.5f) return 4;
+  return 5;
+}
 inline std::array<double, 4> viewport(const double *m, double zoom) {
   double west = 1e20, north = 1e20, east = -1e20, south = -1e20,
          world = 512 * std::exp2(zoom);
@@ -263,7 +273,8 @@ public:
       std::vector<ClipVertex>().swap(lines);
     lines.reserve(count * (Particle::trailCapacity - 1) * 2);
     const auto bounds = viewport(m, zoom);
-    for (auto &p : particles) {
+    for (size_t index = 0; index < particles.size(); ++index) {
+      auto &p = particles[index];
       float u, v;
       if (p.age > p.lifetime || p.x < bounds[0] || p.x > bounds[2] ||
           p.y < bounds[1] || p.y > bounds[3] || !sampleTransition(f, old, progress, p.x, p.y, u, v)) {
@@ -276,8 +287,8 @@ public:
         if (!sampleTransition(f, old, progress, p.x, p.y, u, v))
           continue;
       }
-      // Visualization speed: 4 map pixels/second per m/s, preserving direction
-      // and relative magnitude. Not a physical travel-time simulation.
+      // Visualization speed: 4 map pixels/second per m/s at animationSpeed=1.
+      // Direction and relative magnitude are preserved, not physical travel time.
       double k = dt * speed * 4 / (512. * std::exp2(zoom));
       float midU = u, midV = v;
       if (!sampleTransition(f, old, progress, p.x + u * k * .5, p.y - v * k * .5, midU, midV)) {
@@ -287,6 +298,13 @@ public:
       p.x += midU * k;
       p.y -= midV * k;
       p.age += float(dt);
+      // Hidden candidates keep their normal lifetime and advection. Do not
+      // repeatedly respawn them into stronger wind and defeat the percentages.
+      if (int(index % 5) >= windParticleGroups(std::hypot(midU, midV))) {
+        p.size = 0;
+        p.head = 0;
+        continue;
+      }
       p.trail[p.head] = {p.x, p.y};
       p.head = (p.head + 1) % Particle::trailCapacity;
       p.size = std::min(Particle::trailCapacity, p.size + 1);

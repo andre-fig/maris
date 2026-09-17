@@ -11,6 +11,32 @@ afterEach(() => {
   globalThis.fetch = originalFetch;
 });
 
+test('adds next-hour rain probability, preserving zero and tolerating forecast failure', async () => {
+  const next = Math.floor(Date.now() / 3_600_000) * 3600 + 3600;
+  let chance: number | null = 70;
+  globalThis.fetch = async input => {
+    if (input.toString().includes('forecast.json')) {
+      if (chance === null) return new Response('', { status: 503 });
+      return Response.json({ forecast: { forecastday: [
+        { hour: [{ time_epoch: next - 3600, chance_of_rain: 99 }] },
+        { hour: [{ time_epoch: next, chance_of_rain: chance }] },
+      ] } });
+    }
+    return Response.json({ coord: { lat: 0, lon: 0 }, dt: next,
+      main: { humidity: 50, temp: 20 }, weather: [{ description: 'clear', icon: '01d' }], wind: { speed: 2 } });
+  };
+  const service = new WeatherService({ get: () => 'test-key' } as unknown as ConfigService);
+  const weather = await service.getCurrentWeather(0, 0);
+  assert.equal(weather.rain_probability_percent, 70);
+  assert.equal(weather.rain_probability_at, new Date(next * 1000).toISOString());
+  chance = 0;
+  assert.equal((await service.getCurrentWeather(0, 0)).rain_probability_percent, 0);
+  chance = null;
+  const unavailable = await service.getCurrentWeather(0, 0);
+  assert.equal(unavailable.rain_probability_percent, null);
+  assert.equal(unavailable.temperature_celsius, 20);
+});
+
 test('two unresponsive providers abort within the five-second total budget', async () => {
   assert.equal(WEATHER_PROVIDER_TIMEOUT_MS, 2_500);
   let aborted = 0;
@@ -23,7 +49,7 @@ test('two unresponsive providers abort within the five-second total budget', asy
     const start = Date.now();
     const service = new WeatherService({ get: () => 'test-key' } as unknown as ConfigService);
     await assert.rejects(service.getCurrentWeather(25,-80), /Weather providers are unavailable/);
-    assert.equal(aborted, 2);
+    assert.equal(aborted, 3);
     assert.ok(Date.now()-start < 6_000);
   } finally { clearInterval(keepAlive); }
 });
@@ -55,6 +81,8 @@ test('maps only current OpenWeather fields into the public response', async () =
     wind_speed_metres_per_second: 4.6,
     wind_direction_degrees: 135,
     precipitation_millimetres_last_hour: 1.2,
+    rain_probability_percent: null,
+    rain_probability_at: null,
     icon_code: '10d',
     observed_at: new Date(1_789_637_400_000).toISOString(),
   });
@@ -91,7 +119,7 @@ test('falls back to WeatherAPI when OpenWeather fails', async () => {
   const service = new WeatherService(config);
   const weather = await service.getCurrentWeather(25.76, -80.19);
 
-  assert.equal(requests.length, 2);
+  assert.equal(requests.length, 3);
   assert.equal(weather.icon_code, 'SHOWER_RAIN');
   assert.equal(weather.wind_speed_metres_per_second, 4.6);
   assert.equal(weather.precipitation_millimetres_last_hour, 1.2);

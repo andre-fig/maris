@@ -2,6 +2,17 @@
 #include <cassert>
 #include <iostream>
 int main() {
+  assert(maris::windParticleGroups(0) == 0);
+  const float thresholds[] = {1.1f, 2.2f, 3.3f, 4.4f, 5.5f};
+  for (int band = 0; band < 5; ++band) {
+    assert(maris::windParticleGroups(std::nextafter(thresholds[band], 0.f)) == band);
+    assert(maris::windParticleGroups(thresholds[band]) == band + 1);
+    size_t visible = 0;
+    for (size_t i = 0; i < 750; ++i)
+      visible += int(i % 5) < maris::windParticleGroups(thresholds[band]);
+    assert(visible == size_t(band + 1) * 150);
+  }
+  assert(maris::windParticleGroups(40) == 5);
   std::vector<maris::ClipVertex> mesh;
   maris::buildTrailMesh({{0, 0, 0, 1, 1, 0}, {1, 0, 0, 2, 1, 0}}, 400, 800, mesh);
   assert(mesh.size() == 6);
@@ -44,7 +55,7 @@ int main() {
     cache.put(std::to_string(i), a.data());
   assert(!cache.copy("revision1/0/0/0", global, 0, 0));
   for (size_t i = 0; i < a.size(); i += 4) {
-    a[i] = 136;
+    a[i] = 140;
     a[i + 1] = 132;
   }
   global.put(0, 0, a.data(), 1024);
@@ -67,6 +78,11 @@ int main() {
     }
   }
   assert(exceedsPreviousTrailCapacity);
+  for (size_t i = 0; i < a.size(); i += 4) {
+    a[i] = 129; a[i + 1] = 128; // 0.5 m/s: no particles, even accelerated.
+  }
+  global.put(0, 0, a.data(), 1024);
+  assert(particles.update(global, screen, 0, .016, 1, 25).empty());
   assert(particles.update(global, screen, 0, .016, 0, 1).empty());
   maris::Field absent({0, 0, 0, 0, 0});
   assert(particles.update(absent, screen, 0, .016, 1, 1).empty());

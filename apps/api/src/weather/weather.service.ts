@@ -46,6 +46,40 @@ export class WeatherService {
     latitude: number,
     longitude: number,
   ): Promise<CurrentWeatherDto> {
+    const [current, rain] = await Promise.all([
+      this.getCurrentConditions(latitude, longitude),
+      this.fetchRainChance(latitude, longitude),
+    ]);
+    return { ...current, ...rain };
+  }
+
+  private async fetchRainChance(latitude: number, longitude: number) {
+    const missing = { rain_probability_percent: null, rain_probability_at: null };
+    const key = this.config.get<string>('WEATHERAPI_API_KEY');
+    if (!key) return missing;
+    try {
+      const url = new URL('https://api.weatherapi.com/v1/forecast.json');
+      url.searchParams.set('key', key);
+      url.searchParams.set('q', `${latitude},${longitude}`);
+      url.searchParams.set('days', '2'); // Includes the next hour across midnight.
+      url.searchParams.set('hour_fields', 'time_epoch,chance_of_rain');
+      const response = await fetch(url, { signal: AbortSignal.timeout(WEATHER_PROVIDER_TIMEOUT_MS) });
+      if (!response.ok) return missing;
+      const payload = await response.json() as {
+        forecast?: { forecastday?: Array<{ hour?: Array<{ time_epoch: number; chance_of_rain: number }> }> };
+      };
+      const now = Date.now() / 1000;
+      const hour = payload.forecast?.forecastday?.flatMap(day => day.hour ?? [])
+        .filter(h => h.time_epoch >= now && h.time_epoch <= now + 3600)
+        .sort((a, b) => a.time_epoch - b.time_epoch)[0];
+      if (!hour || !Number.isFinite(hour.chance_of_rain) || hour.chance_of_rain < 0 || hour.chance_of_rain > 100) return missing;
+      return { rain_probability_percent: hour.chance_of_rain, rain_probability_at: new Date(hour.time_epoch * 1000).toISOString() };
+    } catch {
+      return missing; // Probability failures must not hide current weather.
+    }
+  }
+
+  private async getCurrentConditions(latitude: number, longitude: number) {
     const openWeatherKey = this.config.get<string>('OPENWEATHER_API_KEY');
     const weatherApiKey = this.config.get<string>('WEATHERAPI_API_KEY');
 
