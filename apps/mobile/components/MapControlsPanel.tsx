@@ -18,7 +18,7 @@ export function MapControlsPanel({
   const isAndroid = Platform.OS === "android";
 
   return (
-    <BlurPanel>
+    <BlurPanel alignSelf="flex-end">
       <View>
         {isAndroid ? (
           <MaterialCommunityIcons

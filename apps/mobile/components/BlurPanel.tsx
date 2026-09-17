@@ -1,10 +1,11 @@
 import { BlurView } from "expo-blur";
 import { PropsWithChildren } from "react";
-import { StyleSheet, View } from "react-native";
+import { StyleSheet, View, type ViewStyle } from "react-native";
 
 type BlurPanelProps = PropsWithChildren<{
   flexDirection?: "row" | "column";
   shape?: "rectangle" | "circle";
+  alignSelf?: ViewStyle["alignSelf"];
 }>;
 
 export const BLUR_PANEL_ICON_SIZE = 28;
@@ -13,13 +14,14 @@ export function BlurPanel({
   children,
   flexDirection,
   shape = "rectangle",
+  alignSelf = "flex-start",
 }: BlurPanelProps) {
   return (
     <View
       style={[
         styles.panel,
         shape === "circle" && styles.circle,
-        { flexDirection },
+        { flexDirection, alignSelf },
       ]}
     >
       <BlurView
@@ -34,7 +36,6 @@ export function BlurPanel({
 
 const styles = StyleSheet.create({
   panel: {
-    alignSelf: "flex-start",
     borderRadius: 16,
     overflow: "hidden",
     paddingHorizontal: 8,
