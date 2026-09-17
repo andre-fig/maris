@@ -15,13 +15,13 @@ const WIND_LEGEND = [
   { label: "17.2", color: "#7B57ED" },
   { label: "13.9", color: "#4B87EA" },
   { label: "10.8", color: "#13A8D6" },
-  { label: "8", color: "#3CBEBE" },
+  { label: "8.0", color: "#3CBEBE" },
   { label: "5.5", color: "#79CCAC" },
   { label: "<5.4", color: "#A7CEA1" },
 ] as const;
 
-const LEGEND_ROW_HEIGHT = BLUR_TEXT_LINE_HEIGHT + 6;
-const LEGEND_TOP = BLUR_PANEL_ICON_SIZE + 8;
+const LEGEND_ROW_HEIGHT = BLUR_TEXT_LINE_HEIGHT;
+const LEGEND_TOP = BLUR_PANEL_ICON_SIZE;
 const EXPANDED_HEIGHT = LEGEND_TOP + WIND_LEGEND.length * LEGEND_ROW_HEIGHT;
 
 export function WindPanel({
@@ -34,7 +34,11 @@ export function WindPanel({
   const expansion = useRef(new Animated.Value(enabled ? 1 : 0)).current;
   const [headerWidth, setHeaderWidth] = useState(0);
   const [legendWidth, setLegendWidth] = useState(0);
-  const expandedWidth = Math.max(BLUR_PANEL_ICON_SIZE, headerWidth, legendWidth);
+  const expandedWidth = Math.max(
+    BLUR_PANEL_ICON_SIZE,
+    headerWidth,
+    legendWidth,
+  );
 
   useEffect(() => {
     expansion.stopAnimation();
@@ -71,35 +75,50 @@ export function WindPanel({
           accessibilityLabel={enabled ? "Desativar vento" : "Ativar vento"}
           accessibilityState={{ expanded: enabled, selected: enabled }}
           onPress={onToggle}
-          onLayout={({ nativeEvent }) => setHeaderWidth(nativeEvent.layout.width)}
+          onLayout={({ nativeEvent }) =>
+            setHeaderWidth(nativeEvent.layout.width)
+          }
           style={({ pressed }) => [styles.header, pressed && styles.pressed]}
         >
           <SymbolView
             name={{ ios: "wind", android: "air", web: "air" }}
-            size={BLUR_PANEL_ICON_SIZE}
+            size={18}
             tintColor="#FFFFFF"
             type="monochrome"
           />
           <Animated.View style={{ opacity: expansion }}>
-            <BlurText numberOfLines={1} accessibilityLabel="Metros por segundo">m/s</BlurText>
+            <BlurText
+              style={{ fontSize: 12 }}
+              numberOfLines={1}
+              accessibilityLabel="Metros por segundo"
+            >
+              m/s
+            </BlurText>
           </Animated.View>
         </Pressable>
         <Animated.View
           pointerEvents="none"
           accessibilityElementsHidden={!enabled}
           importantForAccessibility={enabled ? "auto" : "no-hide-descendants"}
-          onLayout={({ nativeEvent }) => setLegendWidth(nativeEvent.layout.width)}
+          onLayout={({ nativeEvent }) =>
+            setLegendWidth(nativeEvent.layout.width)
+          }
           style={[styles.legend, { opacity: expansion }]}
         >
           <View style={styles.colorBar} accessible={false}>
             {WIND_LEGEND.map(({ label, color }) => (
-              <View key={label} style={[styles.band, { backgroundColor: color }]} />
+              <View
+                key={label}
+                style={[styles.band, { backgroundColor: color }]}
+              />
             ))}
           </View>
           <View>
             {WIND_LEGEND.map(({ label }) => (
               <View key={label} style={styles.legendRow}>
-                <BlurText numberOfLines={1}>{label}</BlurText>
+                <BlurText style={{ fontSize: 11 }} numberOfLines={1}>
+                  {label}
+                </BlurText>
               </View>
             ))}
           </View>
