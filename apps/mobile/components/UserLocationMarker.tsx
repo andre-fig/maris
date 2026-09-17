@@ -31,14 +31,14 @@ export function UserLocationMarker({
           <MaterialIcons
             color="#0A84FF"
             name="assistant-navigation"
-            size={30}
+            size={24}
             style={styles.navigation}
           />
         ) : (
           <SymbolView
             colors={['#FFFFFF', '#0A84FF']}
             name="location.north.circle.fill"
-            size={38}
+            size={32}
             style={styles.integratedSymbol}
             type="palette"
             weight="semibold"
@@ -55,18 +55,18 @@ const styles = StyleSheet.create({
     elevation: 10000,
   },
   marker: {
-    width: 42,
-    height: 42,
+    width: 36,
+    height: 36,
     alignItems: 'center',
     justifyContent: 'center',
   },
   navigation: {
     position: 'absolute',
-    width: 20,
-    height: 20,
+    width: 24,
+    height: 24,
   },
   integratedSymbol: {
-    width: 38,
-    height: 38,
+    width: 32,
+    height: 32,
   },
 });

@@ -22,12 +22,12 @@ export function MapControlsPanel({
           <MaterialCommunityIcons
             color="#FFFFFF"
             name="map-outline"
-            size={23}
+            size={20}
           />
         ) : (
           <SymbolView
             name="map"
-            size={23}
+            size={20}
             tintColor="#FFFFFF"
             type="monochrome"
           />
@@ -43,7 +43,7 @@ export function MapControlsPanel({
           <MaterialCommunityIcons
             color="#FFFFFF"
             name="near-me"
-            size={23}
+            size={20}
           />
         ) : (
           <SymbolView
@@ -60,12 +60,12 @@ export function MapControlsPanel({
 
 const styles = StyleSheet.create({
   panel: {
-    width: 54,
+    width: 46,
     borderRadius: 16,
   },
   section: {
-    width: 46,
-    height: 46,
+    width: 38,
+    height: 38,
     alignItems: 'center',
     justifyContent: 'center',
   },
