@@ -52,8 +52,11 @@ shared state reference, never deletes the host twice.
    fixed ring buffers. Trails use screen-space triangle ribbons, 5 physical
    pixels wide on both platforms (`trailWidthPixels`), independent of zoom/pitch.
    Simulation is **CPU native**, drawing is GPU; this is
-   not a GPU-compute implementation. Speed is visual (4 map pixels/s per m/s
-   at animationSpeed 1), not physical parcel travel time. Density adapts down
+   not a GPU-compute implementation. At animationSpeed 1, MET m/s are converted
+   to physical displacement using latitude-corrected Web Mercator scale, without
+   a visual speed multiplier or zoom-dependent advection. The midpoint also
+   corrects the scale for north/south travel. Trails look much shorter at normal
+   map zooms. Density adapts down
    when render intervals exceed 35 ms; the app uses density 0.75 (up to 750 particles).
 
 The layer is inserted below the existing SOUNDG text layer when available.

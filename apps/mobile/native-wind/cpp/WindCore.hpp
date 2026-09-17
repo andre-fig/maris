@@ -33,6 +33,12 @@ struct RenderStats {
   }
 };
 constexpr double pi = 3.14159265358979323846;
+// Normalized Web Mercator units per ground meter (WGS84 sphere).
+// cos(latitude) = 1 / cosh(pi * (1 - 2*y)). Independent of camera zoom.
+inline double mercatorUnitsPerMeter(double y) {
+  return std::cosh(pi * (1. - 2. * std::clamp(y, 0., 1.))) /
+         (2. * pi * 6378137.);
+}
 inline double mx(double lon) { return (lon + 180.) / 360.; }
 inline double my(double lat) {
   return (1. - std::asinh(std::tan(std::clamp(lat, -85.05112878, 85.05112878) *
@@ -276,14 +282,16 @@ public:
         if (!sampleTransition(f, old, progress, p.x, p.y, u, v))
           continue;
       }
-      // Visualization speed: 4 map pixels/second per m/s, preserving direction
-      // and relative magnitude. Not a physical travel-time simulation.
-      double k = dt * speed * 4 / (512. * std::exp2(zoom));
+      // MET components are m/s. At speed=1, travel matches elapsed physical
+      // time; latitude corrects Mercator scale rather than camera zoom.
+      double k = dt * speed * mercatorUnitsPerMeter(p.y);
+      const double midY = p.y - v * k * .5;
       float midU = u, midV = v;
       if (!sampleTransition(f, old, progress, p.x + u * k * .5, p.y - v * k * .5, midU, midV)) {
         p.age = 100;
         continue;
       }
+      k = dt * speed * mercatorUnitsPerMeter(midY);
       p.x += midU * k;
       p.y -= midV * k;
       p.age += float(dt);

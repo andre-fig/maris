@@ -2,6 +2,14 @@
 #include <cassert>
 #include <iostream>
 int main() {
+  // A 5.5 m/s eastward wind travels 55 ground meters in ten seconds,
+  // independently of latitude (and without any zoom-dependent multiplier).
+  for (double latitude : {0., 25.76, -33., 60., 85.}) {
+    const double dx = 5.5 * 10 * maris::mercatorUnitsPerMeter(maris::my(latitude));
+    const double groundMeters = dx * 2 * maris::pi * 6378137. *
+                                std::cos(latitude * maris::pi / 180.);
+    assert(std::abs(groundMeters - 55.) < 1e-8);
+  }
   std::vector<maris::ClipVertex> mesh;
   maris::buildTrailMesh({{0, 0, 0, 1, 1, 0}, {1, 0, 0, 2, 1, 0}}, 400, 800, mesh);
   assert(mesh.size() == 6);
