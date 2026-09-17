@@ -155,7 +155,7 @@ const styles = StyleSheet.create({
     color: '#000000',
     textShadowColor: '#000000',
     textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 2,
+    textShadowRadius: 2.5,
   },
   bar: {
     height: 7,
