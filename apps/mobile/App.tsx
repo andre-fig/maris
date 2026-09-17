@@ -14,6 +14,8 @@ import { CompassPanel } from "./components/CompassPanel";
 import { UserLocationMarker } from "./components/UserLocationMarker";
 import { MapControlsPanel } from "./components/MapControlsPanel";
 import { WindPanel } from "./components/WindPanel";
+import { BlurPanel } from "./components/BlurPanel";
+import { BlurText } from "./components/BlurText";
 import { useDeviceLocation } from "./location/use-device-location";
 import { NativeWindLayer } from "@maris/native-wind";
 import { MAP_AMBIENT_CACHE_BYTES } from "./offline/offline-areas";
@@ -56,6 +58,7 @@ export default function App() {
   const [locationActive, setLocationActive] = useState(false);
   const [courseUp, setCourseUp] = useState(false);
   const [windEnabled, setWindEnabled] = useState(false);
+  const [windStale, setWindStale] = useState(false);
   const locationTarget = useRef(false);
   const initialLocationApplied = useRef(false);
   const courseUpTransitionPending = useRef(false);
@@ -208,10 +211,16 @@ export default function App() {
         opacity={0.8}
         density={0.75}
         animationSpeed={1}
+        onDataStatus={({ nativeEvent }) => setWindStale(nativeEvent.stale)}
         style={{ width: 0, height: 0, position: "absolute" }}
       />
       <View style={styles.controlsOverlay}>
         <View style={styles.controlsStack}>
+          {windEnabled && windStale ? (
+            <BlurPanel>
+              <BlurText style={styles.staleText}>Vento desatualizado</BlurText>
+            </BlurPanel>
+          ) : null}
           <CompassPanel
             heading={deviceLocation.heading}
             onPress={() => {
@@ -291,5 +300,8 @@ const styles = StyleSheet.create({
   controlsStack: {
     alignItems: "flex-end",
     gap: 8,
+  },
+  staleText: {
+    fontSize: 12,
   },
 });

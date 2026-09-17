@@ -4,6 +4,8 @@ import android.util.Log;
 import android.view.*;
 import com.facebook.react.bridge.*;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.concurrent.*;
@@ -30,6 +32,7 @@ public class WindControl extends View
   static native long restore(long id, int gen, String path);
   static native void save(long id, int gen, String path, String catalog, long now);
   boolean enabled = false, active = true, attached = false;
+  final boolean benchmarkEnabled;
   float opacity = .65f, density = .6f, speed = 1;
   MapView mapView;
   MapLibreMap map;
@@ -46,10 +49,13 @@ public class WindControl extends View
   final ReactContext react;
   final boolean lowMemory;
   final String snapshotPath;
+  final String catalogPath;
   long savedAt = 0;
   WindControl(ReactContext context) {
     super(context);
     react = context;
+    benchmarkEnabled = context.getCurrentActivity() != null &&
+        context.getCurrentActivity().getIntent().getBooleanExtra("maris.wind.enabled", false);
     android.app.ActivityManager manager = (android.app.ActivityManager)context.getSystemService(android.content.Context.ACTIVITY_SERVICE);
     android.app.ActivityManager.MemoryInfo memory = new android.app.ActivityManager.MemoryInfo();
     manager.getMemoryInfo(memory);
@@ -57,6 +63,7 @@ public class WindControl extends View
     File directory = new File(context.getNoBackupFilesDir(), "maris-wind");
     directory.mkdirs();
     snapshotPath = new File(directory, "last-field.bin").getAbsolutePath();
+    catalogPath = new File(directory, "last-catalog.json").getAbsolutePath();
     setVisibility(INVISIBLE);
     http = new OkHttpClient.Builder()
                .cache(new Cache(new File(context.getCacheDir(), "wind"),
@@ -192,19 +199,43 @@ public class WindControl extends View
           .receiveEvent(getId(), "topDataStatus", event);
     });
   }
-  byte[] fetch(String url) throws Exception {
-    Request r = new Request.Builder()
+  void cancelObsolete(int gen) {
+    for (Call call : http.dispatcher().queuedCalls())
+      if (!Integer.valueOf(gen).equals(call.request().tag())) call.cancel();
+    for (Call call : http.dispatcher().runningCalls())
+      if (!Integer.valueOf(gen).equals(call.request().tag())) call.cancel();
+  }
+  byte[] fetch(String url, int gen, boolean cacheOnly) throws Exception {
+    Request.Builder builder = new Request.Builder()
                     .url(url)
+                    .tag(Integer.valueOf(gen))
                     .header("User-Agent",
-                            "Maris/1.0 (https://github.com/andre-fig/maris)")
-                    .build();
+                            "Maris/1.0 (https://github.com/andre-fig/maris)");
+    if (cacheOnly) builder.cacheControl(CacheControl.FORCE_CACHE);
+    Request r = builder.build();
     try (Response response = http.newCall(r).execute()) {
       if (!response.isSuccessful() || response.body() == null)
         throw new Exception("MET HTTP " + response.code());
       return response.body().bytes();
     }
   }
+  byte[] fetch(String url, int gen) throws Exception { return fetch(url, gen, false); }
+  String savedCatalog() {
+    try (FileInputStream in = new FileInputStream(catalogPath)) {
+      byte[] bytes = new byte[(int) new File(catalogPath).length()];
+      int read = in.read(bytes);
+      return new String(bytes, 0, Math.max(0, read), java.nio.charset.StandardCharsets.UTF_8);
+    } catch (Exception ignored) { return null; }
+  }
+  void saveCatalog(String catalog) {
+    File tmp = new File(catalogPath + ".tmp");
+    try (FileOutputStream out = new FileOutputStream(tmp)) {
+      out.write(catalog.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    } catch (Exception ignored) { return; }
+    if (!tmp.renameTo(new File(catalogPath))) tmp.delete();
+  }
   void load(int[] p, long target, int gen) {
+    cancelObsolete(gen);
     worker.submit(() -> {
       long start = System.nanoTime();
       try {
@@ -217,12 +248,21 @@ public class WindControl extends View
           dataStatus(true, restored, gen);
           post(() -> { if (map != null && gen == generation) map.triggerRepaint(); });
         }
-        String catalog = new String(fetch("https://beta.yr-maps.met.no/api/wind/available.json"), java.nio.charset.StandardCharsets.UTF_8);
+        boolean staleCatalog = false;
+        String catalog;
+        try {
+          catalog = new String(fetch("https://beta.yr-maps.met.no/api/wind/available.json", gen), java.nio.charset.StandardCharsets.UTF_8);
+        } catch (Exception unavailable) {
+          catalog = savedCatalog();
+          staleCatalog = catalog != null;
+          if (catalog == null) throw unavailable;
+        }
         String source = new JSONObject(catalog)
                 .getJSONArray("times")
                 .getJSONObject(0)
                 .getJSONObject("tiles")
                 .getString("png");
+        if (!staleCatalog) saveCatalog(catalog);
         if (gen != generation)
           return;
         int count = 0;
@@ -239,7 +279,7 @@ public class WindControl extends View
                 count++;
                 continue;
               }
-              byte[] data = fetch(url);
+              byte[] data = fetch(url, gen, staleCatalog);
               BitmapFactory.Options options = new BitmapFactory.Options();
               options.inPreferredConfig = Bitmap.Config.ARGB_8888;
               options.inScaled = false;
@@ -273,7 +313,7 @@ public class WindControl extends View
           save(target, gen, snapshotPath, catalog, downloadedAt);
           boolean accepted = publish(target, gen);
           if (accepted) savedAt = downloadedAt;
-          dataStatus(!accepted || count != (p[3]-p[1]+1)*(p[4]-p[2]+1), savedAt, gen);
+          dataStatus(staleCatalog || !accepted || count != (p[3]-p[1]+1)*(p[4]-p[2]+1), savedAt, gen);
           post(() -> {
             if (map != null)
               map.triggerRepaint();

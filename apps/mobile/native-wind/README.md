@@ -66,14 +66,23 @@ compass actions and weather logic are unchanged.
 
 ## Requests, cache and lifecycle
 
-- Shared C++ decoded LRU: 128 tiles / 32 MiB, keyed by full versioned URL.
+- Shared C++ decoded LRU: 32 tiles / approximately 8 MiB, keyed by full versioned URL.
 - Native HTTP disk cache: 32 MiB (NSURLCache / OkHttp), respects response headers.
-- One serial worker per attached control, unchanged viewport plan deduplicated.
+- The last valid catalog is persisted beside the field snapshots and can provide
+  versioned tile URLs while MET is unavailable; tiles are then requested from
+  the HTTP cache only.
+- Four complete persistent field snapshots are retained in a rotating ring;
+  an individual field is capped at 16 MiB, for a maximum of approximately 64 MiB
+  plus metadata.
+- One serial worker per attached control, unchanged viewport plan deduplicated;
+  requests from older viewport generations are cancelled at the HTTP layer.
 - Catalog rechecked after 60 seconds; cached decoded tiles avoid repeat download
   and decoding. A new plan cancels queued generations logically; one ongoing
   HTTP request can finish, but its stale field is never published.
 - Complete staging atlas is published in one swap. Failed tiles stay transparent;
   no made-up wind and no interpolation across missing pixels.
+- Restored fields and fields assembled with the persisted catalog report stale;
+  the app displays "Vento desatualizado" while stale data is visible.
 - Disabled, zero-opacity and background layers stop rendering and invalidate
   publication. Native clocks still perform a lightweight visibility check.
 - Reattachment/style reload/context loss recreates GPU resources; decoded cache

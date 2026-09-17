@@ -75,6 +75,13 @@ with the same native field/particle renderer remains the tested physical build.
 
 ## Still open
 
+The repeatable Android physical benchmark runner is
+`apps/mobile/scripts/benchmark-android-wind.sh`. It enables the wind layer via
+an explicit benchmark intent, performs prolonged pan/zoom input, and captures
+`gfxinfo` frame stats, CPU, PSS/RSS, thermal service and batterystats. It must
+be run with a connected intermediate/low-end physical Android device; the
+repository currently contains no physical Android result.
+
 - Our trails are visibly thinner, shorter and less dense than the live Yr site.
   This implementation does not claim visual parity or production certification.
 - A controlled, recorded pan/zoom/rotate performance suite, including map-only

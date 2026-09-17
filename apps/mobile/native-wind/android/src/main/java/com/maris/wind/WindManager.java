@@ -12,7 +12,7 @@ public class WindManager extends SimpleViewManager<WindControl> {
   }
   @ReactProp(name = "enabled")
   public void enabled(WindControl view, boolean value) {
-    view.enabled = value;
+    view.enabled = value || view.benchmarkEnabled;
   }
   @ReactProp(name = "opacity", defaultFloat = .65f)
   public void opacity(WindControl view, float value) {

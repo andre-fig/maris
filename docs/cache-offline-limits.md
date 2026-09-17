@@ -69,7 +69,7 @@ Os PBFs continuam pré-processados e imutáveis. Não mudamos o pipeline.
 |---|---:|---:|
 | Atlas RGBA, por campo | até 2048² / 16 MiB | até 1024² / 4 MiB |
 | Textura do campo, por textura | até 16 MiB | até 4 MiB |
-| Tiles decodificados LRU | 32 tiles / 8 MiB | 32 tiles / 8 MiB |
+| Tiles decodificados LRU | 32 tiles / ~8 MiB | 32 tiles / ~8 MiB |
 | Cache HTTP em disco | 32 MiB | 32 MiB |
 | Cache HTTP RAM explícito iOS | 2 MiB | 2 MiB |
 | Partículas, teto do core | 1.000 | 500 inicialmente |
@@ -114,18 +114,22 @@ de RGBA CPU + 16 MiB de textura, ou 4 + 4 MiB no perfil reduzido).
 
 ## Vento offline/desatualizado
 
-`SnapshotStore` grava atomicamente **um último campo completo** com catálogo,
-plan z/x/y, RGBA, timestamp, versão de formato e checksum. Arquivo em Application
-Support no iOS (excluído de backup) / noBackupFilesDir no Android. Não depende
-do cache HTTP ou de conseguir buscar `available.json` no próximo lançamento.
+`SnapshotStore` grava atomicamente até **quatro campos completos recentes** em
+uma fila rotativa, cada um com catálogo, plan z/x/y, RGBA, timestamp, versão de
+formato e checksum. Arquivos em Application Support no iOS (excluídos de backup)
+/ noBackupFilesDir no Android. O catálogo MET válido mais recente também é
+persistido separadamente para reconstruir URLs e tentar somente o cache HTTP
+quando `available.json` estiver indisponível.
 
-- Máximo ~16 MiB + 64 KiB de catálogo + header/checksum por snapshot.
+- Limite: 4 × ~16 MiB de campo + 64 KiB de catálogo por snapshot, ou
+  aproximadamente 64 MiB de dados de vento persistentes, além de headers e
+  arquivos temporários de gravação.
 - Durante gravação atômica pode existir também `.tmp` do mesmo tamanho.
 - Campo parcial, truncado, checksum inválido ou cobertura incompatível é rejeitado.
-- Somente o último plan completo fica disponível offline; não é download global.
+- Até quatro planos completos ficam disponíveis offline; não é download global.
 - Ao ligar o vento naquela cobertura, restaura antes da tentativa de rede.
-- `onDataStatus` expõe `{stale, savedAt}`. Restauração/falha é marcada stale;
-  campo novo completo limpa stale. Nenhuma badge/UI foi adicionada.
+- `onDataStatus` expõe `{stale, savedAt}`. Restauração/fallback/falha é marcada
+  stale; campo novo completo limpa stale. A UI exibe `Vento desatualizado`.
 - Se a nova viewport não corresponder ao plan salvo, não inventa dados.
 - Catálogo permanece atualizado aproximadamente a cada 60 s, HTTP timeout 5 s.
 

@@ -32,11 +32,11 @@ int main() {
   maris::Field partial(p);
   assert(!store.save(partial,"invalid",5678));
   assert(store.load(p).savedAt == 1234);
-  { std::fstream corrupt(temporary,std::ios::in|std::ios::out|std::ios::binary);
+  { std::fstream corrupt(std::string(temporary) + ".0",std::ios::in|std::ios::out|std::ios::binary);
     corrupt.seekp(100); corrupt.put(0); }
   assert(!store.load(p).field);
   assert(store.save(field,"{}",1234));
-  std::filesystem::resize_file(temporary, 20);
+  std::filesystem::resize_file(std::string(temporary) + ".0", 20);
   assert(!store.load(p).field);
   std::remove(temporary);
   std::cout << "WindResources: FPS adaptation/recovery, low-memory tier, atlas bound, snapshot roundtrip, partial/corrupt/wrong-area rejection passed\n";

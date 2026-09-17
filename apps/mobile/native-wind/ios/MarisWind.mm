@@ -43,6 +43,8 @@ static maris::TileCache tileCache;
   maris::Quality _quality;
   maris::WindFade _fade;
   NSString *_snapshotPath;
+  NSString *_catalogPath;
+  NSURLSessionDataTask *_activeTask;
   id<MTLBuffer> _buffers[3];
   std::shared_ptr<std::array<std::atomic_bool, 3>> _busy;
 }
@@ -68,6 +70,7 @@ static maris::TileCache tileCache;
     [NSFileManager.defaultManager createDirectoryAtURL:directory withIntermediateDirectories:YES attributes:nil error:nil];
     [directory setResourceValue:@YES forKey:NSURLIsExcludedFromBackupKey error:nil];
     _snapshotPath = [directory URLByAppendingPathComponent:@"last-field.bin"].path;
+    _catalogPath = [directory URLByAppendingPathComponent:@"last-catalog.json"].path;
     NSURLSessionConfiguration *config =
         NSURLSessionConfiguration.defaultSessionConfiguration;
     config.HTTPAdditionalHeaders =
@@ -124,18 +127,27 @@ static maris::TileCache tileCache;
   depth.depthWriteEnabled = NO;
   _depth = [_device newDepthStencilStateWithDescriptor:depth];
 }
-- (NSData *)fetch:(NSString *)url {
+- (NSData *)fetch:(NSString *)url cacheOnly:(BOOL)cacheOnly {
   dispatch_semaphore_t done = dispatch_semaphore_create(0);
   __block NSData *result = nil;
-  [[_session dataTaskWithURL:[NSURL URLWithString:url]
+  NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:[NSURL URLWithString:url]];
+  request.cachePolicy = cacheOnly ? NSURLRequestReturnCacheDataDontLoad : NSURLRequestUseProtocolCachePolicy;
+  NSURLSessionDataTask *task = [_session dataTaskWithRequest:request
            completionHandler:^(NSData *data, NSURLResponse *response,
                                NSError *error) {
              if (!error && [(NSHTTPURLResponse *)response statusCode] == 200)
                result = data;
              dispatch_semaphore_signal(done);
-           }] resume];
+           }];
+  @synchronized (self) { _activeTask = task; }
+  [task resume];
   dispatch_semaphore_wait(done, DISPATCH_TIME_FOREVER);
+  @synchronized (self) { if (_activeTask == task) _activeTask = nil; }
   return result;
+}
+- (NSData *)fetch:(NSString *)url { return [self fetch:url cacheOnly:NO]; }
+- (void)cancelActiveRequest {
+  @synchronized (self) { [_activeTask cancel]; _activeTask = nil; }
 }
 - (void)load:(maris::Plan)p {
   NSString *key = @(p.key().c_str());
@@ -144,6 +156,7 @@ static maris::TileCache tileCache;
     return;
   _key = key;
   _loadedAt = now;
+  [self cancelActiveRequest];
   if (_field && !maris::overlaps(_field->plan, p)) {
     _oldField.reset(); _oldTexture = nil;
     _field.reset(); _texture = nil;
@@ -173,6 +186,12 @@ static maris::TileCache tileCache;
     }
     NSData *catalog =
         [owner fetch:@"https://beta.yr-maps.met.no/api/wind/available.json"];
+    BOOL staleCatalog = NO;
+    if (catalog) {
+    } else {
+      catalog = [NSData dataWithContentsOfFile:owner->_catalogPath];
+      staleCatalog = catalog != nil;
+    }
     if (!catalog) {
       dispatch_async(dispatch_get_main_queue(), ^{
         if (generation == owner->_generation && owner.dataStatus)
@@ -189,6 +208,8 @@ static maris::TileCache tileCache;
     NSString *url = times[0][@"tiles"][@"png"];
     if (!url)
       return;
+    if (!staleCatalog)
+      [catalog writeToFile:owner->_catalogPath atomically:YES];
     auto field = std::make_shared<maris::Field>(p);
     for (int y = p.top; y <= p.bottom; y++)
       for (int x = p.left; x <= p.right; x++) {
@@ -205,7 +226,7 @@ static maris::TileCache tileCache;
                                             withString:@(y).stringValue];
           if (tileCache.copy(tile.UTF8String, *field, x, y))
             continue;
-          NSData *data = [owner fetch:tile];
+          NSData *data = [owner fetch:tile cacheOnly:staleCatalog];
           if (!data)
             continue;
           CGImageSourceRef source =
@@ -246,7 +267,7 @@ static maris::TileCache tileCache;
       }
       if (owner->_field && owner->_field->plan.key() == field->plan.key() && owner->_field->rgba == field->rgba) {
         owner->_dataSavedAt = savedAt;
-        if (owner.dataStatus) owner.dataStatus(NO, savedAt);
+        if (owner.dataStatus) owner.dataStatus(staleCatalog, savedAt);
         return;
       }
       owner->_oldField = owner->_texture ? owner->_field : nullptr;
@@ -255,7 +276,7 @@ static maris::TileCache tileCache;
       owner->_field = field;
       owner->_texture = nil;
       owner->_dataSavedAt = savedAt;
-      if (owner.dataStatus) owner.dataStatus(field->received != (p.right-p.left+1)*(p.bottom-p.top+1), savedAt);
+      if (owner.dataStatus) owner.dataStatus(staleCatalog || field->received != (p.right-p.left+1)*(p.bottom-p.top+1), savedAt);
       NSLog(@"[Wind] atlas %dx%d tiles=%d load=%.2fs", p.width(), p.height(),
             field->received, CACurrentMediaTime() - now);
       [owner setNeedsDisplay];
@@ -349,6 +370,7 @@ static maris::TileCache tileCache;
 - (int)maximumDimension { return _quality.maxDimension(); }
 - (void)willMoveFromMapView:(MLNMapView *)map {
   ++_generation;
+  [self cancelActiveRequest];
   _key = nil;
   _texture = nil;
   _oldTexture = nil;
