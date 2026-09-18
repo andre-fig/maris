@@ -33,24 +33,56 @@ const NAVIGATION_DATA: DataPanelItem[] = [
 const WEATHER_CONDITIONS_DATA: DataPanelItem[] = [
   { label: "Weather", value: "—", unit: "C", iosIcon: "cloud", androidIcon: "cloud" },
   { label: "Rain", value: "—", unit: "", iosIcon: "drop", androidIcon: "water_drop" },
-  ...NAVIGATION_DATA.slice(2, -1),
   { label: "Wind", value: "8.4", unit: "kt", iosIcon: "wind", androidIcon: "air" },
+  { ...NAVIGATION_DATA[2], label: "Waves", iosIcon: "water.waves", androidIcon: "tsunami" },
+  { ...NAVIGATION_DATA[3], label: "Current", iosIcon: "arrow.trianglehead.2.clockwise.rotate.90", androidIcon: "Sync" },
+  { ...NAVIGATION_DATA[4], label: "Tide", iosIcon: "water.waves.and.arrow.up", androidIcon: "water_lux" },
 ];
 
-export function NavigationDataPanel({ speed }: { speed?: number | null }) {
+export function NavigationDataPanel({
+  speed,
+  cog,
+  heading,
+}: {
+  speed?: number | null;
+  cog?: number | null;
+  heading?: number | null;
+}) {
   const hasSpeed =
     typeof speed === "number" && Number.isFinite(speed) && speed >= 0;
-  const items = NAVIGATION_DATA.map((item, index) =>
-    index === 0
-      ? {
-          ...item,
-          value: hasSpeed
-            ? (speed * METRES_PER_SECOND_TO_KNOTS).toFixed(1)
-            : "—",
-          loading: !hasSpeed,
-        }
-      : item,
-  );
+  const hasCog =
+    typeof cog === "number" && Number.isFinite(cog) && cog >= 0 && cog < 360;
+  const hasHeading =
+    typeof heading === "number" &&
+    Number.isFinite(heading) &&
+    heading >= 0 &&
+    heading < 360;
+  const items = NAVIGATION_DATA.map((item, index) => {
+    if (index === 0) {
+      return {
+        ...item,
+        value: hasSpeed
+          ? (speed * METRES_PER_SECOND_TO_KNOTS).toFixed(1)
+          : "—",
+        loading: !hasSpeed,
+      };
+    }
+    if (index === 1) {
+      return {
+        ...item,
+        value: hasCog ? `${Math.round(cog)}°` : "—",
+        loading: !hasCog,
+      };
+    }
+    if (index === 2) {
+      return {
+        ...item,
+        value: hasHeading ? `${Math.round(heading)}°` : "—",
+        loading: !hasHeading,
+      };
+    }
+    return item;
+  });
 
   return <DataMetricsPanel items={items} />;
 }

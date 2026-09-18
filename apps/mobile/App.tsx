@@ -448,7 +448,11 @@ export default function App() {
           </MapOverlaySlot>
         ) : null}
         <MapOverlaySlot column={0} row={20} columnSpan={6} rowSpan={3} alignItems="stretch" justifyContent="flex-end">
-          <NavigationDataPanel speed={deviceLocation?.speed} />
+          <NavigationDataPanel
+            cog={deviceLocation?.cog}
+            heading={deviceLocation?.heading}
+            speed={deviceLocation?.speed}
+          />
         </MapOverlaySlot>
         <MapOverlaySlot column={0} row={23} columnSpan={2} rowSpan={1} alignItems="flex-start" justifyContent="flex-end">
           <GpsAccuracyPanel accuracy={deviceLocation?.accuracy ?? null} />

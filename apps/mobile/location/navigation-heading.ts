@@ -1,21 +1,30 @@
-export const MIN_COURSE_SPEED_METERS_PER_SECOND = 0.5;
+export const HEADING_SMOOTHING = 0.2;
 
-function normalizeHeading(value: number | null): number | null {
+export function normalizeHeading(value: number | null): number | null {
   if (value === null || !Number.isFinite(value) || value < 0) return null;
-  return value % 360;
+  return ((value % 360) + 360) % 360;
 }
 
-export function navigationHeading(
-  course: number | null,
-  speed: number | null,
-  compass: number | null,
+export function resolveHeading(
+  trueHeading: number | null,
+  magneticHeading: number | null,
+  accuracy: number | null,
 ): number | null {
-  const normalizedCourse = normalizeHeading(course);
-  const isMoving =
-    speed !== null &&
-    Number.isFinite(speed) &&
-    speed >= MIN_COURSE_SPEED_METERS_PER_SECOND;
+  if (accuracy === null || !Number.isFinite(accuracy) || accuracy <= 0) {
+    return null;
+  }
 
-  if (isMoving && normalizedCourse !== null) return normalizedCourse;
-  return normalizeHeading(compass);
+  return normalizeHeading(trueHeading) ?? normalizeHeading(magneticHeading);
+}
+
+export function smoothHeading(
+  previous: number | null,
+  next: number,
+  smoothingFactor = HEADING_SMOOTHING,
+): number {
+  const normalizedNext = normalizeHeading(next) ?? 0;
+  if (previous === null) return normalizedNext;
+
+  const delta = ((normalizedNext - previous + 540) % 360) - 180;
+  return normalizeHeading(previous + delta * smoothingFactor) ?? normalizedNext;
 }
