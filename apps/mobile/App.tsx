@@ -303,6 +303,7 @@ export default function App() {
             coordinate={deviceLocation.coordinate}
             heading={deviceLocation.heading}
             mapBearing={viewState.bearing}
+            courseUp={courseUp}
           />
         ) : null}
       </Map>

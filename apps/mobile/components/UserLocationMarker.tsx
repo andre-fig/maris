@@ -7,14 +7,19 @@ type UserLocationMarkerProps = {
   coordinate: [number, number];
   heading: number | null;
   mapBearing: number;
+  courseUp: boolean;
 };
 
 export function UserLocationMarker({
   coordinate,
   heading,
   mapBearing,
+  courseUp,
 }: UserLocationMarkerProps) {
-  const rotation = heading === null ? 0 : heading - mapBearing;
+  // In course-up the camera is already rotating the map to the heading. Keeping
+  // the marker fixed avoids briefly applying a new heading against the previous
+  // camera bearing while the native map catches up.
+  const rotation = courseUp || heading === null ? 0 : heading - mapBearing;
 
   return (
     <Marker id="device-location" lngLat={coordinate} anchor="center">
