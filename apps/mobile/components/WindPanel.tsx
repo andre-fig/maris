@@ -40,6 +40,7 @@ const LEGEND_ROW_HEIGHT = BLUR_TEXT_LINE_HEIGHT;
 const CLOSED_HEIGHT = 30;
 const LEGEND_TOP = CLOSED_HEIGHT;
 const EXPANDED_HEIGHT = LEGEND_TOP + WIND_LEGEND.length * LEGEND_ROW_HEIGHT;
+const EXPANDED_WIDTH = 66;
 
 export function WindPanel({
   enabled,
@@ -75,16 +76,8 @@ export function WindPanel({
       : reservedHeader;
   const [headerWidth, setHeaderWidth] = useState(0);
   const [legendWidth, setLegendWidth] = useState(0);
-  const expandedWidth = Math.max(
-    BLUR_PANEL_ICON_SIZE,
-    headerWidth,
-    legendWidth,
-  );
-
   const panelWidth = usePanelTransition(
-    legendExpanded || hasCurrentWind
-      ? expandedWidth
-      : BLUR_PANEL_ICON_SIZE,
+    legendExpanded || hasCurrentWind ? EXPANDED_WIDTH : BLUR_PANEL_ICON_SIZE,
   );
   const headerOpacity = usePanelTransition(
     legendExpanded || hasCurrentWind ? 1 : 0,
@@ -174,8 +167,15 @@ export function WindPanel({
       >
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={loading ? "Loading wind" : enabled ? "Disable wind" : "Enable wind"}
-          accessibilityState={{ busy: loading, disabled: loading, expanded: legendExpanded, selected: enabled }}
+          accessibilityLabel={
+            loading ? "Loading wind" : enabled ? "Disable wind" : "Enable wind"
+          }
+          accessibilityState={{
+            busy: loading,
+            disabled: loading,
+            expanded: legendExpanded,
+            selected: enabled,
+          }}
           disabled={loading}
           onPress={onToggle}
           style={({ pressed }) => [
@@ -245,7 +245,9 @@ export function WindPanel({
         <Animated.View
           pointerEvents="none"
           accessibilityElementsHidden={!legendExpanded}
-          importantForAccessibility={legendExpanded ? "auto" : "no-hide-descendants"}
+          importantForAccessibility={
+            legendExpanded ? "auto" : "no-hide-descendants"
+          }
           style={[
             styles.legend,
             { opacity: expansion, width: legendWidth || undefined },
