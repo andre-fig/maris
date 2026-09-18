@@ -215,7 +215,12 @@ export function WeatherPanel({ weather, visible, style }: WeatherPanelProps) {
               const hourIcon = openWeatherIconMap[hour.icon_code];
               return (
                 <View key={hour.forecast_at} style={styles.forecastRow}>
-                  <BlurText style={styles.nowLabel}>
+                  <BlurText
+                    style={[
+                      styles.nowLabel,
+                      nowLabelWidth > 0 ? { width: nowLabelWidth } : undefined,
+                    ]}
+                  >
                     {formatHour(hour.forecast_at)}
                   </BlurText>
                   <View style={styles.condition}>
