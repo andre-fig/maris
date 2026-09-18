@@ -8,12 +8,7 @@ export function normalizeHeading(value: number | null): number | null {
 export function resolveHeading(
   trueHeading: number | null,
   magneticHeading: number | null,
-  accuracy: number | null,
 ): number | null {
-  if (accuracy === null || !Number.isFinite(accuracy) || accuracy <= 0) {
-    return null;
-  }
-
   return normalizeHeading(trueHeading) ?? normalizeHeading(magneticHeading);
 }
 

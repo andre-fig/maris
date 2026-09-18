@@ -97,11 +97,16 @@ export function useDeviceLocation(): DeviceLocation | null {
 
       headingSubscription = await Location.watchHeadingAsync((value) => {
         if (!active) return;
-        compassRef.current = resolveHeading(
+        const nextHeading = resolveHeading(
           value.trueHeading,
           value.magHeading,
-          value.accuracy,
         );
+
+        // Keep the last valid reading visible while the sensor temporarily
+        // reports an invalid/low-confidence sample.
+        if (nextHeading === null) return;
+
+        compassRef.current = nextHeading;
         publishHeading();
       });
     };
