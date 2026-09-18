@@ -104,6 +104,7 @@ export function useCurrentViewportWeather(
   destinationObserver.current = onDestinationReady;
   const [weather, setWeather] = useState<CurrentWeather>();
   const [windSpeed, setWindSpeed] = useState<number>();
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>();
   const samples = useRef<CameraSample[]>([]);
   const touching = useRef(false);
@@ -141,6 +142,7 @@ export function useCurrentViewportWeather(
       ) {
         setWeather(lastSuccessfulWeather.current);
         setWindSpeed(lastSuccessfulWeather.current.wind_speed_metres_per_second);
+        setLoading(false);
         setError(undefined);
         retryAt.current = 0;
         return;
@@ -152,6 +154,7 @@ export function useCurrentViewportWeather(
       const generation = ++requestGeneration.current;
       activeRequest.current = controller;
       activeRequestPoint.current = center;
+      setLoading(true);
       let timedOut = false;
       const timeout = setTimeout(() => {
         timedOut = true;
@@ -195,6 +198,7 @@ export function useCurrentViewportWeather(
         if (generation === requestGeneration.current) {
           activeRequest.current = undefined;
           activeRequestPoint.current = undefined;
+          setLoading(false);
         }
       }
     },
@@ -289,6 +293,7 @@ export function useCurrentViewportWeather(
       // Closing the wind panel must discard the displayed reading. Reopening
       // it should request a fresh value instead of briefly showing the old one.
       setWindSpeed(undefined);
+      setLoading(false);
       refreshOnEnable.current = true;
       if (debounceTimer.current && !destinationObserver.current) {
         clearTimeout(debounceTimer.current);
@@ -349,6 +354,7 @@ export function useCurrentViewportWeather(
 
   return {
     error,
+    loading: enabled && loading,
     onCameraChanging,
     onCameraDidChange,
     onTouchEnd,

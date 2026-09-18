@@ -43,10 +43,12 @@ export function NavigationDataPanel() {
 
 export function WeatherConditionsPanel({
   weather,
+  weatherLoading,
   windSpeed,
   windLoading,
 }: {
   weather?: CurrentWeather;
+  weatherLoading: boolean;
   windSpeed?: number | null;
   windLoading: boolean;
 }) {
@@ -56,7 +58,7 @@ export function WeatherConditionsPanel({
   const weatherItem = {
     ...WEATHER_CONDITIONS_DATA[0],
     value: weather ? `${Math.round(weather.temperature_celsius)}°` : "—",
-    loading: !weather,
+    loading: weatherLoading || !weather,
     iosIcon: weatherIcon ? iosWeatherIcons[weatherIcon] : "cloud",
     androidIcon: weatherIcon ? getAndroidWeatherSymbol(weatherIcon) : "cloud",
   };
@@ -67,7 +69,7 @@ export function WeatherConditionsPanel({
       Number.isFinite(weather.rain_probability_percent)
         ? `${Math.round(weather.rain_probability_percent)}%`
         : "—",
-    loading:
+    loading: weatherLoading ||
       typeof weather?.rain_probability_percent !== "number" ||
       !Number.isFinite(weather.rain_probability_percent),
   };

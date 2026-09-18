@@ -460,6 +460,7 @@ export default function App() {
         <MapOverlaySlot column={0} row={0} columnSpan={6} rowSpan={5} alignItems="stretch" justifyContent="flex-start">
           <WeatherConditionsPanel
             weather={currentWeather.weather}
+            weatherLoading={currentWeather.loading}
             windLoading={windLoading}
             windSpeed={centerWindSpeed}
           />
