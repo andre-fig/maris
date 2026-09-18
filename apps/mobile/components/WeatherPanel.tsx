@@ -24,7 +24,7 @@ import { METRES_PER_SECOND_TO_KNOTS } from "./wind-legend-band";
 const CLOSED_HEIGHT = 32;
 const HEADER_ITEM_GAP = 8;
 const NOW_LABEL_WIDTH = 28;
-const MAX_FORECAST_ROWS = 5;
+const MAX_FORECAST_ROWS = 6;
 
 type WeatherPanelProps = {
   weather?: CurrentWeather;
@@ -37,6 +37,7 @@ export function WeatherPanel({ weather, visible, style }: WeatherPanelProps) {
   const [headerWidth, setHeaderWidth] = useState(0);
   const [expandedHeaderWidth, setExpandedHeaderWidth] = useState(0);
   const [forecastWidth, setForecastWidth] = useState(0);
+  const [forecastHeight, setForecastHeight] = useState(0);
   const displayWeather = visible && weather !== undefined;
   const { mounted, opacity } = useFadeVisibility(displayWeather);
   const forecast = weather?.forecast?.slice(0, MAX_FORECAST_ROWS) ?? [];
@@ -106,6 +107,10 @@ export function WeatherPanel({ weather, visible, style }: WeatherPanelProps) {
                       outputRange: [headerWidth, expandedWidth],
                     })
                   : undefined,
+              height: expansion.interpolate({
+                inputRange: [0, 1],
+                outputRange: [CLOSED_HEIGHT, CLOSED_HEIGHT + forecastHeight],
+              }),
             },
           ]}
         >
@@ -186,47 +191,51 @@ export function WeatherPanel({ weather, visible, style }: WeatherPanelProps) {
               {weather ? `${Math.round(weather.temperature_celsius)}°` : ""}
             </BlurText>
           </Pressable>
-          {expanded ? (
-            <Animated.View
-              pointerEvents="auto"
-              accessibilityElementsHidden={false}
-              importantForAccessibility="auto"
-              style={[styles.forecast, { opacity: expansion }]}
-            >
-              {forecast.map((hour) => {
-                const hourIcon = openWeatherIconMap[hour.icon_code];
-                return (
-                  <View key={hour.forecast_at} style={styles.forecastRow}>
-                    <BlurText style={styles.nowLabel}>
-                      {formatHour(hour.forecast_at)}
-                    </BlurText>
-                    <View style={styles.condition}>
-                      {hourIcon ? (
-                        <SymbolView
-                          name={{
-                            android: getAndroidWeatherSymbol(hourIcon),
-                            ios: iosWeatherIcons[hourIcon],
-                            web: getAndroidWeatherSymbol(hourIcon),
-                          }}
-                          size={20}
-                          tintColor="#ffffff"
-                          type="hierarchical"
-                        />
-                      ) : null}
-                      <BlurText style={styles.rainChance}>
-                        {Math.round(hour.rain_probability_percent)}%
-                      </BlurText>
-                    </View>
-                    <BlurText
-                      style={[styles.temperature, styles.forecastTemperature]}
-                    >
-                      {Math.round(hour.temperature_celsius)}°
+          <Animated.View
+            pointerEvents={expanded ? "auto" : "none"}
+            accessibilityElementsHidden={!expanded}
+            importantForAccessibility={
+              expanded ? "auto" : "no-hide-descendants"
+            }
+            onLayout={({ nativeEvent }) => {
+              const height = Math.ceil(nativeEvent.layout.height);
+              if (height !== forecastHeight) setForecastHeight(height);
+            }}
+            style={[styles.forecast, { opacity: expansion }]}
+          >
+            {forecast.map((hour) => {
+              const hourIcon = openWeatherIconMap[hour.icon_code];
+              return (
+                <View key={hour.forecast_at} style={styles.forecastRow}>
+                  <BlurText style={styles.nowLabel}>
+                    {formatHour(hour.forecast_at)}
+                  </BlurText>
+                  <View style={styles.condition}>
+                    {hourIcon ? (
+                      <SymbolView
+                        name={{
+                          android: getAndroidWeatherSymbol(hourIcon),
+                          ios: iosWeatherIcons[hourIcon],
+                          web: getAndroidWeatherSymbol(hourIcon),
+                        }}
+                        size={20}
+                        tintColor="#ffffff"
+                        type="hierarchical"
+                      />
+                    ) : null}
+                    <BlurText style={styles.rainChance}>
+                      {Math.round(hour.rain_probability_percent)}%
                     </BlurText>
                   </View>
-                );
-              })}
-            </Animated.View>
-          ) : null}
+                  <BlurText
+                    style={[styles.temperature, styles.forecastTemperature]}
+                  >
+                    {Math.round(hour.temperature_celsius)}°
+                  </BlurText>
+                </View>
+              );
+            })}
+          </Animated.View>
         </Animated.View>
       </BlurPanel>
     </Animated.View>
@@ -238,9 +247,7 @@ function formatHour(timestamp: string) {
 }
 
 const styles = StyleSheet.create({
-  // Height intentionally remains intrinsic: forecast rows can be taller than
-  // their text when they include both an icon and precipitation percentage.
-  content: { flexShrink: 0 },
+  content: { flexShrink: 0, overflow: "hidden" },
   measurementHost: { position: "absolute", left: 0, top: 0, opacity: 0 },
   headerMeasure: {
     alignSelf: "flex-start",
@@ -277,7 +284,11 @@ const styles = StyleSheet.create({
     lineHeight: 10,
   },
   forecast: {
-    gap: 0,
+    position: "absolute",
+    top: CLOSED_HEIGHT,
+    right: 0,
+    left: 0,
+    gap: 6,
     paddingBottom: 4,
   },
   forecastRow: {
