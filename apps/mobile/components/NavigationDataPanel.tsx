@@ -3,6 +3,7 @@ import { StyleSheet, View } from "react-native";
 
 import { BlurPanel } from "./BlurPanel";
 import { BlurText } from "./BlurText";
+import { LoadingIcon } from "./LoadingIcon";
 import { METRES_PER_SECOND_TO_KNOTS } from "./wind-legend-band";
 
 export type DataPanelItem = {
@@ -11,6 +12,7 @@ export type DataPanelItem = {
   unit: string;
   iosIcon: string;
   androidIcon: string;
+  loading?: boolean;
 };
 
 const NAVIGATION_DATA: DataPanelItem[] = [
@@ -31,14 +33,22 @@ export function NavigationDataPanel() {
   return <DataMetricsPanel items={NAVIGATION_DATA} />;
 }
 
-export function WeatherConditionsPanel({ windSpeed }: { windSpeed?: number | null }) {
+export function WeatherConditionsPanel({
+  windSpeed,
+  windLoading,
+}: {
+  windSpeed?: number | null;
+  windLoading: boolean;
+}) {
   const hasWindSpeed =
     typeof windSpeed === "number" && Number.isFinite(windSpeed) && windSpeed >= 0;
   const windValue = hasWindSpeed
     ? (windSpeed * METRES_PER_SECOND_TO_KNOTS).toFixed(1)
     : "—";
   const items = WEATHER_CONDITIONS_DATA.map((item) =>
-    item.label === "Wind" ? { ...item, value: windValue } : item,
+    item.label === "Wind"
+      ? { ...item, value: windValue, loading: windLoading }
+      : item,
   );
 
   return <DataMetricsPanel items={items} />;
@@ -59,7 +69,9 @@ function DataMetricsPanel({ items }: { items: DataPanelItem[] }) {
             type="hierarchical"
           />
           <BlurText style={styles.label} numberOfLines={1}>{item.label}</BlurText>
-          <BlurText style={styles.value} numberOfLines={1}>{item.value}</BlurText>
+          <LoadingIcon loading={item.loading ?? false} size={22}>
+            <BlurText style={styles.value} numberOfLines={1}>{item.value}</BlurText>
+          </LoadingIcon>
           <BlurText style={styles.unit}>{item.unit || "\u00A0"}</BlurText>
         </View>
       ))}

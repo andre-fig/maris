@@ -465,7 +465,10 @@ export default function App() {
           <CenterCoordinatesPanel latitude={viewState.latitude} longitude={viewState.longitude} />
         </MapOverlaySlot>
         <MapOverlaySlot column={0} row={0} columnSpan={6} rowSpan={5} alignItems="stretch" justifyContent="flex-start">
-          <WeatherConditionsPanel windSpeed={centerWindSpeed} />
+          <WeatherConditionsPanel
+            windLoading={windLoading}
+            windSpeed={centerWindSpeed}
+          />
         </MapOverlaySlot>
       </MapOverlayGrid>
       <BlurBottomSheet

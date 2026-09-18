@@ -6,21 +6,22 @@ import { BLUR_PANEL_ICON_SIZE } from "./BlurPanel";
 export function LoadingIcon({
   children,
   loading,
-}: PropsWithChildren<{ loading: boolean }>) {
+  size = BLUR_PANEL_ICON_SIZE,
+}: PropsWithChildren<{ loading: boolean; size?: number }>) {
   if (!loading) return <>{children}</>;
 
   return (
     <ActivityIndicator
       color="#FFFFFF"
-      size="small"
-      style={styles.indicator}
+      size={size}
+      style={[styles.indicator, { width: size, height: size }]}
     />
   );
 }
 
 const styles = StyleSheet.create({
   indicator: {
-    width: BLUR_PANEL_ICON_SIZE,
-    height: BLUR_PANEL_ICON_SIZE,
+    alignItems: "center",
+    justifyContent: "center",
   },
 });

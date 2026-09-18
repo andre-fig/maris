@@ -39,7 +39,7 @@ export function WindPanel({
               : "Wind"
         }
       >
-        <LoadingIcon loading={loading}>
+        <LoadingIcon loading={loading} size={enabled ? 22 : BLUR_PANEL_ICON_SIZE}>
           <SymbolView
             name={{ ios: "wind", android: "air", web: "air" }}
             size={enabled ? 22 : BLUR_PANEL_ICON_SIZE}
