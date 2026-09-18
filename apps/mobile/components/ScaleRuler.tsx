@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { Animated, Platform, StyleSheet, Text, View } from "react-native";
 
 import type { CurrentWeather } from "../weather/current-weather";
+import { scaleDivisionPercentages } from "./scale-ruler-layout";
 import { WeatherPanel } from "./WeatherPanel";
 import { useFadeVisibility } from './use-fade-visibility';
 
@@ -25,6 +26,7 @@ const MAX_SCALE_METRES = 1_500_000;
 const MAX_VISIBLE_SCALE_METRES = 1_000_000;
 const MIN_ACTIVATION_RATIO = 1.2;
 const WEATHER_MAX_SCALE_METRES = 10_000;
+const LABEL_SLOT_WIDTH = 80;
 const SYSTEM_FONT = Platform.select({ ios: "System", default: "sans-serif" });
 
 const METRE_SCALES: ScaleDefinition[] = [
@@ -157,6 +159,7 @@ export function ScaleRuler({
     };
   }, [latitude, maxWidth, zoom]);
   const showImmediately = visible && !hidden;
+  const labelPositions = scaleDivisionPercentages(segments);
 
   const { opacity } = useFadeVisibility(showImmediately);
 
@@ -180,10 +183,16 @@ export function ScaleRuler({
       >
         <View style={styles.ruler}>
           <View style={styles.labels}>
-            {labels.map((label) => (
-              <View key={label}>
-                <Text style={[styles.label, styles.labelOutline]}>{label}</Text>
-                <Text style={styles.label}>{label}</Text>
+            {labels.map((label, index) => (
+              <View
+                key={label}
+                style={[
+                  styles.labelPosition,
+                  { left: `${labelPositions[index]}%` },
+                ]}
+              >
+                <Text numberOfLines={1} style={[styles.label, styles.labelOutline]}>{label}</Text>
+                <Text numberOfLines={1} style={styles.label}>{label}</Text>
               </View>
             ))}
           </View>
@@ -236,9 +245,13 @@ const styles = StyleSheet.create({
   },
   labels: {
     height: 18,
-    flexDirection: "row",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
+    position: "relative",
+  },
+  labelPosition: {
+    position: "absolute",
+    top: 0,
+    width: LABEL_SLOT_WIDTH,
+    marginLeft: -LABEL_SLOT_WIDTH / 2,
   },
   label: {
     color: "#ffffff",
@@ -246,6 +259,8 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "700",
     fontVariant: ["tabular-nums"],
+    textAlign: "center",
+    width: "100%",
   },
   labelOutline: {
     position: "absolute",
