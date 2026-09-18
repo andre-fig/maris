@@ -14,17 +14,27 @@ export function RouteStatusPanel() {
   return (
     <BlurPanel flexDirection="column" alignSelf="stretch" style={styles.panel}>
       <View style={styles.routeHeader}>
-        <SymbolView
-          name="flag"
-          size={28}
-          tintColor="#FFFFFF"
-          type="hierarchical"
-        />
-        <View style={styles.routeTitle}>
-          <BlurText style={styles.title}>Active Route</BlurText>
-          <BlurText style={styles.routeName} numberOfLines={1}>
-            Ilha da Mãe → Marina da Glória
-          </BlurText>
+        <View style={styles.routeBlock}>
+          <View style={styles.identityRow}>
+            <SymbolView
+              name="flag"
+              size={28}
+              tintColor="#FFFFFF"
+              type="hierarchical"
+            />
+            <View style={styles.routeTitle}>
+              <BlurText style={styles.title}>Active Route</BlurText>
+              <BlurText style={styles.routeName} numberOfLines={1}>
+                Ilha da Mãe → Marina da Glória
+              </BlurText>
+            </View>
+          </View>
+          <View style={styles.progressRow}>
+            <View style={styles.progressTrack}>
+              <View style={styles.progressValue} />
+            </View>
+            <BlurText style={styles.progressLabel}>28%</BlurText>
+          </View>
         </View>
         <View style={styles.nextManeuver}>
           <BlurText style={styles.nextManeuverLabel} numberOfLines={1}>
@@ -34,10 +44,6 @@ export function RouteStatusPanel() {
             Turn port in 0.8 NM
           </BlurText>
         </View>
-      </View>
-
-      <View style={styles.progressTrack}>
-        <View style={styles.progressValue} />
       </View>
 
       <View style={styles.dataRow}>
@@ -85,10 +91,20 @@ function RouteValue({
 }) {
   return (
     <View style={[styles.valueCell, style]}>
-      <BlurText style={styles.label} numberOfLines={1}>
+      <BlurText
+        style={styles.label}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.72}
+      >
         {label}
       </BlurText>
-      <BlurText style={styles.value} numberOfLines={1}>
+      <BlurText
+        style={styles.value}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.72}
+      >
         {value}
       </BlurText>
     </View>
@@ -103,6 +119,16 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   routeHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  routeBlock: {
+    flex: 1,
+    minWidth: 0,
+    gap: 6,
+  },
+  identityRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
@@ -135,16 +161,26 @@ const styles = StyleSheet.create({
     lineHeight: 14,
   },
   progressTrack: {
+    flex: 1,
     height: 7,
     borderRadius: 4,
     overflow: "hidden",
     backgroundColor: "rgba(210, 235, 240, 0.36)",
+  },
+  progressRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
   progressValue: {
     width: "28%",
     height: "100%",
     borderRadius: 4,
     backgroundColor: "#E8F4F5",
+  },
+  progressLabel: {
+    fontSize: 11,
+    lineHeight: 14,
   },
   dataRow: {
     flexDirection: "row",
@@ -176,7 +212,7 @@ const styles = StyleSheet.create({
   },
   stopButton: {
     width: 86,
-    marginLeft: 4,
+    marginLeft: 12,
     paddingHorizontal: 8,
     paddingVertical: 6,
     borderRadius: 18,
