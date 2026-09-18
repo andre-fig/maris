@@ -215,7 +215,9 @@ export function ScaleRuler({
 
 const styles = StyleSheet.create({
   container: {
-    height: 32,
+    // The scale only needs 32 points, but the weather panel shares this
+    // container and must be able to grow to its intrinsic forecast height.
+    minHeight: 32,
   },
   rulerContainer: {
     position: "absolute",
