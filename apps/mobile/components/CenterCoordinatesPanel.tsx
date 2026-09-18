@@ -27,6 +27,9 @@ export function CenterCoordinatesPanel({
     <BlurPanel flexDirection="row" alignSelf="flex-end" style={styles.panel}>
       <BlurText
         numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.58}
+        ellipsizeMode="clip"
         accessibilityLabel={`Map center: ${latitudeText}, ${longitudeText}`}
         style={styles.coordinates}
       >
@@ -38,6 +41,7 @@ export function CenterCoordinatesPanel({
 
 const styles = StyleSheet.create({
   coordinates: {
+    flexShrink: 1,
     fontSize: 10,
     fontWeight: "500",
     lineHeight: 14,

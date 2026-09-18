@@ -276,8 +276,8 @@ public:
     // Keep the full particle range responsive to the map zoom: broad views
     // get the highest density, while close views use fewer particles.
     const float zoomFactor = std::clamp(
-        1.f - float(std::clamp(zoom, 0., 16.) / 16.) * .75f,
-        .25f, 1.f);
+        1.f - float(std::clamp(zoom, 0., 16.) / 16.),
+        0.f, 1.f);
     size_t count = size_t(std::clamp(density, 0.f, 1.f) * zoomFactor *
                           maximumParticleCount);
     if (particles.capacity() < count) {

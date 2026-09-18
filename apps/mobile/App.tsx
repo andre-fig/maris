@@ -359,7 +359,7 @@ export default function App() {
         enabled={windEnabled}
         opacity={1.0}
         fieldOpacity={0}
-        density={0.75}
+        density={0.5}
         animationSpeed={1}
         sampleCoordinate={windEnabled ? windSampleCoordinate : null}
         onCenterWind={({ nativeEvent }) => {
