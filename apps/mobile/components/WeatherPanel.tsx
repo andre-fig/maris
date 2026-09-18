@@ -175,7 +175,13 @@ export function WeatherPanel({ weather, visible, style }: WeatherPanelProps) {
                 },
               ]}
             >
-              <BlurText style={styles.nowLabel}>Now</BlurText>
+              <BlurText
+                style={styles.nowLabel}
+                numberOfLines={1}
+                ellipsizeMode="clip"
+              >
+                Now
+              </BlurText>
             </Animated.View>
             <View style={styles.condition}>
               {weatherIcon ? (
