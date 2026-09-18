@@ -36,7 +36,7 @@ const WIND_LEGEND = [
 ] as const;
 
 const LEGEND_ROW_HEIGHT = BLUR_TEXT_LINE_HEIGHT;
-const CLOSED_HEIGHT = 32;
+const CLOSED_HEIGHT = 30;
 const LEGEND_TOP = CLOSED_HEIGHT;
 const EXPANDED_HEIGHT = LEGEND_TOP + WIND_LEGEND.length * LEGEND_ROW_HEIGHT;
 
@@ -66,10 +66,10 @@ export function WindPanel({
         Math.round(currentWindSpeed * METRES_PER_SECOND_TO_KNOTS * 10) / 10
       ).toString()
     : null;
-  const reservedHeaderMeasurement = reservedHeader !== null &&
-    reservedHeader.replace(/\./g, "").length === 2
-    ? `${reservedHeader}0`
-    : reservedHeader;
+  const reservedHeaderMeasurement =
+    reservedHeader !== null && reservedHeader.replace(/\./g, "").length === 2
+      ? `${reservedHeader}0`
+      : reservedHeader;
   const [headerWidth, setHeaderWidth] = useState(0);
   const [legendWidth, setLegendWidth] = useState(0);
   const expandedWidth = Math.max(
@@ -287,7 +287,12 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   headerMeasureText: { fontSize: 12, lineHeight: 14 },
-  headerText: { height: CLOSED_HEIGHT, justifyContent: "center" },
+  headerText: {
+    height: CLOSED_HEIGHT,
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   speedReadout: {
     position: "absolute",
     top: 0,
@@ -302,7 +307,11 @@ const styles = StyleSheet.create({
   legendText: { fontSize: 12 },
   measurement: { opacity: 0 },
   labelOverlay: { position: "absolute", left: 0, top: 0 },
-  headerLabelOverlay: { top: (CLOSED_HEIGHT - BLUR_TEXT_LINE_HEIGHT) / 2 },
+  headerLabelOverlay: {
+    top: (CLOSED_HEIGHT - BLUR_TEXT_LINE_HEIGHT) / 2,
+    right: 0,
+    textAlign: "center",
+  },
   content: { overflow: "hidden" },
   header: {
     position: "absolute",
