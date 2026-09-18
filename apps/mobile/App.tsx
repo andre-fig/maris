@@ -18,7 +18,10 @@ import { CompassPanel } from "./components/CompassPanel";
 import { BlurBottomSheet } from "./components/BlurBottomSheet";
 import { BlurText } from "./components/BlurText";
 import { UserLocationMarker } from "./components/UserLocationMarker";
-import { MapControlsPanel } from "./components/MapControlsPanel";
+import {
+  MapControlsPanel,
+  type MapMode,
+} from "./components/MapControlsPanel";
 import { WindPanel } from "./components/WindPanel";
 import { DrawerCompass } from "./components/DrawerCompass";
 import { windLegendBand } from "./components/wind-legend-band";
@@ -35,6 +38,29 @@ import {
 } from "./weather/current-weather";
 
 const BASE_MAP_STYLE = "https://tiles.openfreemap.org/styles/bright";
+const GOOGLE_SATELLITE_STYLE = JSON.stringify({
+  version: 8,
+  glyphs: "https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf",
+  sources: {
+    "google-satellite": {
+      type: "raster",
+      tiles: [
+        "https://mt0.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
+        "https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
+        "https://mt2.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
+        "https://mt3.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
+      ],
+      tileSize: 256,
+    },
+  },
+  layers: [
+    {
+      id: "google-satellite",
+      type: "raster",
+      source: "google-satellite",
+    },
+  ],
+});
 const API_URL =
   process.env.EXPO_PUBLIC_API_URL ??
   "https://api-production-7dc7.up.railway.app";
@@ -75,6 +101,7 @@ export default function App() {
   const cameraRef = useRef<CameraRef>(null);
   const [locationActive, setLocationActive] = useState(false);
   const [courseUp, setCourseUp] = useState(false);
+  const [mapMode, setMapMode] = useState<MapMode>("streets");
   const [windEnabled, setWindEnabled] = useState(false);
   const [mapSheetVisible, setMapSheetVisible] = useState(false);
   const [chartRequested, setChartRequested] = useState(false);
@@ -192,7 +219,13 @@ export default function App() {
       <Map
         ref={mapRef}
         style={styles.map}
-        mapStyle={offlineArea ? JSON.stringify(offlineArea.baseStyle) : BASE_MAP_STYLE}
+        mapStyle={
+          mapMode === "streets"
+            ? offlineArea
+              ? JSON.stringify(offlineArea.baseStyle)
+              : BASE_MAP_STYLE
+            : GOOGLE_SATELLITE_STYLE
+        }
         logo={false}
         attribution={false}
         compass={false}
@@ -211,13 +244,15 @@ export default function App() {
         onRegionIsChanging={cameraEvents.onRegionIsChanging}
         onRegionDidChange={cameraEvents.onRegionDidChange}
       >
-        <Layer
-          id="poi_transit"
-          type="symbol"
-          source="openmaptiles"
-          source-layer="poi"
-          filter={["match", ["get", "class"], ["airport", "rail"], true, false]}
-        />
+        {mapMode === "streets" ? (
+          <Layer
+            id="poi_transit"
+            type="symbol"
+            source="openmaptiles"
+            source-layer="poi"
+            filter={["match", ["get", "class"], ["airport", "rail"], true, false]}
+          />
+        ) : null}
         <Camera
           ref={cameraRef}
           key="gps-camera"
@@ -237,7 +272,9 @@ export default function App() {
             id="miami-soundg-depth"
             type="symbol"
             source-layer="soundings"
-            beforeId="water_name_point_label"
+            beforeId={
+              mapMode === "streets" ? "water_name_point_label" : undefined
+            }
             minzoom={10}
             layout={{
               "text-field": ["to-string", ["get", "DEPTH"]],
@@ -304,6 +341,7 @@ export default function App() {
           <MapControlsPanel
             locationActive={locationActive}
             courseUp={courseUp}
+            onMapModeChange={setMapMode}
             showMapButton={mapButtonVisible}
             mapLoading={chartRequested && chartInformation.loading && !mapSheetVisible}
             onMapPress={() => {

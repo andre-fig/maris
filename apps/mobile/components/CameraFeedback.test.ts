@@ -61,8 +61,21 @@ test("repeated native camera events settle without a render/command feedback loo
     await act(async () => { renderer = create(React.createElement(App)); });
     await flush();
     const controls = () => renderer!.root.findByType("MapControlsPanel" as any);
+    const map = () => renderer!.root.findByType("Map" as any);
     assert.equal(controls().props.locationActive, false);
     assert.ok(fixture.renders < 6, "identical events must stop rendering");
+    assert.equal(map().props.mapStyle, "https://tiles.openfreemap.org/styles/bright");
+    await act(async () => controls().props.onMapModeChange("satellite"));
+    const satelliteStyle = JSON.parse(map().props.mapStyle);
+    assert.equal(satelliteStyle.sources["google-satellite"].type, "raster");
+    assert.deepEqual(satelliteStyle.sources["google-satellite"].tiles, [
+      "https://mt0.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
+      "https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
+      "https://mt2.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
+      "https://mt3.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
+    ]);
+    await act(async () => controls().props.onMapModeChange("streets"));
+    assert.equal(map().props.mapStyle, "https://tiles.openfreemap.org/styles/bright");
     await act(async () => renderer!.root.findByType("WindPanel" as any).props.onToggle());
     await flush();
     assert.ok(fixture.renders < 10, "unchanged wind coordinates must not restart rendering");

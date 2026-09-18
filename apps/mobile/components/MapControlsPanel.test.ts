@@ -38,10 +38,12 @@ test("Android location icon loses its fill off GPS and preserves centered/course
     const { MapControlsPanel } = require(compiled);
     let presses = 0;
     let mapPresses = 0;
+    const mapModes: string[] = [];
     const panel = (locationActive: boolean, courseUp: boolean, mapLoading = false, showMapButton = true) => React.createElement(MapControlsPanel, {
       locationActive, courseUp, mapLoading, showMapButton,
       onLocate: () => { presses++; },
       onMapPress: () => { mapPresses++; },
+      onMapModeChange: (mode: string) => { mapModes.push(mode); },
     });
     await act(async () => { renderer = create(panel(true, false)); });
     const icons = () => renderer!.root.findAll(node => node.type === ("MaterialCommunityIcons" as unknown));
@@ -58,18 +60,21 @@ test("Android location icon loses its fill off GPS and preserves centered/course
     renderer!.root.find(node => node.props.accessibilityLabel === "Center on my location").props.onPress();
     assert.equal(presses, 1);
     await act(async () => {
-      renderer!.root.find(node => node.props.accessibilityLabel === "Show globe").props.onPress();
+      renderer!.root.find(node => node.props.accessibilityLabel === "Show satellite map").props.onPress();
     });
     assert.equal(globeIcons()[0].props.name, "language");
+    assert.equal(mapModes.at(-1), "satellite");
     await act(async () => {
       renderer!.root.find(node => node.props.accessibilityLabel === "Show 3D view").props.onPress();
     });
     const threeDimensionalIcon = renderer!.root.findByType("MaterialIcons" as any);
     assert.equal(threeDimensionalIcon.props.name, "3d-rotation");
+    assert.equal(mapModes.at(-1), "three-dimensional");
     await act(async () => {
-      renderer!.root.find(node => node.props.accessibilityLabel === "Show Americas globe").props.onPress();
+      renderer!.root.find(node => node.props.accessibilityLabel === "Show street map").props.onPress();
     });
     assert.equal(globeIcons()[0].props.name, "globe");
+    assert.equal(mapModes.at(-1), "streets");
     renderer!.root.find(node => node.props.accessibilityLabel === "Open map options").props.onPress();
     assert.equal(mapPresses, 1);
     await act(async () => renderer!.update(panel(false, false, true)));
