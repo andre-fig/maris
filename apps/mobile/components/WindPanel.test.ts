@@ -48,6 +48,11 @@ test("wind width and fade use the shared transition when speed arrives, disappea
     assert.equal(content().props.style[1].width.value, 90);
     const expansion = animations.findLast(a => a.toValue === 90)!;
     assert.equal(expansion.duration, 280);
+    await act(async () => renderer!.update(panel(0)));
+    assert.ok(
+      renderer!.root.findAllByType("BlurText" as any).some(node => node.props.children === "0.0"),
+      "compact integer speeds keep one decimal place",
+    );
     await act(async () => renderer!.update(panel()));
     assert.equal(content().props.style[1].width.value, 28);
     assert.equal(expansion.stopped, true, "cancel the previous transition before retargeting");

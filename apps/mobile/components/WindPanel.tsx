@@ -66,13 +66,9 @@ export function WindPanel({
     Number.isFinite(currentWindSpeed) &&
     currentWindSpeed >= 0;
   const speedText = hasCurrentWind
-    ? `${Math.round(currentWindSpeed * METRES_PER_SECOND_TO_KNOTS * 10) / 10}`
+    ? (currentWindSpeed * METRES_PER_SECOND_TO_KNOTS).toFixed(1)
     : "kn";
-  const reservedHeader = hasCurrentWind
-    ? (
-        Math.round(currentWindSpeed * METRES_PER_SECOND_TO_KNOTS * 10) / 10
-      ).toString()
-    : null;
+  const reservedHeader = hasCurrentWind ? speedText : null;
   const reservedHeaderMeasurement =
     reservedHeader !== null && reservedHeader.replace(/\./g, "").length === 2
       ? `${reservedHeader}0`
