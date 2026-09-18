@@ -222,10 +222,14 @@ const styles = StyleSheet.create({
   rulerContainer: {
     position: "absolute",
     top: 0,
+    zIndex: 1,
+    elevation: 1,
   },
   weatherBadge: {
     top: 0,
     left: 38,
+    zIndex: 2,
+    elevation: 2,
   },
   ruler: {
     height: 26,

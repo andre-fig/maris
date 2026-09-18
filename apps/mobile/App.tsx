@@ -323,6 +323,16 @@ export default function App() {
         }}
         style={{ width: 0, height: 0, position: "absolute" }}
       />
+      <View pointerEvents="box-none" style={styles.scaleOverlay}>
+        <ScaleRuler
+          latitude={viewState.latitude}
+          maxWidth={scaleMaxWidth}
+          viewportWidth={width}
+          visible={isZooming}
+          weather={currentWeather.weather}
+          zoom={viewState.zoom}
+        />
+      </View>
       <View pointerEvents="box-none" style={styles.controlsOverlay}>
         <View pointerEvents="box-none" style={styles.controlsStack}>
           <CompassPanel
@@ -385,16 +395,6 @@ export default function App() {
             }}
           />
         </View>
-      </View>
-      <View pointerEvents="box-none" style={styles.scaleOverlay}>
-        <ScaleRuler
-          latitude={viewState.latitude}
-          maxWidth={scaleMaxWidth}
-          viewportWidth={width}
-          visible={isZooming}
-          weather={currentWeather.weather}
-          zoom={viewState.zoom}
-        />
       </View>
       <View pointerEvents="box-none" style={styles.windOverlay}>
         <WindPanel
@@ -508,6 +508,8 @@ const styles = StyleSheet.create({
     right: 0,
     left: 0,
     alignItems: "center",
+    zIndex: 1,
+    elevation: 1,
   },
   controlsOverlay: {
     position: "absolute",
@@ -517,6 +519,8 @@ const styles = StyleSheet.create({
     left: 38,
     right: 38,
     bottom: 48,
+    zIndex: 2,
+    elevation: 2,
   },
   controlsStack: {
     alignItems: "flex-end",
@@ -526,5 +530,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: 64,
     right: 38,
+    zIndex: 3,
+    elevation: 3,
   },
 });
