@@ -167,7 +167,6 @@ export function WeatherPanel({ weather, visible, style }: WeatherPanelProps) {
               style={[
                 styles.nowSlot,
                 {
-                  opacity: expansion,
                   width: expansion.interpolate({
                     inputRange: [0, 1],
                     outputRange: [0, nowLabelWidth + FIRST_COLUMN_GAP],
