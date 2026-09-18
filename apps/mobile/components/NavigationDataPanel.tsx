@@ -21,6 +21,8 @@ import {
   type SampledGfsValues,
 } from "../weather/gfs-grid";
 
+type GfsConditionsSample = SampledGfsValues & { forecastTime?: string };
+
 export type DataPanelItem = {
   label: string;
   value: string;
@@ -150,7 +152,7 @@ export function GfsConditionsPanel({
   sample,
   loading,
 }: {
-  sample?: SampledGfsValues;
+  sample?: GfsConditionsSample;
   loading: boolean;
 }) {
   const u = sample?.windU ?? null;
@@ -159,11 +161,17 @@ export function GfsConditionsPanel({
   const direction = windDirectionDegrees(u, v);
   const cardinal = windCardinal(direction);
   const hasWind = windKt !== null && direction !== null && cardinal !== null;
+  const rainRateMmH = precipitationRateMillimetresPerHour(sample?.precipitationRate ?? null);
+  const forecastHour = sample?.forecastTime
+    ? new Date(sample.forecastTime).getHours()
+    : null;
+  const isDay = forecastHour === null ? null : forecastHour >= 6 && forecastHour < 18;
   const gfsWeatherIcon = weatherIconFromGfs(
     sample?.cloudCover,
-    sample?.precipitationRate,
+    rainRateMmH,
     sample?.temperature,
-  );
+    isDay,
+  ) ?? "BROKEN_CLOUDS";
   const weather = {
     ...WEATHER_CONDITIONS_DATA[0],
     value: temperatureCelsius(sample?.temperature ?? null)?.toFixed(0) ?? "",
@@ -174,9 +182,9 @@ export function GfsConditionsPanel({
   };
   const rain = {
     ...WEATHER_CONDITIONS_DATA[1],
-    value: precipitationRateMillimetresPerHour(sample?.precipitationRate ?? null)?.toFixed(1) ?? "",
+    value: rainRateMmH?.toFixed(1) ?? "",
     unit: "mm/h",
-    loading: loading || precipitationRateMillimetresPerHour(sample?.precipitationRate ?? null) === null,
+    loading: loading || rainRateMmH === null,
   };
   const items: DataPanelItem[] = [
     weather,
