@@ -29,7 +29,6 @@ import {
   WeatherConditionsPanel,
 } from "./components/NavigationDataPanel";
 import { RouteStatusPanel } from "./components/RouteStatusPanel";
-import { WeatherPanel } from "./components/WeatherPanel";
 import { MapOverlayGrid, MapOverlaySlot } from "./components/MapOverlayGrid";
 import { DrawerCompass } from "./components/DrawerCompass";
 import { useDeviceLocation } from "./location/use-device-location";
@@ -381,12 +380,6 @@ export default function App() {
             viewportWidth={width}
             visible={isZooming}
             zoom={viewState.zoom}
-          />
-        </MapOverlaySlot>
-        <MapOverlaySlot column={0} row={5} columnSpan={2} rowSpan={3} alignItems="flex-start">
-          <WeatherPanel
-            visible={isWeatherScaleVisible(viewState.latitude, scaleMaxWidth, viewState.zoom)}
-            weather={currentWeather.weather}
           />
         </MapOverlaySlot>
         <MapOverlaySlot
