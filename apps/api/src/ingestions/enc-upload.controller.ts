@@ -12,7 +12,7 @@ export class EncUploadController {
   async create(@Body() body: { filename: string; size?: number; checksumSha256?: string }) {
     const key = `sources/${new Date().toISOString().slice(0,10)}/${randomUUID()}-${String(body.filename).replace(/[^a-zA-Z0-9._-]/g, '_')}`;
     const upload = await this.storage.createMultipart(key);
-    await this.db.getRepository(EncUpload).save({ uploadId: upload.uploadId, objectKey: key, sourceFilename: body.filename, expectedSize: body.size == null ? null : String(body.size), checksumSha256: body.checksumSha256 ?? null, status: 'uploading', parts: [] });
+    await this.db.getRepository(EncUpload).save({ id: randomUUID(), uploadId: upload.uploadId, objectKey: key, sourceFilename: body.filename, expectedSize: body.size == null ? null : String(body.size), checksumSha256: body.checksumSha256 ?? null, status: 'uploading', parts: [] });
     return { uploadId: upload.uploadId, objectKey: key };
   }
   @Post('url')
@@ -21,7 +21,7 @@ export class EncUploadController {
     try { source = new URL(body.url); } catch { throw new BadRequestException('A valid http(s) URL is required'); }
     if (!['http:', 'https:'].includes(source.protocol)) throw new BadRequestException('Only http(s) URLs are supported');
     const key = `sources/${new Date().toISOString().slice(0,10)}/${randomUUID()}-${String(body.filename ?? source.pathname.split('/').pop() ?? 'source.zip').replace(/[^a-zA-Z0-9._-]/g, '_')}`;
-    const upload = await this.db.getRepository(EncUpload).save({ uploadId: `url-${randomUUID()}`, objectKey: key, sourceFilename: body.filename ?? source.pathname.split('/').pop() ?? 'source.zip', expectedSize: null, sourceUrl: source.toString(), status: 'uploading', parts: [] });
+    const upload = await this.db.getRepository(EncUpload).save({ id: randomUUID(), uploadId: `url-${randomUUID()}`, objectKey: key, sourceFilename: body.filename ?? source.pathname.split('/').pop() ?? 'source.zip', expectedSize: null, sourceUrl: source.toString(), status: 'uploading', parts: [] });
     const ingestionId = randomUUID();
     await this.dispatcher.dispatch({ archivePath: '', ingestionId, versionId: randomUUID(), versionKey: `pending-${upload.id}`, objectKey: key, sourceUrl: source.toString(), sourceFilename: upload.sourceFilename });
     await this.db.getRepository(EncUpload).update(upload.id, { ingestionId, status: 'queued' });
