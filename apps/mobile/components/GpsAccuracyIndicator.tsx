@@ -12,12 +12,12 @@ type AccuracyLevel = {
 
 function getAccuracyLevel(accuracy: number | null): AccuracyLevel {
   if (accuracy === null || !Number.isFinite(accuracy) || accuracy < 0) {
-    return { label: "Unavailable", bars: 0, color: "#AAB7BF" };
+    return { label: "Unavailable", bars: 0, color: "#FFFFFF" };
   }
-  if (accuracy <= 5) return { label: "Excellent", bars: 4, color: "#74D99A" };
-  if (accuracy <= 10) return { label: "Good", bars: 3, color: "#B8D96B" };
-  if (accuracy <= 25) return { label: "Fair", bars: 2, color: "#F4C95D" };
-  return { label: "Poor", bars: 1, color: "#F18B72" };
+  if (accuracy <= 5) return { label: "Excellent", bars: 4, color: "#FFFFFF" };
+  if (accuracy <= 10) return { label: "Good", bars: 3, color: "#FFFFFF" };
+  if (accuracy <= 25) return { label: "Fair", bars: 2, color: "#FFFFFF" };
+  return { label: "Poor", bars: 1, color: "#FFFFFF" };
 }
 
 export function GpsAccuracyIndicator({ accuracy }: GpsAccuracyIndicatorProps) {
@@ -31,7 +31,7 @@ export function GpsAccuracyIndicator({ accuracy }: GpsAccuracyIndicatorProps) {
       style={styles.container}
     >
       <View style={styles.bars}>
-        {[5, 10, 15, 20].map((height, index) => (
+        {[4, 8, 12, 16].map((height, index) => (
           <View
             key={height}
             style={[
@@ -49,19 +49,19 @@ export function GpsAccuracyIndicator({ accuracy }: GpsAccuracyIndicatorProps) {
 const styles = StyleSheet.create({
   container: {
     alignItems: "center",
-    minWidth: 32,
+    minWidth: 24,
   },
   bars: {
     alignItems: "flex-end",
     flexDirection: "row",
-    gap: 2,
-    height: 20,
+    gap: 1,
+    height: 16,
   },
   bar: {
     borderRadius: 1.5,
-    width: 4,
+      width: 3,
   },
   inactive: {
-    backgroundColor: "rgba(255, 255, 255, 0.28)",
+    backgroundColor: "rgba(105, 117, 124, 0.78)",
   },
 });

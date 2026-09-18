@@ -25,6 +25,7 @@ import {
 import { WindPanel } from "./components/WindPanel";
 import { GpsAccuracyPanel } from "./components/GpsAccuracyPanel";
 import { CenterCoordinatesPanel } from "./components/CenterCoordinatesPanel";
+import { MapOverlayGrid, MapOverlaySlot } from "./components/MapOverlayGrid";
 import { DrawerCompass } from "./components/DrawerCompass";
 import { windLegendBand } from "./components/wind-legend-band";
 import { useDeviceLocation } from "./location/use-device-location";
@@ -370,105 +371,96 @@ export default function App() {
         }}
         style={{ width: 0, height: 0, position: "absolute" }}
       />
-      <View pointerEvents="box-none" style={styles.scaleOverlay}>
-        <ScaleRuler
-          latitude={viewState.latitude}
-          maxWidth={scaleMaxWidth}
-          viewportWidth={width}
-          visible={isZooming}
-          weather={currentWeather.weather}
-          zoom={viewState.zoom}
-        />
-      </View>
-      <View pointerEvents="box-none" style={styles.controlsOverlay}>
-        <View pointerEvents="box-none" style={styles.controlsStack}>
-          <CompassPanel
-            heading={deviceLocation?.heading ?? null}
-            mapBearingValue={compassMapBearing}
-            onPress={() => {
-              if (Math.abs(viewState.bearing) < 0.001) {
-                chartRequestPending.current = false;
-                setChartRequested(false);
-                setSheetContent("empty");
-                setMapSheetVisible(true);
-                return;
-              }
-              setSheetContent("chart");
-              locationTarget.current = false;
-              setCourseUp(false);
-              cameraRef.current?.flyTo({
-                center: [viewState.longitude, viewState.latitude],
-                zoom: viewState.zoom,
-                bearing: 0,
-                duration: 500,
+      <MapOverlayGrid>
+        <MapOverlaySlot column={1} row={0} columnSpan={4} alignItems="center">
+          <ScaleRuler
+            latitude={viewState.latitude}
+            maxWidth={scaleMaxWidth}
+            viewportWidth={width}
+            visible={isZooming}
+            weather={currentWeather.weather}
+            zoom={viewState.zoom}
+          />
+        </MapOverlaySlot>
+        <MapOverlaySlot column={5} row={4} rowSpan={7} alignItems="flex-end" justifyContent="flex-end">
+          <View pointerEvents="box-none" style={styles.controlsStack}>
+            <CompassPanel
+              heading={deviceLocation?.heading ?? null}
+              mapBearingValue={compassMapBearing}
+              onPress={() => {
+                if (Math.abs(viewState.bearing) < 0.001) {
+                  chartRequestPending.current = false;
+                  setChartRequested(false);
+                  setSheetContent("empty");
+                  setMapSheetVisible(true);
+                  return;
+                }
+                setSheetContent("chart");
+                locationTarget.current = false;
+                setCourseUp(false);
+                cameraRef.current?.flyTo({
+                  center: [viewState.longitude, viewState.latitude],
+                  zoom: viewState.zoom,
+                  bearing: 0,
+                  duration: 500,
+                });
+              }}
+            />
+            <MapControlsPanel
+              locationActive={locationActive}
+              courseUp={courseUp}
+              onMapModeChange={setMapStyleMode}
+              showMapButton={mapButtonVisible}
+              mapLoading={chartRequested && chartInformation.loading && !mapSheetVisible}
+              onMapPress={() => {
+                if (!mapButtonVisible || chartRequestPending.current || (mapSheetVisible && sheetContent === "chart")) return;
+                chartRequestPending.current = true;
+                setMapSheetVisible(false);
+                setSheetContent("chart");
+                setChartRequested(true);
+              }}
+              onLocate={() => {
+                if (!deviceLocation) return;
+                locationTarget.current = true;
+                const shouldEnableCourseUp = locationActive;
+                const canAlignHeading = shouldEnableCourseUp && deviceLocation.heading !== null;
+                courseUpTransitionPending.current = canAlignHeading && !courseUp;
+                cameraRef.current?.flyTo({
+                  center: deviceLocation.coordinate,
+                  zoom: shouldEnableCourseUp ? viewState.zoom : DEFAULT_MAP_ZOOM,
+                  ...(canAlignHeading ? { bearing: deviceLocation.heading! } : {}),
+                  duration: 500,
+                });
+                setLocationActive(true);
+                setCourseUp(shouldEnableCourseUp);
+              }}
+            />
+          </View>
+        </MapOverlaySlot>
+        <MapOverlaySlot column={0} row={11} columnSpan={2} alignItems="flex-start" justifyContent="flex-end">
+          <GpsAccuracyPanel accuracy={deviceLocation?.accuracy ?? null} />
+        </MapOverlaySlot>
+        <MapOverlaySlot column={3} row={11} columnSpan={3} alignItems="flex-end" justifyContent="flex-end">
+          <CenterCoordinatesPanel latitude={viewState.latitude} longitude={viewState.longitude} />
+        </MapOverlaySlot>
+        <MapOverlaySlot column={5} row={0} alignItems="flex-end">
+          <WindPanel
+            enabled={windEnabled}
+            loading={windLoading}
+            centerWindSpeed={centerWindSpeed}
+            currentWindSpeed={currentWeather.windSpeed}
+            onToggle={() => {
+              setCenterWindSpeed(null);
+              setWindSampleCoordinate([viewState.longitude, viewState.latitude]);
+              setWindEnabled((enabled) => {
+                const nextEnabled = !enabled;
+                setWindLoading(nextEnabled);
+                return nextEnabled;
               });
             }}
           />
-          <MapControlsPanel
-            locationActive={locationActive}
-            courseUp={courseUp}
-            onMapModeChange={setMapStyleMode}
-            showMapButton={mapButtonVisible}
-            mapLoading={chartRequested && chartInformation.loading && !mapSheetVisible}
-            onMapPress={() => {
-              if (!mapButtonVisible || chartRequestPending.current || (mapSheetVisible && sheetContent === "chart")) return;
-              chartRequestPending.current = true;
-              setMapSheetVisible(false);
-              setSheetContent("chart");
-              setChartRequested(true);
-            }}
-            onLocate={() => {
-              if (!deviceLocation) return;
-              locationTarget.current = true;
-              // Selecting the mode must not depend on a sensor sample already
-              // being available. The effect waits for heading (including 0°).
-              const shouldEnableCourseUp = locationActive;
-              const canAlignHeading =
-                shouldEnableCourseUp && deviceLocation.heading !== null;
-              // Skip the heading effect only when course-up is actually being
-              // enabled now. Re-selecting an already active mode must keep
-              // following the next heading sample.
-              courseUpTransitionPending.current = canAlignHeading && !courseUp;
-              cameraRef.current?.flyTo({
-                center: deviceLocation.coordinate,
-                zoom: shouldEnableCourseUp ? viewState.zoom : DEFAULT_MAP_ZOOM,
-                ...(canAlignHeading
-                  ? { bearing: deviceLocation.heading! }
-                  : {}),
-                duration: 500,
-              });
-              setLocationActive(true);
-              setCourseUp(shouldEnableCourseUp);
-            }}
-          />
-        </View>
-      </View>
-      <View pointerEvents="none" style={styles.gpsAccuracyOverlay}>
-        <GpsAccuracyPanel accuracy={deviceLocation?.accuracy ?? null} />
-      </View>
-      <View pointerEvents="none" style={styles.centerCoordinatesOverlay}>
-        <CenterCoordinatesPanel
-          latitude={viewState.latitude}
-          longitude={viewState.longitude}
-        />
-      </View>
-      <View pointerEvents="box-none" style={styles.windOverlay}>
-        <WindPanel
-          enabled={windEnabled}
-          loading={windLoading}
-          centerWindSpeed={centerWindSpeed}
-          currentWindSpeed={currentWeather.windSpeed}
-          onToggle={() => {
-            setCenterWindSpeed(null);
-            setWindSampleCoordinate([viewState.longitude, viewState.latitude]);
-            setWindEnabled((enabled) => {
-              const nextEnabled = !enabled;
-              setWindLoading(nextEnabled);
-              return nextEnabled;
-            });
-          }}
-        />
-      </View>
+        </MapOverlaySlot>
+      </MapOverlayGrid>
       <BlurBottomSheet
         visible={mapSheetVisible}
         closeSignal={mapSheetCloseSignal}
@@ -563,49 +555,8 @@ const styles = StyleSheet.create({
   map: {
     flex: 1,
   },
-  scaleOverlay: {
-    position: "absolute",
-    top: 64,
-    right: 0,
-    left: 0,
-    alignItems: "center",
-    zIndex: 1,
-    elevation: 1,
-  },
-  controlsOverlay: {
-    position: "absolute",
-    // Keep the containing block independent of the animated legend width.
-    // Otherwise its intrinsic width and the child's right alignment can settle
-    // in separate layout passes during expansion.
-    left: 38,
-    right: 38,
-    bottom: 48,
-    zIndex: 2,
-    elevation: 2,
-  },
   controlsStack: {
     alignItems: "flex-end",
     gap: 8,
-  },
-  windOverlay: {
-    position: "absolute",
-    top: 64,
-    right: 38,
-    zIndex: 3,
-    elevation: 3,
-  },
-  gpsAccuracyOverlay: {
-    position: "absolute",
-    left: 38,
-    bottom: 48,
-    zIndex: 2,
-    elevation: 2,
-  },
-  centerCoordinatesOverlay: {
-    position: "absolute",
-    right: 38,
-    bottom: 48,
-    zIndex: 2,
-    elevation: 2,
   },
 });

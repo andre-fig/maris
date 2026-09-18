@@ -56,6 +56,7 @@ test("course up activates before heading is available and follows north without 
           else if (args.path.includes("/location/")) contents = 'export const useDeviceLocation=()=>globalThis.__courseUp.location;';
           else if (args.path.includes("/weather/")) contents = 'export const useCurrentViewportWeather=()=>({onTouchStart(){},onTouchEnd(){},onCameraChanging(){},onCameraDidChange(){}});';
           else if (args.path.endsWith('/offline/use-automatic-offline')) contents = 'export const useAutomaticOffline=()=>({ready:true,area:null,onViewportSettled:async()=>{}});';
+          else if (args.path.endsWith('MapOverlayGrid')) contents = 'export const MapOverlayGrid="MapOverlayGrid",MapOverlaySlot="MapOverlaySlot";';
           else if (args.path.includes("/offline/")) contents = 'export const MAP_AMBIENT_CACHE_BYTES=1, offlineAreas={recover:async()=>[]};';
           else {
             const name = path.basename(args.path);
@@ -71,9 +72,7 @@ test("course up activates before heading is available and follows north without 
     await act(async () => { renderer = create(React.createElement(App)); });
     const wind = () => renderer!.root.find(node => node.type === ("WindPanel" as unknown));
     const stack = wind().parent!;
-    assert.equal(stack.props.style.top, 64);
-    assert.equal(stack.props.style.right, 38);
-    assert.equal(stack.props.pointerEvents, "box-none");
+    assert.equal(stack.type, "MapOverlaySlot");
     await act(async () => wind().props.onToggle());
     assert.equal(wind().props.enabled, true);
     assert.equal(wind().props.loading, true);

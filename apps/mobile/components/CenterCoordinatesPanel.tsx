@@ -24,8 +24,9 @@ export function CenterCoordinatesPanel({
   const longitudeText = formatCoordinate(longitude, "E", "W");
 
   return (
-    <BlurPanel flexDirection="row" alignSelf="flex-end">
+    <BlurPanel flexDirection="row" alignSelf="flex-end" style={styles.panel}>
       <BlurText
+        numberOfLines={1}
         accessibilityLabel={`Map center: ${latitudeText}, ${longitudeText}`}
         style={styles.coordinates}
       >
@@ -37,8 +38,15 @@ export function CenterCoordinatesPanel({
 
 const styles = StyleSheet.create({
   coordinates: {
-    fontSize: 18,
+    fontSize: 10,
     fontWeight: "500",
-    lineHeight: 22,
+    lineHeight: 14,
+    letterSpacing: -0.2,
+    textAlign: "center",
+  },
+  panel: {
+    maxWidth: "100%",
+    paddingHorizontal: 8,
+    gap: 4,
   },
 });
