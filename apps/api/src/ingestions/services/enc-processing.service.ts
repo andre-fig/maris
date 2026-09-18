@@ -13,6 +13,7 @@ import { ObjectStorageService } from '../../storage/object-storage.service.js';
 
 import type {
   EncMetadataFeature,
+  EncJsonValue,
   ProcessedCell,
   ProcessingJob,
   ProcessingResult,
@@ -285,23 +286,42 @@ export class EncProcessingService {
       ['-ro', '-so', '-oo', 'UPDATES=APPLY', cell],
       { maxBuffer: 2 * 1024 * 1024 });
     const layers = [...stdout.matchAll(/^\d+: (\w+)/gm)].map((match) => match[1]!);
-    const readLayer = async (layer: string): Promise<EncMetadataFeature[]> => {
+    const readLayer = async (
+      layer: string,
+      keepProperties?: string[],
+    ): Promise<EncMetadataFeature[]> => {
       const result = await execFileAsync('ogr2ogr', [
         '-f', 'GeoJSON', '/vsistdout/', cell, layer, '-oo', 'UPDATES=APPLY',
       ], { maxBuffer: 32 * 1024 * 1024 });
-      return (JSON.parse(result.stdout) as { features: EncMetadataFeature[] }).features;
+      const features = (JSON.parse(result.stdout) as { features: EncMetadataFeature[] }).features;
+      if (!keepProperties) return features;
+
+      // Metadata layers can contain very large geometries and many properties.
+      // Keep only the fields consumed by the catalog so one large ENC cannot
+      // retain hundreds of megabytes until the whole archive is processed.
+      return features.flatMap((feature) => {
+        const properties: Record<string, EncJsonValue> = {};
+        for (const key of keepProperties) {
+          const value = feature.properties[key];
+          if (value !== undefined) properties[key] = value;
+        }
+        return Object.keys(properties).length > 0
+          ? [{ ...feature, properties }]
+          : [];
+      });
     };
     const dsid = (await readLayer('DSID'))[0]?.properties;
     if (!dsid) throw new Error('Missing S-57 DSID metadata');
     const metaObjects: Record<string, EncMetadataFeature[]> = {};
-    for (const layer of layers.filter((name) => name.startsWith('M_'))) {
-      metaObjects[layer] = await readLayer(layer);
+    const surveyProperties = ['CATZOC', 'SORIND', 'SORDAT', 'SURSTA', 'SUREND'];
+    for (const layer of layers.filter((name) => name.startsWith('M_') && name !== 'M_COVR')) {
+      metaObjects[layer] = await readLayer(layer, surveyProperties);
     }
     const names = new Set<string>();
     // Geographic place names, not names of individual buoys or lights.
     for (const layer of ['SEAARE', 'LNDARE', 'FAIRWY', 'CANALS', 'HRBARE']) {
       if (!layers.includes(layer)) continue;
-      for (const feature of await readLayer(layer)) {
+      for (const feature of await readLayer(layer, ['OBJNAM', 'NOBJNM'])) {
         for (const key of ['OBJNAM', 'NOBJNM']) {
           const value = feature.properties[key];
           if (typeof value === 'string' && value.trim()) names.add(value.trim());
@@ -335,7 +355,9 @@ export class EncProcessingService {
         verticalDatum: number('DSPM_VDAT'),
         soundingDatum: number('DSPM_SDAT'),
         coveredAreaNames: [...names].sort(),
-        coverage: metaObjects.M_COVR ?? [],
+      coverage: layers.includes('M_COVR')
+        ? await readLayer('M_COVR', ['CATCOV'])
+        : [],
         metaObjects,
         rawDatasetIdentification: dsid,
       },
