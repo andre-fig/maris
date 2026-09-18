@@ -8,6 +8,8 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { createWriteStream } from 'node:fs';
 import { createReadStream } from 'node:fs';
 import { pipeline } from 'node:stream/promises';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { Readable } from 'node:stream';
 
 export type MultipartPart = { partNumber: number; etag: string };
@@ -63,8 +65,15 @@ export class ObjectStorageService {
   async putUrl(key: string, url: string, contentType = 'application/zip') {
     const response = await fetch(url, { headers: { 'User-Agent': 'Maris ENC importer/1.0 (+https://maris-navigation.app)' } });
     if (!response.ok || !response.body) throw new Error(`Source download failed with HTTP ${response.status}`);
-    await this.putStream(key, response.body, contentType);
-    return { key, size: Number(response.headers.get('content-length') ?? 0) || null };
+    const directory = await mkdtemp(`${tmpdir()}/maris-url-`);
+    const temporary = `${directory}/source.zip`;
+    try {
+      await pipeline(Readable.fromWeb(response.body as any), createWriteStream(temporary));
+      const head = await this.putFile(key, temporary, contentType);
+      return { key, size: Number(head.ContentLength ?? 0) || null };
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
   }
   async putFile(key: string, file: string, contentType = 'application/octet-stream') { await this.requireClient().send(new PutObjectCommand({ Bucket: this.bucket, Key: key, Body: createReadStream(file), ContentType: contentType })); return this.head(key); }
 }
