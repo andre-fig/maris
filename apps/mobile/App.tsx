@@ -25,6 +25,7 @@ import {
 import { WindPanel } from "./components/WindPanel";
 import { GpsAccuracyPanel } from "./components/GpsAccuracyPanel";
 import { CenterCoordinatesPanel } from "./components/CenterCoordinatesPanel";
+import { NavigationDataPanel } from "./components/NavigationDataPanel";
 import { MapOverlayGrid, MapOverlaySlot } from "./components/MapOverlayGrid";
 import { DrawerCompass } from "./components/DrawerCompass";
 import { windLegendBand } from "./components/wind-legend-band";
@@ -436,6 +437,9 @@ export default function App() {
               }}
             />
           </View>
+        </MapOverlaySlot>
+        <MapOverlaySlot column={0} row={7} columnSpan={6} rowSpan={4} alignItems="stretch" justifyContent="flex-end">
+          <NavigationDataPanel />
         </MapOverlaySlot>
         <MapOverlaySlot column={0} row={11} columnSpan={2} alignItems="flex-start" justifyContent="flex-end">
           <GpsAccuracyPanel accuracy={deviceLocation?.accuracy ?? null} />
