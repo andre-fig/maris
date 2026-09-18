@@ -10,7 +10,7 @@
 - [x] Búlsola
 - [ ] Cache CDN Cloudfare para o vento?
 - [ ] Preciptação
-- [ ] Prognóstico de tempo
+- [x] Prognóstico de tempo
 - [ ] Direcão do vento na badge
 - [x] Criar Drawer
 - [ ] Criar bulsola no drawer
