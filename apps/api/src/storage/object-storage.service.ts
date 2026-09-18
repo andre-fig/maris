@@ -42,7 +42,11 @@ export class ObjectStorageService {
   async downloadToFile(key: string, destination: string) {
     const response = await this.requireClient().send(new GetObjectCommand({ Bucket: this.bucket, Key: key }));
     if (!response.Body) throw new Error('S3 object has no body');
-    await pipeline(Readable.fromWeb(response.Body as never), createWriteStream(destination));
+    const body = response.Body as unknown as NodeJS.ReadableStream & { pipe?: unknown };
+    const stream = typeof body.pipe === 'function'
+      ? body
+      : Readable.fromWeb(response.Body as any);
+    await pipeline(stream as never, createWriteStream(destination));
   }
   async head(key: string) { return this.requireClient().send(new HeadObjectCommand({ Bucket: this.bucket, Key: key })); }
   async tryHead(key: string) {
