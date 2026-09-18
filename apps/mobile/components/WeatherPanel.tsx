@@ -22,6 +22,8 @@ import { usePanelTransition } from "./use-panel-transition";
 import { METRES_PER_SECOND_TO_KNOTS } from "./wind-legend-band";
 
 const CLOSED_HEIGHT = 32;
+const HEADER_ITEM_GAP = 8;
+const NOW_LABEL_WIDTH = 28;
 const MAX_FORECAST_ROWS = 5;
 
 type WeatherPanelProps = {
@@ -130,7 +132,25 @@ export function WeatherPanel({ weather, visible, style }: WeatherPanelProps) {
             }}
             style={({ pressed }) => [styles.header, pressed && styles.pressed]}
           >
-            {expanded ? <BlurText style={styles.nowLabel}>Now</BlurText> : null}
+            <Animated.View
+              pointerEvents="none"
+              accessibilityElementsHidden={!expanded}
+              importantForAccessibility={
+                expanded ? "auto" : "no-hide-descendants"
+              }
+              style={[
+                styles.nowSlot,
+                {
+                  opacity: expansion,
+                  width: expansion.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0, NOW_LABEL_WIDTH + HEADER_ITEM_GAP],
+                  }),
+                },
+              ]}
+            >
+              <BlurText style={styles.nowLabel}>Now</BlurText>
+            </Animated.View>
             <View style={styles.condition}>
               {weatherIcon ? (
                 <SymbolView
@@ -154,7 +174,7 @@ export function WeatherPanel({ weather, visible, style }: WeatherPanelProps) {
               ) : null}
             </View>
             <BlurText
-              style={styles.temperature}
+              style={[styles.temperature, styles.currentTemperature]}
               accessibilityLabel={
                 weather
                   ? `${weather.condition}, ${Math.round(
@@ -226,26 +246,25 @@ const styles = StyleSheet.create({
     alignSelf: "flex-start",
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: HEADER_ITEM_GAP,
   },
   conditionMeasure: { width: 32, height: 30 },
   forecastMeasure: {
     alignSelf: "flex-start",
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: HEADER_ITEM_GAP,
   },
   header: {
     height: CLOSED_HEIGHT,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    gap: 8,
   },
   pressed: { opacity: 0.62, transform: [{ scale: 0.98 }] },
   condition: { width: 32, alignItems: "center" },
+  nowSlot: { flexShrink: 0, overflow: "hidden" },
   nowLabel: {
-    width: 28,
+    width: NOW_LABEL_WIDTH,
     fontSize: 11,
     lineHeight: 16,
   },
@@ -264,9 +283,10 @@ const styles = StyleSheet.create({
   forecastRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: HEADER_ITEM_GAP,
   },
   temperature: { fontSize: 16, lineHeight: 22 },
+  currentTemperature: { marginLeft: HEADER_ITEM_GAP },
   forecastTemperature: {
     marginLeft: "auto",
   },
