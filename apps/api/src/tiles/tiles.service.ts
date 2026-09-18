@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 
 import { ChartCatalogService } from '../ingestions/services/chart-catalog.service.js';
 import type { TileJsonDto } from './dtos/tile-json.dto.js';
@@ -15,6 +15,15 @@ export class TilesService {
     @Inject(ChartCatalogService)
     private readonly catalog: ChartCatalogService,
   ) {}
+
+  async getTile(version: string, z: string, x: string, y: string) {
+    if (!/^[a-zA-Z0-9][a-zA-Z0-9_-]*$/.test(version) || ![z, x, y].every((v) => /^\d{1,10}$/.test(v))) {
+      throw new BadRequestException('Invalid tile coordinates or version');
+    }
+    const zoom = Number(z), column = Number(x), row = Number(y);
+    if (zoom > 16 || column >= 2 ** zoom || row >= 2 ** zoom) throw new BadRequestException('Invalid tile coordinates');
+    return this.chartStorage.getTile('soundg', version, zoom, column, row);
+  }
 
   async getTileJson(baseUrl: string): Promise<TileJsonDto> {
     const active = await this.catalog.getActiveVersion('soundg');

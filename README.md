@@ -111,16 +111,16 @@ O fluxo cartográfico é executado antes da publicação:
 S-57 .000 + updates .001/.002
   -> GDAL/OGR (UPDATES=APPLY)
   -> GeoJSON normalizado temporário
-  -> MVT/PBF pré-processados
+  -> MVT/PBF pré-processados em um arquivo PMTiles
   -> storage versionado
-  -> servidor estático/CDN
+  -> leitura por ranges na API (sem gerar tiles em runtime)
   -> TileJSON do NestJS
   -> MapLibre Native
 ```
 
 O GeoJSON é intermediário e temporário. Após o upload, o pipeline extrai o ZIP,
 aplica os updates com `UPDATES=APPLY`, normaliza `SOUNDG`, executa
-`build-soundg-tiles.ts` em processo separado e grava os PBFs antes de marcar a
+`build-soundg-tiles.ts` em processo separado e empacota os PBFs antes de marcar a
 versão como `ready`. Se a pasta da versão já existir, a geração falha em vez de
 sobrescrever artefatos publicados.
 
@@ -133,17 +133,20 @@ O storage local/Railway tem esta estrutura:
       miami-soundg-v1/
         manifest.json
         {z}/{x}/{y}.pbf
-      miami-soundg-v2/
+      nova-versao/
         manifest.json
-        {z}/{x}/{y}.pbf
+        tiles.pmtiles
 ```
 
 O PostgreSQL é a fonte de verdade para a versão ativa. A publicação aceita
 somente versões `ready` e, na mesma transação, desativa a versão anterior, ativa
 a nova e registra os timestamps. Os arquivos anteriores ficam intactos para
 rollback e clientes offline. No Railway, `.storage/chart-data` está no volume
-persistente, separado da imagem Docker. O Nginx lê os PBFs diretamente desse
-volume; as requisições de tiles não chegam ao processo NestJS.
+persistente, separado da imagem Docker. O Nginx mantém o serving estático das
+versões antigas; para novas versões encaminha o GET à API, que lê apenas os
+ranges necessários do PMTiles. O cache compartilhado de índices é limitado a
+64 entradas; descritores de arquivo são fechados após cada leitura. Não há
+cache do arquivo completo nem reconstrução de GeoJSON em runtime.
 
 O NestJS consulta a versão `published` e `active` no banco e lê somente seu
 pequeno `manifest.json` para responder:
@@ -153,12 +156,42 @@ GET /tiles/soundg.json
 ```
 
 O TileJSON aponta para a versão ativa usando a URL compatível
-`/tiles/soundg/{version}/{z}/{x}/{y}.pbf`. Essa rota é atendida diretamente pelo
-Nginx com cache imutável de um ano. Para migrar a distribuição para S3, R2 ou
-uma CDN, basta configurar `CHART_ASSET_BASE_URL`; o TileJSON passa a usar
-`<base>/soundg/versions/{version}/{z}/{x}/{y}.pbf`, sem mudança no app ou na
-lógica de mapa. A interface `ChartStorage` isola a descoberta dos manifestos da
-implementação local atual.
+`/tiles/soundg/{version}/{z}/{x}/{y}.pbf`, com cache imutável de um ano.
+Tiles ausentes retornam 204; versões inexistentes continuam retornando erro
+não cacheável. `CHART_ASSET_BASE_URL` vale apenas para versões legadas em PBFs
+soltos; PMTiles usa a API atual. Distribuição direta por HTTP Range/CDN exigirá
+integração futura. A interface `ChartStorage` isola o acesso aos artefatos.
+
+O gerador usa um spool binário sequencial, um temporário interno do empacotador
+e o arquivo final, não um arquivo por tile. A compactação gzip é sem perdas;
+zoom e conteúdo MVT são preservados. A pasta é publicada por rename somente
+após finalizar o arquivo e seu checksum SHA-256. Temporários são removidos
+no término/falha e recuperados após reinício.
+O índice de geração é percorrido em profundidade: cada ramo é liberado depois
+da escrita, evitando acumular todos os tiles em RAM. O GeoJSON normalizado
+ainda é carregado no processo de ingestão separado, nunca no serving.
+
+Validação no Railway em 18/09/2026, com `FL_ENCs.zip`: 700 células,
+320.363 sondagens e 323.060 tiles em um PMTiles de 92.403.866 bytes
+(88,1 MiB). Pico medido do volume durante a geração: 969.515.008 bytes
+(inclui dados preexistentes), sem esgotar inodes. Publicação confirmada com
+700 células, 736 coberturas e 11.116 registros de levantamento no PostgreSQL;
+temporários vazios após conclusão. As gravações ORM são divididas em lotes
+de 500 por entidade, dentro da mesma transação, para respeitar o limite de
+parâmetros do PostgreSQL. HTTP real: tile novo/antigo 200, vazio 204 e versão
+inexistente 404 sem cache. O app mantém as mesmas URLs PBF; não recebe nem
+baixa o arquivo PMTiles inteiro.
+
+Para gerar/testar PMTiles localmente:
+
+```bash
+python3 -m venv .venv-pmtiles
+.venv-pmtiles/bin/pip install pmtiles==3.8.1
+export PMTILES_PYTHON="$PWD/.venv-pmtiles/bin/python"
+```
+
+O Docker já instala essa dependência. `PMTILES_PYTHON` seleciona o Python do
+empacotador; por padrão usa `python3`.
 
 O comando abaixo permanece disponível como ferramenta de diagnóstico para
 gerar um artefato sem publicá-lo. O fluxo normal não depende dele:

@@ -1,4 +1,5 @@
 .git
+.venv-pmtiles
 .expo
 .storage
 artifacts

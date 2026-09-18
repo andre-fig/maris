@@ -12,6 +12,7 @@ export type TilesetManifest = {
   createdAt: string;
   dataset: string;
   format: 'mvt';
+  storageFormat?: 'pmtiles';
   maxzoom: number;
   minzoom: number;
   name: string;
@@ -21,6 +22,7 @@ export type TilesetManifest = {
 };
 
 export interface ChartStorage {
+  getTile(dataset: string, version: string, z: number, x: number, y: number): Promise<Buffer | undefined>;
   getManifest(dataset: string, version: string): Promise<TilesetManifest>;
   getTileUrl(manifest: TilesetManifest, fallbackBaseUrl: string): string;
 }

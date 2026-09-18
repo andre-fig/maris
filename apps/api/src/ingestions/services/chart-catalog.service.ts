@@ -12,6 +12,8 @@ import { ChartDataset } from '../entities/chart-dataset.entity.js';
 import { ChartIngestion } from '../entities/chart-ingestion.entity.js';
 import { ChartVersion } from '../entities/chart-version.entity.js';
 import { ChartCell } from '../entities/chart-cell.entity.js';
+import { ChartCoverage } from '../entities/chart-coverage.entity.js';
+import { ChartSurvey } from '../entities/chart-survey.entity.js';
 import { mapChartCell } from '../models/chart-cell.mapper.js';
 import type {
   IngestionStatus,
@@ -166,7 +168,16 @@ export class ChartCatalogService {
     await this.dataSource.transaction(async (manager) => {
       const version = await manager.getRepository(ChartVersion).findOneByOrFail({ ingestionId });
       await manager.getRepository(ChartCell).delete({ versionId: version.id });
-      await manager.getRepository(ChartCell).save(result.cells.map((cell) => mapChartCell(version.id, cell)));
+      const mappedCells = result.cells.map((cell) => mapChartCell(version.id, cell));
+      // Chunk each entity independently: root-only chunking still lets cascade
+      // inserts exceed PostgreSQL's parameter limit for survey/coverage rows.
+      const cells = mappedCells.map(({ coverages, surveys, ...cell }) => cell);
+      const coverages = mappedCells.flatMap((cell) => cell.coverages);
+      const surveys = mappedCells.flatMap((cell) => cell.surveys);
+      const saveOptions = { chunk: 500, reload: false };
+      await manager.getRepository(ChartCell).save(cells, saveOptions);
+      await manager.getRepository(ChartCoverage).save(coverages, saveOptions);
+      await manager.getRepository(ChartSurvey).save(surveys, saveOptions);
       await manager.getRepository(ChartIngestion).update(ingestionId, {
         errorMessage: null,
         errorStack: null,

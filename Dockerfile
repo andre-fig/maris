@@ -15,10 +15,12 @@ FROM node:22-bookworm-slim AS runtime
 
 WORKDIR /app
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends gdal-bin gettext-base nginx unzip \
+    && apt-get install -y --no-install-recommends gdal-bin gettext-base nginx unzip python3-venv \
     && rm -rf /var/lib/apt/lists/* \
     && rm -f /etc/nginx/sites-enabled/default
 ENV NODE_ENV=production
+RUN python3 -m venv /opt/pmtiles && /opt/pmtiles/bin/pip install --no-cache-dir pmtiles==3.8.1
+ENV PMTILES_PYTHON=/opt/pmtiles/bin/python
 
 COPY --from=build /app/node_modules node_modules
 COPY --from=build /app/apps/api/dist apps/api/dist

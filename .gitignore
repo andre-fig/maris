@@ -1,4 +1,5 @@
 node_modules/
+.venv-pmtiles/
 .expo/
 artifacts/
 dist/

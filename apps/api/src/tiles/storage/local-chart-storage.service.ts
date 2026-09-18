@@ -1,4 +1,5 @@
-import { readFile } from 'node:fs/promises';
+import { open, readFile } from 'node:fs/promises';
+import { PMTiles, SharedPromiseCache } from 'pmtiles';
 import path from 'node:path';
 
 import {
@@ -17,6 +18,7 @@ const SAFE_SEGMENT = /^[a-zA-Z0-9][a-zA-Z0-9._-]*$/;
 export class LocalChartStorageService implements ChartStorage {
   private readonly publicBaseUrl: string | undefined;
   private readonly storageDirectory: string;
+  private readonly archiveCache = new SharedPromiseCache(64);
 
   constructor(@Inject(ConfigService) config: ConfigService) {
     this.storageDirectory = path.resolve(
@@ -64,12 +66,42 @@ export class LocalChartStorageService implements ChartStorage {
   }
 
   getTileUrl(manifest: TilesetManifest, fallbackBaseUrl: string): string {
-    if (this.publicBaseUrl) {
+    if (this.publicBaseUrl && manifest.storageFormat !== 'pmtiles') {
       return `${this.publicBaseUrl}/${manifest.tilePathTemplate}`;
     }
 
-    // Nginx maps this compatibility URL directly to CHART_STORAGE_DIR.
+    // Nginx serves legacy files directly and proxies PMTiles reads to the API.
     return `${fallbackBaseUrl}/tiles/${manifest.dataset}/${manifest.version}/{z}/{x}/{y}.pbf`;
+  }
+
+  async getTile(dataset: string, version: string, z: number, x: number, y: number): Promise<Buffer | undefined> {
+    const manifest = await this.getManifest(dataset, version);
+    if (z < manifest.minzoom || z > manifest.maxzoom) return undefined;
+    const directory = path.join(this.storageDirectory, dataset, 'versions', version);
+    if (manifest.storageFormat !== 'pmtiles') {
+      try { return await readFile(path.join(directory, String(z), String(x), `${y}.pbf`)); }
+      catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
+        throw error;
+      }
+    }
+    const archive = path.join(directory, 'tiles.pmtiles');
+    const reader = new PMTiles({
+      getKey: () => archive,
+      getBytes: async (offset, length) => {
+        if (!Number.isSafeInteger(offset) || offset < 0 || !Number.isSafeInteger(length) || length < 0 || length > 32 * 1024 * 1024) {
+          throw new Error('Invalid PMTiles byte range');
+        }
+        const handle = await open(archive, 'r');
+        try {
+          const buffer = new Uint8Array(length);
+          const { bytesRead } = await handle.read(buffer, 0, length, offset);
+          return { data: buffer.slice(0, bytesRead).buffer };
+        } finally { await handle.close(); }
+      },
+    }, this.archiveCache);
+    const tile = await reader.getZxy(z, x, y);
+    return tile ? Buffer.from(tile.data) : undefined;
   }
 
   private async readJson<T>(filePath: string): Promise<T> {

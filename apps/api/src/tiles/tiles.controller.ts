@@ -1,6 +1,7 @@
 import {
   Controller,
   Get,
+  Param,
   Inject,
   Req,
   Res,
@@ -15,6 +16,22 @@ export class TilesController {
   constructor(
     @Inject(TilesService) private readonly tilesService: TilesService,
   ) {}
+
+  @Get('soundg/:version/:z/:x/:y.pbf')
+  async getTile(
+    @Param('version') version: string,
+    @Param('z') z: string,
+    @Param('x') x: string,
+    @Param('y') y: string,
+    @Res() response: Response,
+  ) {
+    response.set('Cache-Control', 'no-store');
+    const tile = await this.tilesService.getTile(version, z, x, y);
+    response.set('Cache-Control', 'public, max-age=31536000, immutable');
+    response.type('application/vnd.mapbox-vector-tile');
+    if (!tile) return response.status(204).end();
+    return response.status(200).send(tile);
+  }
 
   @Get('soundg.json')
   async getTileJson(

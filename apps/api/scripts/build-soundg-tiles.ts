@@ -1,8 +1,12 @@
 import { createHash } from 'node:crypto';
-import { constants } from 'node:fs';
+import { constants, createReadStream } from 'node:fs';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import { fileURLToPath } from 'node:url';
 import {
   access,
   mkdir,
+  open,
   readFile,
   rename,
   rm,
@@ -151,7 +155,8 @@ async function build(options: Options) {
   const index: TileIndex = geojsonvt(source, {
     buffer: 64,
     extent: 4096,
-    indexMaxZoom: 12,
+    // Pre-indexing is unnecessary: consume each subtree once, then release it.
+    indexMaxZoom: 0,
     maxZoom: MAX_ZOOM,
     tolerance: 3,
   });
@@ -177,31 +182,49 @@ async function build(options: Options) {
   const encode = vtpbf.fromGeojsonVt as unknown as TileEncoder;
   let tileCount = 0;
   let totalBytes = 0;
+  const spoolPath = path.join(temporaryDestination, 'tiles.spool');
+  const spool = await open(spoolPath, 'wx');
 
   try {
-    for (let zoom = MIN_ZOOM; zoom <= MAX_ZOOM; zoom += 1) {
-      const range = tileRange(bounds, zoom);
-      for (let x = range.minX; x <= range.maxX; x += 1) {
-        for (let y = range.minY; y <= range.maxY; y += 1) {
-          const indexedTile = index.getTile(zoom, x, y);
-          if (!indexedTile) continue;
-          const tile =
-            options.sampling === 'legacy-v1'
-              ? legacySampling(indexedTile, zoom)
-              : indexedTile;
-          if (tile.features.length === 0) continue;
-
+    const workingIndex = index as unknown as {
+      tiles: Record<number, { features: unknown[] }>;
+      tileCoords: unknown[];
+    };
+    // geojson-vt normally caches every generated tile. A depth-first traversal
+    // needs only the current branch and its siblings, not millions of tiles.
+    async function visit(zoom: number, x: number, y: number): Promise<void> {
+      const id = ((2 ** zoom * y + x) * 32) + zoom;
+      try {
+        const indexedTile = index.getTile(zoom, x, y);
+        workingIndex.tileCoords.length = 0; // debug bookkeeping only
+        if (!indexedTile || indexedTile.features.length === 0) return;
+        const tile = options.sampling === 'legacy-v1'
+          ? legacySampling(indexedTile, zoom)
+          : indexedTile;
+        const range = tileRange(bounds, zoom);
+        if (zoom >= MIN_ZOOM && tile.features.length > 0 &&
+            x >= range.minX && x <= range.maxX && y >= range.minY && y <= range.maxY) {
           const buffer = Buffer.from(encode({ soundings: tile }));
-          const relativePath = path.join(String(zoom), String(x), `${y}.pbf`);
-          const outputPath = path.join(temporaryDestination, relativePath);
-          await mkdir(path.dirname(outputPath), { recursive: true });
-          await writeFile(outputPath, buffer, { flag: 'wx' });
-          checksum.update(relativePath).update(buffer);
+          const frame = Buffer.alloc(16);
+          [zoom, x, y, buffer.byteLength].forEach((value, offset) => frame.writeUInt32LE(value, offset * 4));
+          await spool.writeFile(Buffer.concat([frame, buffer]));
           tileCount += 1;
           totalBytes += buffer.byteLength;
         }
+        // Further clipping uses tile.source, not the encoded features.
+        workingIndex.tiles[id]!.features = [];
+        if (zoom < MAX_ZOOM) {
+          for (let dx = 0; dx < 2; dx += 1) {
+            for (let dy = 0; dy < 2; dy += 1) {
+              await visit(zoom + 1, x * 2 + dx, y * 2 + dy);
+            }
+          }
+        }
+      } finally {
+        delete workingIndex.tiles[id];
       }
     }
+    await visit(0, 0, 0);
 
     const manifest: TilesetManifest & {
       artifactChecksum: string;
@@ -209,11 +232,12 @@ async function build(options: Options) {
       tileCount: number;
       totalBytes: number;
     } = {
-      artifactChecksum: checksum.digest('hex'),
+      artifactChecksum: '',
       bounds,
       createdAt: new Date().toISOString(),
       dataset: DATASET,
       format: 'mvt',
+      storageFormat: 'pmtiles',
       maxzoom: MAX_ZOOM,
       minzoom: MIN_ZOOM,
       name: 'Miami SOUNDG',
@@ -243,6 +267,17 @@ async function build(options: Options) {
       `${JSON.stringify(manifest, null, 2)}\n`,
       { encoding: 'utf8', flag: 'wx' },
     );
+    await spool.close();
+    const archive = path.join(temporaryDestination, 'tiles.pmtiles');
+    await promisify(execFile)(process.env.PMTILES_PYTHON ?? 'python3', [
+      fileURLToPath(new URL('./pack-pmtiles.py', import.meta.url)),
+      spoolPath, archive, path.join(temporaryDestination, 'manifest.json'),
+    ], { env: { ...process.env, TMPDIR: temporaryDestination }, maxBuffer: 2 * 1024 * 1024 });
+    for await (const chunk of createReadStream(archive)) checksum.update(chunk);
+    manifest.artifactChecksum = checksum.digest('hex');
+    manifest.totalBytes = (await stat(archive)).size;
+    await writeFile(path.join(temporaryDestination, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`);
+    await rm(spoolPath);
     await mkdir(versionsDirectory, { recursive: true });
     await rename(temporaryDestination, destination);
 
@@ -252,11 +287,13 @@ async function build(options: Options) {
         directory: destination,
         directoryCreatedAt: outputStats.birthtime.toISOString(),
         tileCount,
-        totalBytes,
+        totalBytes: manifest.totalBytes,
+        uncompressedTileBytes: totalBytes,
         version: options.version,
       }),
     );
   } catch (error) {
+    await spool.close().catch(() => undefined);
     await rm(temporaryDestination, { force: true, recursive: true });
     throw error;
   }
