@@ -273,7 +273,13 @@ public:
   const std::vector<ClipVertex> &update(const Field &f, const double *m,
                                         double zoom, double dt, float density,
                                         float speed, const Field *old = nullptr, float progress = 1) {
-    size_t count = size_t(std::clamp(density, 0.f, 1.f) * maximumParticleCount);
+    // Keep the full particle range responsive to the map zoom: broad views
+    // get the highest density, while close views use fewer particles.
+    const float zoomFactor = std::clamp(
+        1.f - float(std::clamp(zoom, 0., 16.) / 16.) * .75f,
+        .25f, 1.f);
+    size_t count = size_t(std::clamp(density, 0.f, 1.f) * zoomFactor *
+                          maximumParticleCount);
     if (particles.capacity() < count) {
       particles.reserve(maximumParticleCount);
     }
