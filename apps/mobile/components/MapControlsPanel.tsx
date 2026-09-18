@@ -1,14 +1,17 @@
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { SymbolView } from "expo-symbols";
-import { Platform, Pressable, StyleSheet } from "react-native";
+import { ActivityIndicator, Animated, Platform, Pressable, StyleSheet, View } from "react-native";
+import { usePanelTransition } from "./use-panel-transition";
 
-import { BLUR_PANEL_ICON_SIZE, BlurPanel } from "./BlurPanel";
+import { BLUR_PANEL_GAP, BLUR_PANEL_ICON_SIZE, BlurPanel } from "./BlurPanel";
 
 type MapControlsPanelProps = {
   locationActive: boolean;
   courseUp: boolean;
   onLocate: () => void;
   onMapPress: () => void;
+  mapLoading?: boolean;
+  showMapButton?: boolean;
 };
 
 export function MapControlsPanel({
@@ -16,11 +19,15 @@ export function MapControlsPanel({
   courseUp,
   onLocate,
   onMapPress,
+  mapLoading = false,
+  showMapButton = true,
 }: MapControlsPanelProps) {
   const isAndroid = Platform.OS === "android";
+  const reveal = usePanelTransition(showMapButton ? 1 : 0);
 
   return (
     <BlurPanel alignSelf="flex-end">
+      <View style={styles.controls}>
       <Pressable
         accessibilityLabel="Center on my location"
         accessibilityRole="button"
@@ -42,13 +49,26 @@ export function MapControlsPanel({
           />
         )}
       </Pressable>
-      <Pressable
-        accessibilityLabel="Open map options"
-        accessibilityRole="button"
-        onPress={onMapPress}
-        style={({ pressed }) => [styles.action, pressed && styles.pressed]}
+      <Animated.View
+        pointerEvents={showMapButton ? "auto" : "none"}
+        accessibilityElementsHidden={!showMapButton}
+        importantForAccessibility={showMapButton ? "auto" : "no-hide-descendants"}
+        style={[styles.mapSlot, {
+          height: reveal.interpolate({ inputRange: [0, 1], outputRange: [0, BLUR_PANEL_ICON_SIZE + BLUR_PANEL_GAP] }),
+          opacity: reveal,
+        }]}
       >
-        {isAndroid ? (
+      <Pressable
+        accessibilityLabel={mapLoading ? "Loading chart information" : "Open map options"}
+        accessibilityRole="button"
+        accessibilityState={{ busy: mapLoading, disabled: mapLoading || !showMapButton }}
+        disabled={mapLoading || !showMapButton}
+        onPress={mapLoading || !showMapButton ? undefined : onMapPress}
+        style={({ pressed }) => [styles.action, styles.mapAction, pressed && styles.pressed]}
+      >
+        {mapLoading ? (
+          <ActivityIndicator color="#FFFFFF" size="small" style={styles.loadingIcon} />
+        ) : isAndroid ? (
           <MaterialCommunityIcons
             color="#FFFFFF"
             name="map-outline"
@@ -63,11 +83,28 @@ export function MapControlsPanel({
           />
         )}
       </Pressable>
+      </Animated.View>
+      </View>
     </BlurPanel>
   );
 }
 
 const styles = StyleSheet.create({
+  controls: {
+    alignItems: "center",
+  },
+  mapSlot: {
+    width: BLUR_PANEL_ICON_SIZE,
+    overflow: "hidden",
+  },
+  mapAction: {
+    paddingTop: BLUR_PANEL_GAP,
+    height: BLUR_PANEL_ICON_SIZE + BLUR_PANEL_GAP,
+  },
+  loadingIcon: {
+    width: BLUR_PANEL_ICON_SIZE,
+    height: BLUR_PANEL_ICON_SIZE,
+  },
   action: {
     alignItems: "center",
     justifyContent: "center",

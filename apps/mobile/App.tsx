@@ -8,6 +8,8 @@ import {
   VectorSource,
 } from "@maplibre/maplibre-react-native";
 import { useEffect, useRef, useState } from "react";
+import { useCameraEvents } from "./map/use-camera-events";
+import { isWithinChartBounds } from "./map/chart-bounds";
 import { ScrollView, StyleSheet, useWindowDimensions, View } from "react-native";
 
 import { isWeatherScaleVisible, ScaleRuler } from "./components/ScaleRuler";
@@ -24,6 +26,8 @@ import { NativeWindLayer } from "@maris/native-wind";
 import { MAP_AMBIENT_CACHE_BYTES } from "./offline/offline-areas";
 import { useAutomaticOffline } from "./offline/use-automatic-offline";
 import { DEFAULT_MAP_ZOOM } from "./map-config";
+import { useChartInformation, useOnlineChart } from "./charts/current-chart";
+import { chartInformationRows } from "./charts/chart-information";
 import {
   type MapCenter,
   useCurrentViewportWeather,
@@ -35,26 +39,6 @@ const API_URL =
   "https://api-production-7dc7.up.railway.app";
 const LOCATION_MATCH_THRESHOLD_KM = 0.08;
 type SheetContent = "chart" | "empty";
-
-const MOCK_CHART_INFORMATION = [
-  ["Source", "NOAA"],
-  ["ENC Cell", "US5MIABC"],
-  ["Edition", "2"],
-  ["Update Number", "0"],
-  ["Issue Date", "Sep 3, 2025"],
-  ["Last Update Applied", "Sep 3, 2025"],
-  ["Compilation Scale", "1:22,000"],
-  [
-    "Coverage",
-    "Biscayne Bay, Key Biscayne, Biscayne Channel, No Name Harbor, Cape Florida Channel",
-  ],
-  ["Data Quality", "CATZOC A1"],
-  ["Horizontal Datum", "WGS 84"],
-  ["Sounding Datum", "Chart datum defined by the ENC"],
-  ["Survey Source", "NOAA / official hydrographic survey"],
-  ["Survey Date", "Date recorded for the covered survey area"],
-  ["Processed by MARIS", "Sep 17, 2026"],
-] as const;
 
 function distanceKm(a: [number, number], b: [number, number]) {
   const [longitudeA, latitudeA] = a;
@@ -90,6 +74,8 @@ export default function App() {
   const [courseUp, setCourseUp] = useState(false);
   const [windEnabled, setWindEnabled] = useState(false);
   const [mapSheetVisible, setMapSheetVisible] = useState(false);
+  const [chartRequested, setChartRequested] = useState(false);
+  const chartRequestPending = useRef(false);
   const [sheetContent, setSheetContent] = useState<SheetContent>("chart");
   const [mapSheetCloseSignal, setMapSheetCloseSignal] = useState(0);
   const [centerWindSpeed, setCenterWindSpeed] = useState<number | null>(null);
@@ -97,6 +83,28 @@ export default function App() {
   const locationTarget = useRef(false);
   const initialLocationApplied = useRef(false);
   const courseUpTransitionPending = useRef(false);
+  const onlineChart = useOnlineChart(API_URL, offlineReady && !offlineArea);
+  const displayedChart = offlineArea?.chart ?? onlineChart;
+  const mapButtonVisible = isWithinChartBounds(displayedChart?.bounds, viewState.longitude, viewState.latitude);
+  const chartInformation = useChartInformation(API_URL, mapRef,
+    chartRequested && mapButtonVisible && sheetContent === "chart", displayedChart?.version,
+    viewState.longitude, viewState.latitude);
+  const chartRows = chartInformation.chart ? chartInformationRows(chartInformation.chart) : [];
+
+  useEffect(() => {
+    if (!mapButtonVisible && chartRequested) {
+      chartRequestPending.current = false;
+      setChartRequested(false);
+      if (sheetContent === "chart") setMapSheetVisible(false);
+    }
+  }, [mapButtonVisible, chartRequested, sheetContent]);
+
+  useEffect(() => {
+    if (chartRequested && chartInformation.ready && sheetContent === "chart") {
+      chartRequestPending.current = false;
+      setMapSheetVisible(true);
+    }
+  }, [chartRequested, chartInformation.ready, sheetContent]);
 
   useEffect(() => {
     if (deviceLocation && !initialLocationApplied.current) {
@@ -121,14 +129,14 @@ export default function App() {
 
     cameraRef.current?.jumpTo({
       center: deviceLocation.coordinate,
-      zoom: viewState.zoom,
+      zoom: lastZoom.current,
       bearing: deviceLocation.heading,
     });
   }, [
     courseUp,
     deviceLocation?.heading,
-    deviceLocation?.coordinate,
-    viewState.zoom,
+    deviceLocation?.coordinate[0],
+    deviceLocation?.coordinate[1],
   ]);
 
   const scaleMaxWidth = Math.min(width - 96, 175);
@@ -142,6 +150,35 @@ export default function App() {
   useEffect(() => {
     void OfflineManager.setMaximumAmbientCacheSize(MAP_AMBIENT_CACHE_BYTES);
   }, []);
+
+  const cameraEvents = useCameraEvents((view, settled) => {
+    const zoomChanged = Math.abs(view.zoom - lastZoom.current) > 0.0001;
+    lastZoom.current = view.zoom;
+    if (settled) setIsZooming(false);
+    else if (zoomChanged) setIsZooming(true);
+
+    if (deviceLocation) {
+      const atLocation = distanceKm(view.center, deviceLocation.coordinate) <= LOCATION_MATCH_THRESHOLD_KM;
+      if (settled) {
+        locationTarget.current = false;
+        setLocationActive(atLocation);
+      } else if (!locationTarget.current && !atLocation) {
+        setLocationActive(false);
+        setCourseUp(false);
+      }
+    }
+    setViewState(previous => previous.longitude === view.center[0] &&
+      previous.latitude === view.center[1] && previous.zoom === view.zoom &&
+      previous.bearing === view.bearing ? previous : {
+        longitude: view.center[0], latitude: view.center[1], zoom: view.zoom, bearing: view.bearing,
+      });
+    if (windEnabled) setWindSampleCoordinate(previous =>
+      previous?.[0] === view.center[0] && previous?.[1] === view.center[1] ? previous : [...view.center]);
+    if (settled) {
+      currentWeather.onCameraDidChange(view.center);
+      void onViewportSettled().catch(() => {});
+    } else currentWeather.onCameraChanging(view.center);
+  });
 
   if (!offlineReady || (!deviceLocation && !offlineArea)) {
     return <View style={styles.container} />;
@@ -168,50 +205,8 @@ export default function App() {
         onTouchEnd={({ nativeEvent }) => {
           currentWeather.onTouchEnd(nativeEvent.touches.length);
         }}
-        onRegionIsChanging={({ nativeEvent }) => {
-          if (Math.abs(nativeEvent.zoom - lastZoom.current) > 0.0001) {
-            setIsZooming(true);
-          }
-
-          lastZoom.current = nativeEvent.zoom;
-          if (
-            !locationTarget.current &&
-            deviceLocation &&
-            distanceKm(nativeEvent.center, deviceLocation.coordinate) >
-              LOCATION_MATCH_THRESHOLD_KM
-          ) {
-            setLocationActive(false);
-            setCourseUp(false);
-          }
-          setViewState({
-            longitude: nativeEvent.center[0],
-            latitude: nativeEvent.center[1],
-            zoom: nativeEvent.zoom,
-            bearing: nativeEvent.bearing,
-          });
-          currentWeather.onCameraChanging(nativeEvent.center);
-          if (windEnabled) setWindSampleCoordinate([...nativeEvent.center]);
-        }}
-        onRegionDidChange={({ nativeEvent }) => {
-          lastZoom.current = nativeEvent.zoom;
-          if (deviceLocation) {
-            const isAtLocation =
-              distanceKm(nativeEvent.center, deviceLocation.coordinate) <=
-              LOCATION_MATCH_THRESHOLD_KM;
-            locationTarget.current = false;
-            setLocationActive(isAtLocation);
-          }
-          setViewState({
-            longitude: nativeEvent.center[0],
-            latitude: nativeEvent.center[1],
-            zoom: nativeEvent.zoom,
-            bearing: nativeEvent.bearing,
-          });
-          currentWeather.onCameraDidChange(nativeEvent.center);
-          if (windEnabled) setWindSampleCoordinate([...nativeEvent.center]);
-          void onViewportSettled().catch(() => {});
-          setIsZooming(false);
-        }}
+        onRegionIsChanging={cameraEvents.onRegionIsChanging}
+        onRegionDidChange={cameraEvents.onRegionDidChange}
       >
         <Layer
           id="poi_transit"
@@ -228,14 +223,12 @@ export default function App() {
             zoom: offlineArea ? Math.min(offlineArea.maxZoom,Math.max(offlineArea.minZoom,DEFAULT_MAP_ZOOM)) : DEFAULT_MAP_ZOOM,
           }}
         />
-        <VectorSource
-          key={offlineArea?.id ?? 'online'}
+        {displayedChart ? <VectorSource
+          key={displayedChart.version}
           id="miami-soundg"
-          {...(offlineArea ? {
-            tiles: offlineArea.chart.tiles,
-            minzoom: offlineArea.chart.minzoom,
-            maxzoom: offlineArea.chart.maxzoom,
-          } : { url: `${API_URL}/tiles/soundg.json` })}
+          tiles={displayedChart.tiles}
+          minzoom={displayedChart.minzoom}
+          maxzoom={displayedChart.maxzoom}
         >
           <Layer
             id="miami-soundg-depth"
@@ -255,7 +248,7 @@ export default function App() {
               "text-halo-width": 1,
             }}
           />
-        </VectorSource>
+        </VectorSource> : null}
         {deviceLocation ? (
           <UserLocationMarker
             coordinate={deviceLocation.coordinate}
@@ -288,6 +281,8 @@ export default function App() {
             mapBearing={viewState.bearing}
             onPress={() => {
               if (Math.abs(viewState.bearing) < 0.001) {
+                chartRequestPending.current = false;
+                setChartRequested(false);
                 setSheetContent("empty");
                 setMapSheetVisible(true);
                 return;
@@ -306,9 +301,14 @@ export default function App() {
           <MapControlsPanel
             locationActive={locationActive}
             courseUp={courseUp}
+            showMapButton={mapButtonVisible}
+            mapLoading={chartRequested && chartInformation.loading && !mapSheetVisible}
             onMapPress={() => {
+              if (!mapButtonVisible || chartRequestPending.current || (mapSheetVisible && sheetContent === "chart")) return;
+              chartRequestPending.current = true;
+              setMapSheetVisible(false);
               setSheetContent("chart");
-              setMapSheetVisible(true);
+              setChartRequested(true);
             }}
             onLocate={() => {
               if (!deviceLocation) return;
@@ -358,7 +358,11 @@ export default function App() {
       <BlurBottomSheet
         visible={mapSheetVisible}
         closeSignal={mapSheetCloseSignal}
-        onClose={() => setMapSheetVisible(false)}
+        onClose={() => {
+          chartRequestPending.current = false;
+          setChartRequested(false);
+          setMapSheetVisible(false);
+        }}
       >
         {sheetContent === "chart" ? (
           <>
@@ -369,11 +373,12 @@ export default function App() {
               showsVerticalScrollIndicator
               persistentScrollbar
             >
-              {MOCK_CHART_INFORMATION.map(([label, value], index) => (
+              {chartInformation.message ? <BlurText style={styles.chartInfoMessage}>{chartInformation.message}</BlurText> : null}
+              {chartRows.map(([label, value], index) => (
                 <View key={label} style={styles.chartInfoRow}>
                   <BlurText style={styles.chartInfoLabel}>{label}</BlurText>
                   <BlurText style={styles.chartInfoValue}>{value}</BlurText>
-                  {index < MOCK_CHART_INFORMATION.length - 1 ? (
+                  {index < chartRows.length - 1 ? (
                     <View style={styles.chartInfoDivider} />
                   ) : null}
                 </View>
@@ -417,6 +422,12 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "500",
     lineHeight: 18,
+  },
+  chartInfoMessage: {
+    fontSize: 14,
+    lineHeight: 19,
+    textAlign: "left",
+    alignSelf: "stretch",
   },
   chartInfoValue: {
     flex: 1.1,

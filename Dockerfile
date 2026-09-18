@@ -27,6 +27,7 @@ COPY --from=build /app/apps/api/dist apps/api/dist
 COPY --from=build /app/apps/api/node_modules apps/api/node_modules
 COPY apps/api/package.json apps/api/package.json
 COPY apps/api/scripts apps/api/scripts
+COPY apps/api/src/charts/models/chart-selection.ts apps/api/src/charts/models/chart-selection.ts
 COPY ops/nginx/default.conf.template /etc/nginx/templates/maris.conf.template
 COPY ops/docker-entrypoint.sh /usr/local/bin/maris-entrypoint
 RUN chmod +x /usr/local/bin/maris-entrypoint

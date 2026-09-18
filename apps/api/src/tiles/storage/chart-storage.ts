@@ -13,6 +13,7 @@ export type TilesetManifest = {
   dataset: string;
   format: 'mvt';
   storageFormat?: 'pmtiles';
+  selectionPolicy?: string;
   maxzoom: number;
   minzoom: number;
   name: string;

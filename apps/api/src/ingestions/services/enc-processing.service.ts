@@ -1,11 +1,12 @@
 import { execFile } from 'node:child_process';
-import { mkdir, readFile, readdir, rm } from 'node:fs/promises';
+import { mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
 
 import { Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ProcessingCleanupService } from './processing-cleanup.service.js';
+import { coverageCells } from '../../charts/models/chart-selection.js';
 
 import type {
   EncMetadataFeature,
@@ -143,6 +144,8 @@ export class EncProcessingService {
         process.cwd(),
         'apps/api/node_modules/tsx/dist/cli.mjs',
       );
+      const coveragePath = path.join(workDirectory, 'coverage.json');
+      await writeFile(coveragePath, JSON.stringify(coverageCells(cells)));
       await this.run(process.execPath, [
         tsxPath,
         scriptPath,
@@ -152,6 +155,8 @@ export class EncProcessingService {
         this.chartStorageDirectory,
         '--version',
         job.versionKey,
+        '--coverage',
+        coveragePath,
       ]);
 
       const manifest = JSON.parse(

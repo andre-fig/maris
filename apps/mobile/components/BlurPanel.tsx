@@ -11,6 +11,7 @@ type BlurPanelProps = PropsWithChildren<{
 
 export const BLUR_PANEL_ICON_SIZE = 28;
 export const BLUR_PANEL_PADDING_VERTICAL = 6;
+export const BLUR_PANEL_GAP = 8;
 
 export function BlurPanel({
   children,
@@ -44,7 +45,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     paddingHorizontal: 8,
     paddingVertical: BLUR_PANEL_PADDING_VERTICAL,
-    gap: 8,
+    gap: BLUR_PANEL_GAP,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "rgba(20, 32, 40, 0.24)",

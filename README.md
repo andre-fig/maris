@@ -182,6 +182,40 @@ parâmetros do PostgreSQL. HTTP real: tile novo/antigo 200, vazio 204 e versão
 inexistente 404 sem cache. O app mantém as mesmas URLs PBF; não recebe nem
 baixa o arquivo PMTiles inteiro.
 
+### Carta no centro do mapa
+
+`GET /charts/at-point?lat=25.7&lon=-80.15&version=soundg-{uuid}` retorna
+uma única carta e seus metadados. Sem `version`, consulta a versão publicada
+ativa; o app sempre envia a mesma versão imutável usada no `VectorSource`.
+O centro é consultado no MapLibre ao abrir/mover o painel Chart information,
+com debounce de 200 ms e cancelamento de respostas obsoletas.
+
+`ChartSelection` é compartilhado pela geração dos tiles e pelo endpoint:
+primeiro escolhe edição/atualização mais recente da mesma célula; entre células
+que cobrem o ponto, prefere a menor escala de compilação (maior detalhe).
+Empates usam data e nome da célula. Considera os polígonos reais `M_COVR`,
+exclusões CATCOV=2 e buracos, não apenas bounds. Não há amostragem por zoom.
+O gerador mantém cada SOUNDG somente onde sua célula é a selecionada.
+
+O manifest registra `selectionPolicy: detailed-coverage-v1`. Versões legadas
+continuam acessíveis por URL, mas o endpoint retorna 409 para elas porque
+seus tiles misturam cartas; uma área offline antiga precisa ser atualizada
+para exibir metadados de uma carta única. Fora de cobertura retorna 404;
+coordenadas inválidas retornam 400. O painel não inventa dados ausentes.
+Metadados do painel ainda exigem conexão; os tiles offline permanecem
+independentes. A consulta carrega somente metadados/coberturas do snapshot
+publicado, nunca o GeoJSON de sondagens nem o PMTiles inteiro.
+
+Validado no Railway com `FL_ENCs.zip`, versão
+`soundg-6cfac4ad-91bf-4e4d-8516-e1a9e009f59a`: 223.778 sondagens selecionadas,
+306.717 tiles e PMTiles de 76.164.834 bytes. Em `25.7,-80.15`, o endpoint
+retornou `US5MIABC`, edição 2, atualização 0, escala 1:22.000. O tile
+`14/4544/6981` passou de 13 SOUNDG de `US4FL2AI` + 32 de `US5MIABC` para
+somente os mesmos 32 de `US5MIABC`. Tile antigo e novo responderam 200;
+consulta fora da cobertura 404, coordenada inválida 400 e versão legada 409.
+Uma falha inicial de empacotamento Docker preservou a versão ativa; após
+correção, a fila publicou a versão e limpou os temporários.
+
 ### Deploy automático da API
 
 O serviço `api` do projeto Railway `maris`, ambiente `production`, acompanha

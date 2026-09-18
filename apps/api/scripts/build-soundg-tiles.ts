@@ -19,6 +19,7 @@ import geojsonvt from 'geojson-vt';
 import vtpbf from 'vt-pbf';
 
 import type { TilesetManifest } from '../src/tiles/storage/chart-storage.js';
+import { ChartSelection, CHART_SELECTION_POLICY, type CoverageCell } from '../src/charts/models/chart-selection.js';
 
 const DATASET = 'soundg';
 const MIN_ZOOM = 8;
@@ -38,6 +39,7 @@ type Options = {
   sampling: 'none' | 'legacy-v1';
   storageDirectory: string;
   version: string;
+  coverage?: string;
 };
 
 function parseArguments(): Options {
@@ -72,6 +74,7 @@ function parseArguments(): Options {
     sampling,
     storageDirectory: path.resolve(storageDirectory),
     version,
+    ...(values.get('--coverage') ? { coverage: path.resolve(values.get('--coverage')!) } : {}),
   };
 }
 
@@ -151,6 +154,13 @@ async function build(options: Options) {
   const source = JSON.parse(
     await readFile(options.input, 'utf8'),
   ) as SoundingsGeoJson;
+  const inputFeatureCount = source.features.length;
+  if (options.coverage) {
+    const cells = JSON.parse(await readFile(options.coverage, 'utf8')) as CoverageCell[];
+    const selection = new ChartSelection(cells);
+    source.features = source.features.filter((feature) =>
+      selection.at(feature.geometry.coordinates as [number, number])?.name === feature.properties.SOURCE_CELL);
+  }
   const bounds = calculateBounds(source);
   const index: TileIndex = geojsonvt(source, {
     buffer: 64,
@@ -238,6 +248,7 @@ async function build(options: Options) {
       dataset: DATASET,
       format: 'mvt',
       storageFormat: 'pmtiles',
+      ...(options.coverage ? { selectionPolicy: CHART_SELECTION_POLICY } : {}),
       maxzoom: MAX_ZOOM,
       minzoom: MIN_ZOOM,
       name: 'Miami SOUNDG',
@@ -289,6 +300,8 @@ async function build(options: Options) {
         tileCount,
         totalBytes: manifest.totalBytes,
         uncompressedTileBytes: totalBytes,
+        inputFeatureCount,
+        retainedFeatureCount: source.features.length,
         version: options.version,
       }),
     );

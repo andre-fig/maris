@@ -23,9 +23,11 @@ test("Android location icon loses its fill off GPS and preserves centered/course
         builder.onResolve({ filter: /^react(?:\/jsx-runtime)?$/ }, args => ({ path: require.resolve(args.path), external: true }));
         builder.onResolve({ filter: /^(react-native|expo-symbols|@expo\/vector-icons\/MaterialCommunityIcons|\.\/BlurPanel)$/ }, args => ({ path: args.path, namespace: "mock" }));
         builder.onLoad({ filter: /.*/, namespace: "mock" }, args => ({ loader: "js", contents:
-          args.path === "react-native" ? 'export const Platform={OS:"android"}; export const StyleSheet={create:x=>x}; export const View="View", Pressable="Pressable";' :
+          args.path === "react-native" ? `export const Platform={OS:"android"}; export const StyleSheet={create:x=>x}; export const View="View", Pressable="Pressable", ActivityIndicator="ActivityIndicator";
+            export const Easing={cubic:x=>x,inOut:x=>x};
+            export const Animated={View:"AnimatedView",Value:class {constructor(value){this.value=value} interpolate({outputRange}){return {__getValue:()=>outputRange[0]+this.value*(outputRange[1]-outputRange[0])}}},timing:(value,options)=>({start(){value.value=options.toValue},stop(){}})};` :
           args.path === "expo-symbols" ? 'export const SymbolView="SymbolView";' :
-          args.path === "./BlurPanel" ? 'export const BlurPanel="BlurPanel", BLUR_PANEL_ICON_SIZE=20;' :
+          args.path === "./BlurPanel" ? 'export const BlurPanel="BlurPanel", BLUR_PANEL_ICON_SIZE=20, BLUR_PANEL_GAP=8;' :
           'export default "MaterialCommunityIcons";'
         }));
       }}],
@@ -35,8 +37,8 @@ test("Android location icon loses its fill off GPS and preserves centered/course
     const { MapControlsPanel } = require(compiled);
     let presses = 0;
     let mapPresses = 0;
-    const panel = (locationActive: boolean, courseUp: boolean) => React.createElement(MapControlsPanel, {
-      locationActive, courseUp,
+    const panel = (locationActive: boolean, courseUp: boolean, mapLoading = false, showMapButton = true) => React.createElement(MapControlsPanel, {
+      locationActive, courseUp, mapLoading, showMapButton,
       onLocate: () => { presses++; },
       onMapPress: () => { mapPresses++; },
     });
@@ -54,6 +56,28 @@ test("Android location icon loses its fill off GPS and preserves centered/course
     assert.equal(presses, 1);
     renderer!.root.find(node => node.props.accessibilityLabel === "Open map options").props.onPress();
     assert.equal(mapPresses, 1);
+    await act(async () => renderer!.update(panel(false, false, true)));
+    const loading = renderer!.root.find(node => node.props.accessibilityLabel === "Loading chart information");
+    assert.equal(loading.props.disabled, true);
+    assert.equal(loading.props.onPress, undefined);
+    assert.equal(loading.props.accessibilityState.busy, true);
+    assert.equal(renderer!.root.findAllByType("ActivityIndicator" as any).length, 1);
+    assert.equal(icons().length, 1, "spinner replaces only the map icon");
+    await act(async () => renderer!.update(panel(false, false)));
+    assert.equal(icons()[1].props.name, "map-outline");
+    assert.equal(renderer!.root.findAllByType("ActivityIndicator" as any).length, 0);
+    await act(async () => renderer!.update(panel(false, false, false, false)));
+    const mapButton = () => renderer!.root.find(node => node.props.accessibilityLabel === "Open map options");
+    const slot = () => renderer!.root.findByType("AnimatedView" as any);
+    assert.equal(mapButton().props.disabled, true);
+    assert.equal(mapButton().props.onPress, undefined);
+    assert.equal(slot().props.pointerEvents, "none");
+    assert.equal(slot().props.accessibilityElementsHidden, true);
+    assert.equal(slot().props.style[1].height.__getValue(), 0, "hidden button reserves no space or gap");
+    await act(async () => renderer!.update(panel(false, false)));
+    assert.equal(slot().props.style[1].height.__getValue(), 28, "expanded slot uses icon size plus shared gap");
+    assert.equal(slot().props.style[1].opacity.value, 1);
+    assert.equal(mapButton().props.disabled, false);
   } finally {
     if (renderer) await act(async () => { renderer!.unmount(); });
     globals.IS_REACT_ACT_ENVIRONMENT = previous;

@@ -1,6 +1,6 @@
 import { SymbolView } from "expo-symbols";
-import { useEffect, useRef, useState } from "react";
-import { Animated, Easing, Pressable, StyleSheet, View } from "react-native";
+import { useState } from "react";
+import { Animated, Pressable, StyleSheet, View, useWindowDimensions } from "react-native";
 
 import {
   BLUR_PANEL_ICON_SIZE,
@@ -8,7 +8,7 @@ import {
   BlurPanel,
 } from "./BlurPanel";
 import { BLUR_TEXT_LINE_HEIGHT, BlurText } from "./BlurText";
-import { FADE_OUT_DURATION_MS } from "./use-fade-visibility";
+import { usePanelTransition } from "./use-panel-transition";
 import {
   formatWindLegendLabel,
   METRES_PER_SECOND_TO_KNOTS,
@@ -45,7 +45,8 @@ export function WindPanel({
   currentWindSpeed?: number | null;
   onToggle: () => void;
 }) {
-  const expansion = useRef(new Animated.Value(enabled ? 1 : 0)).current;
+  const { width: viewportWidth } = useWindowDimensions();
+  const expansion = usePanelTransition(enabled ? 1 : 0);
   const selectedBand = enabled ? windLegendBand(centerWindSpeed) : -1;
   const hasCurrentWind =
     typeof currentWindSpeed === "number" &&
@@ -67,18 +68,8 @@ export function WindPanel({
     legendWidth,
   );
 
-  useEffect(() => {
-    expansion.stopAnimation();
-    const animation = Animated.timing(expansion, {
-      toValue: enabled ? 1 : 0,
-      duration: FADE_OUT_DURATION_MS,
-      easing: Easing.out(Easing.cubic),
-      // Layout animation only on toggles; particle rendering stays fully native.
-      useNativeDriver: false,
-    });
-    animation.start();
-    return () => animation.stop();
-  }, [enabled, expansion]);
+  const panelWidth = usePanelTransition(enabled || hasCurrentWind ? expandedWidth : BLUR_PANEL_ICON_SIZE);
+  const headerOpacity = usePanelTransition(enabled || hasCurrentWind ? 1 : 0);
 
   return (
     <BlurPanel
@@ -107,17 +98,44 @@ export function WindPanel({
         ) : null
       }
     >
+      <View
+        pointerEvents="none"
+        accessible={false}
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
+        style={[styles.measurementHost, { width: viewportWidth }]}
+      >
+        <View
+          testID="wind-header-measurement"
+          style={styles.measurementRow}
+          onLayout={({ nativeEvent }) => setHeaderWidth(Math.ceil(nativeEvent.layout.width))}
+        >
+          <View style={{ width: BLUR_PANEL_ICON_SIZE }} />
+          <View>
+            {reservedHeader !== null ? <BlurText style={styles.speedValue} numberOfLines={1}>{reservedHeader}</BlurText> : null}
+            <BlurText style={styles.headerMeasureText} numberOfLines={1}>kn</BlurText>
+          </View>
+        </View>
+        <View
+          testID="wind-legend-measurement"
+          style={styles.measurementRow}
+          onLayout={({ nativeEvent }) => setLegendWidth(Math.ceil(nativeEvent.layout.width))}
+        >
+          <View style={{ width: 12 }} />
+          <View>
+            {WIND_LEGEND.map(({ label }) => (
+              <BlurText key={label} style={styles.legendText} numberOfLines={1}>
+                {formatWindLegendLabel(label, "kn")}
+              </BlurText>
+            ))}
+          </View>
+        </View>
+      </View>
       <Animated.View
         style={[
           styles.content,
           {
-            width: expansion.interpolate({
-              inputRange: [0, 1],
-              outputRange: [
-                hasCurrentWind ? expandedWidth : BLUR_PANEL_ICON_SIZE,
-                expandedWidth,
-              ],
-            }),
+            width: panelWidth,
             height: expansion.interpolate({
               inputRange: [0, 1],
               outputRange: [CLOSED_HEIGHT, EXPANDED_HEIGHT],
@@ -130,10 +148,7 @@ export function WindPanel({
           accessibilityLabel={enabled ? "Disable wind" : "Enable wind"}
           accessibilityState={{ expanded: enabled, selected: enabled }}
           onPress={onToggle}
-          onLayout={({ nativeEvent }) =>
-            setHeaderWidth(nativeEvent.layout.width)
-          }
-          style={({ pressed }) => [styles.header, pressed && styles.pressed]}
+          style={({ pressed }) => [styles.header, { width: headerWidth || undefined }, pressed && styles.pressed]}
         >
           <SymbolView
             name={{ ios: "wind", android: "air", web: "air" }}
@@ -148,7 +163,7 @@ export function WindPanel({
           <Animated.View
             style={[
               styles.headerText,
-              { opacity: hasCurrentWind ? 1 : expansion },
+              { opacity: headerOpacity },
             ]}
           >
             <View
@@ -194,10 +209,7 @@ export function WindPanel({
           pointerEvents="none"
           accessibilityElementsHidden={!enabled}
           importantForAccessibility={enabled ? "auto" : "no-hide-descendants"}
-          onLayout={({ nativeEvent }) =>
-            setLegendWidth(nativeEvent.layout.width)
-          }
-          style={[styles.legend, { opacity: expansion }]}
+          style={[styles.legend, { opacity: expansion, width: legendWidth || undefined }]}
         >
           <View style={styles.colorBar} accessible={false}>
             {WIND_LEGEND.map(({ label, color }) => (
@@ -235,6 +247,10 @@ export function WindPanel({
 }
 
 const styles = StyleSheet.create({
+  // Measure intrinsic content outside the animated width. Measuring inside it
+  // feeds intermediate layout widths back into the animation's target.
+  measurementHost: { position: "absolute", left: 0, top: 0, opacity: 0 },
+  measurementRow: { alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 8 },
   headerMeasureText: { fontSize: 12, lineHeight: 14 },
   headerText: { height: CLOSED_HEIGHT, justifyContent: "center" },
   speedReadout: {

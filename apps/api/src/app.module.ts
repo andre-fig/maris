@@ -7,6 +7,7 @@ import { HealthModule } from './health/health.module.js';
 import { IngestionsModule } from './ingestions/ingestions.module.js';
 import { TilesModule } from './tiles/tiles.module.js';
 import { WeatherModule } from './weather/weather.module.js';
+import { ChartsModule } from './charts/charts.module.js';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { WeatherModule } from './weather/weather.module.js';
     IngestionsModule,
     TilesModule,
     WeatherModule,
+    ChartsModule,
   ],
 })
 export class AppModule {}

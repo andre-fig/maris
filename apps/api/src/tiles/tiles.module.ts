@@ -9,6 +9,7 @@ import { TilesService } from './tiles.service.js';
 @Module({
   imports: [IngestionsModule],
   controllers: [TilesController],
+  exports: [CHART_STORAGE],
   providers: [
     TilesService,
     LocalChartStorageService,

@@ -15,6 +15,7 @@ import { LocalChartStorageService } from '../src/tiles/storage/local-chart-stora
 import { TilesController } from '../src/tiles/tiles.controller.js';
 import { TilesService } from '../src/tiles/tiles.service.js';
 import type { ChartCatalogService } from '../src/ingestions/services/chart-catalog.service.js';
+import { ChartSelection, CHART_SELECTION_POLICY, type CoverageCell } from '../src/charts/models/chart-selection.js';
 
 test('PMTiles generation preserves MVT bytes and publishes only archive + manifest', async () => {
   const directory = await mkdtemp(path.join(tmpdir(), 'maris-pmtiles-'));
@@ -78,4 +79,33 @@ test('PMTiles generation preserves MVT bytes and publishes only archive + manife
     assert.deepEqual(await readFile(path.join(versionPath, 'tiles.pmtiles')), original);
     assert.deepEqual(await readdir(path.join(directory, 'soundg/versions')), ['v1']);
   } finally { await rm(directory, { recursive: true, force: true }); }
+});
+
+test('composed MVT contains only the cell selected by the metadata API at each point', async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), 'maris-chart-composition-'));
+  try {
+    const polygon = (w: number, e: number) => ({ type: 'Polygon', coordinates: [[[w,25],[e,25],[e,26],[w,26],[w,25]]] });
+    const cells: CoverageCell[] = [
+      { name: 'coastal', edition: '1', updateNumber: 0, issueDate: null, updateApplicationDate: null, compilationScale: 80000, coverages: [{ category: 1, geometry: polygon(-81,-79) }] },
+      { name: 'harbor', edition: '1', updateNumber: 0, issueDate: null, updateApplicationDate: null, compilationScale: 22000, coverages: [{ category: 1, geometry: polygon(-80.16,-80.14) }] },
+    ];
+    const selection = new ChartSelection(cells);
+    const features = [['coastal',-80.15],['harbor',-80.15],['coastal',-80.17],['harbor',-80.17]].map(([name,lon]) => ({
+      type: 'Feature' as const, properties: { DEPTH: 21, SOURCE_CELL: name }, geometry: { type: 'Point' as const, coordinates: [Number(lon),25.7] },
+    }));
+    await writeFile(path.join(directory,'source.json'),JSON.stringify({type:'FeatureCollection',features}));
+    await writeFile(path.join(directory,'coverage.json'),JSON.stringify(cells));
+    await promisify(execFile)(process.execPath,[
+      fileURLToPath(new URL('../node_modules/tsx/dist/cli.mjs',import.meta.url)),
+      fileURLToPath(new URL('../scripts/build-soundg-tiles.ts',import.meta.url)),
+      '--input',path.join(directory,'source.json'),'--coverage',path.join(directory,'coverage.json'),'--storage-dir',directory,'--version','composed',
+    ]);
+    const manifest = JSON.parse(await readFile(path.join(directory,'soundg/versions/composed/manifest.json'),'utf8'));
+    assert.equal(manifest.selectionPolicy,CHART_SELECTION_POLICY);
+    assert.equal(manifest.sourceFeatureCount,2);
+    const expectedFeatures = features.filter((f) => selection.at(f.geometry.coordinates as [number,number])?.name === f.properties.SOURCE_CELL);
+    const expected = geojsonvt({type:'FeatureCollection',features:expectedFeatures},{buffer:64,extent:4096,indexMaxZoom:12,maxZoom:16,tolerance:3});
+    const storage = new LocalChartStorageService(new ConfigService({CHART_STORAGE_DIR:directory}));
+    assert.deepEqual(await storage.getTile('soundg','composed',14,4544,6981),Buffer.from(vtpbf.fromGeojsonVt({soundings:expected.getTile(14,4544,6981)!})));
+  } finally { await rm(directory,{recursive:true,force:true}); }
 });
