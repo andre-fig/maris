@@ -290,6 +290,7 @@ const styles = StyleSheet.create({
     left: 0,
     gap: 6,
     paddingBottom: 4,
+    paddingTop: 6,
   },
   forecastRow: {
     flexDirection: "row",
