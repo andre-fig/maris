@@ -51,6 +51,11 @@ test("wind width and fade use the shared transition when speed arrives, disappea
     await act(async () => renderer!.update(panel()));
     assert.equal(content().props.style[1].width.value, 28);
     assert.equal(expansion.stopped, true, "cancel the previous transition before retargeting");
+    await act(async () => renderer!.update(panel(undefined, true, true)));
+    assert.equal(content().props.style[1].width.value, 28,
+      "first load stays collapsed until MET data is ready");
+    assert.equal(content().props.style[1].height.value.value, 0);
+    assert.equal(renderer!.root.findAllByType("ActivityIndicator" as any).length, 1);
     await act(async () => renderer!.update(panel(undefined, true)));
     assert.equal(content().props.style[1].width.value, 90, "legend remains expanded without API speed");
     await act(async () => headerMeasurement().props.onLayout({ nativeEvent: { layout: { width: 110 } } }));
@@ -64,10 +69,10 @@ test("wind width and fade use the shared transition when speed arrives, disappea
     await act(async () => renderer!.update(panel(undefined, true, true)));
     assert.equal(header().props.disabled, true);
     assert.equal(header().props.accessibilityState.busy, true);
-    assert.equal(content().props.style[1].width.value, 28,
-      "panel stays collapsed until MET data finishes loading");
-    assert.equal(content().props.style[1].height.value.value, 0,
-      "legend collapses while the wind icon is loading");
+    assert.equal(content().props.style[1].width.value, 110,
+      "an open legend keeps its width during a later load");
+    assert.equal(content().props.style[1].height.value.value, 1,
+      "an open legend stays expanded while loading a new area");
     assert.equal(renderer!.root.findAllByType("ActivityIndicator" as any).length, 1);
     assert.equal(renderer!.root.findAllByType("SymbolView" as any).length, 0,
       "spinner replaces the wind icon while MET data loads");

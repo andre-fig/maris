@@ -1,5 +1,5 @@
 import { SymbolView } from "expo-symbols";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   Animated,
   Pressable,
@@ -55,9 +55,12 @@ export function WindPanel({
   onToggle: () => void;
 }) {
   const { width: viewportWidth } = useWindowDimensions();
-  const ready = enabled && !loading;
-  const expansion = usePanelTransition(ready ? 1 : 0);
-  const selectedBand = ready ? windLegendBand(centerWindSpeed) : -1;
+  const hasLoaded = useRef(false);
+  if (!enabled) hasLoaded.current = false;
+  else if (!loading) hasLoaded.current = true;
+  const legendExpanded = enabled && hasLoaded.current;
+  const expansion = usePanelTransition(legendExpanded ? 1 : 0);
+  const selectedBand = legendExpanded ? windLegendBand(centerWindSpeed) : -1;
   const hasCurrentWind =
     typeof currentWindSpeed === "number" &&
     Number.isFinite(currentWindSpeed) &&
@@ -83,9 +86,13 @@ export function WindPanel({
   );
 
   const panelWidth = usePanelTransition(
-    ready || hasCurrentWind ? expandedWidth : BLUR_PANEL_ICON_SIZE,
+    legendExpanded || (!loading && hasCurrentWind)
+      ? expandedWidth
+      : BLUR_PANEL_ICON_SIZE,
   );
-  const headerOpacity = usePanelTransition(ready || hasCurrentWind ? 1 : 0);
+  const headerOpacity = usePanelTransition(
+    legendExpanded || (!loading && hasCurrentWind) ? 1 : 0,
+  );
 
   return (
     <BlurPanel
@@ -172,7 +179,7 @@ export function WindPanel({
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={loading ? "Loading wind" : enabled ? "Disable wind" : "Enable wind"}
-          accessibilityState={{ busy: loading, disabled: loading, expanded: enabled, selected: enabled }}
+          accessibilityState={{ busy: loading, disabled: loading, expanded: legendExpanded, selected: enabled }}
           disabled={loading}
           onPress={onToggle}
           style={({ pressed }) => [
@@ -211,7 +218,7 @@ export function WindPanel({
                 kn
               </BlurText>
             </View>
-            {!ready && !loading && hasCurrentWind ? (
+            {!legendExpanded && !loading && hasCurrentWind ? (
               <View
                 style={styles.speedReadout}
                 accessible
@@ -241,8 +248,8 @@ export function WindPanel({
         </Pressable>
         <Animated.View
           pointerEvents="none"
-          accessibilityElementsHidden={!ready}
-          importantForAccessibility={ready ? "auto" : "no-hide-descendants"}
+          accessibilityElementsHidden={!legendExpanded}
+          importantForAccessibility={legendExpanded ? "auto" : "no-hide-descendants"}
           style={[
             styles.legend,
             { opacity: expansion, width: legendWidth || undefined },
