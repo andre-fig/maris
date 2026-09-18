@@ -64,7 +64,7 @@ const styles = StyleSheet.create({
   },
   grid: {
     position: "absolute",
-    top: 48,
+    top: 64,
     right: 38,
     bottom: 48,
     left: 38,

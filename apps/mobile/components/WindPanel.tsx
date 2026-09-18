@@ -1,337 +1,91 @@
 import { SymbolView } from "expo-symbols";
-import { useRef, useState } from "react";
-import {
-  Animated,
-  Pressable,
-  StyleSheet,
-  View,
-  useWindowDimensions,
-} from "react-native";
+import { StyleSheet, View } from "react-native";
 
-import {
-  BLUR_PANEL_ICON_SIZE,
-  BLUR_PANEL_PADDING_VERTICAL,
-  BlurPanel,
-} from "./BlurPanel";
-import { BLUR_TEXT_LINE_HEIGHT, BlurText } from "./BlurText";
-import { usePanelTransition } from "./use-panel-transition";
+import { BLUR_PANEL_ICON_SIZE, BlurPanel } from "./BlurPanel";
+import { BlurText } from "./BlurText";
 import { LoadingIcon } from "./LoadingIcon";
-import {
-  formatWindLegendLabel,
-  METRES_PER_SECOND_TO_KNOTS,
-  windLegendBand,
-} from "./wind-legend-band";
+import { METRES_PER_SECOND_TO_KNOTS } from "./wind-legend-band";
 
-// Same wind-speed stops/colors as native-wind/cpp/WindShaders.hpp (NRK palette).
-const WIND_LEGEND = [
-  { label: ">32.6", color: "#310047" },
-  { label: "28.5", color: "#4D0A6C" },
-  { label: "24.5", color: "#5B278D" },
-  { label: "20.8", color: "#7043A8" },
-  { label: "17.2", color: "#7B57ED" },
-  { label: "13.9", color: "#4B87EA" },
-  { label: "10.8", color: "#13A8D6" },
-  { label: "8.0", color: "#3CBEBE" },
-  { label: "5.5", color: "#79CCAC" },
-  { label: "<5.4", color: "#A7CEA1" },
-] as const;
-
-const LEGEND_ROW_HEIGHT = BLUR_TEXT_LINE_HEIGHT;
-const CLOSED_HEIGHT = 30;
-const LEGEND_TOP = CLOSED_HEIGHT;
-const EXPANDED_HEIGHT = LEGEND_TOP + WIND_LEGEND.length * LEGEND_ROW_HEIGHT;
-const EXPANDED_WIDTH = 66;
+const PANEL_HEIGHT = 30;
+const PANEL_WIDTH = 66;
 
 export function WindPanel({
   enabled,
   loading,
-  centerWindSpeed,
   currentWindSpeed,
-  onToggle,
 }: {
   enabled: boolean;
   loading: boolean;
-  centerWindSpeed?: number | null;
   currentWindSpeed?: number | null;
-  onToggle: () => void;
 }) {
-  const { width: viewportWidth } = useWindowDimensions();
-  const hasLoaded = useRef(false);
-  if (!enabled) hasLoaded.current = false;
-  else if (!loading) hasLoaded.current = true;
-  const legendExpanded = enabled && hasLoaded.current;
-  const expansion = usePanelTransition(legendExpanded ? 1 : 0);
-  const selectedBand = legendExpanded ? windLegendBand(centerWindSpeed) : -1;
   const hasCurrentWind =
     typeof currentWindSpeed === "number" &&
     Number.isFinite(currentWindSpeed) &&
     currentWindSpeed >= 0;
   const speedText = hasCurrentWind
     ? (currentWindSpeed * METRES_PER_SECOND_TO_KNOTS).toFixed(1)
-    : "kn";
-  const reservedHeader = hasCurrentWind ? speedText : null;
-  const reservedHeaderMeasurement =
-    reservedHeader !== null && reservedHeader.replace(/\./g, "").length === 2
-      ? `${reservedHeader}0`
-      : reservedHeader;
-  const [legendWidth, setLegendWidth] = useState(0);
-  const panelWidth = usePanelTransition(
-    legendExpanded || hasCurrentWind ? EXPANDED_WIDTH : BLUR_PANEL_ICON_SIZE,
-  );
-  const headerOpacity = usePanelTransition(
-    legendExpanded || hasCurrentWind ? 1 : 0,
-  );
+    : "kt";
 
   return (
-    <BlurPanel
-      flexDirection="column"
-      alignSelf="flex-end"
-      backgroundOverlay={
-        selectedBand >= 0 ? (
-          <Animated.View
-            pointerEvents="none"
-            style={[
-              styles.selectedBand,
-              {
-                opacity: expansion,
-                top:
-                  BLUR_PANEL_PADDING_VERTICAL +
-                  LEGEND_TOP +
-                  selectedBand * LEGEND_ROW_HEIGHT,
-                height:
-                  LEGEND_ROW_HEIGHT +
-                  (selectedBand === WIND_LEGEND.length - 1
-                    ? BLUR_PANEL_PADDING_VERTICAL
-                    : 0),
-              },
-            ]}
-          />
-        ) : null
-      }
-    >
+    <BlurPanel flexDirection="row" alignSelf="flex-end" style={styles.panel}>
       <View
-        pointerEvents="none"
-        accessible={false}
-        accessibilityElementsHidden
-        importantForAccessibility="no-hide-descendants"
-        style={[styles.measurementHost, { width: viewportWidth }]}
+        style={styles.content}
+        accessible
+        accessibilityLabel={
+          loading
+            ? "Loading wind"
+            : hasCurrentWind
+              ? `Wind: ${speedText} kt`
+              : "Wind"
+        }
       >
-        <View
-          testID="wind-legend-measurement"
-          style={styles.measurementRow}
-          onLayout={({ nativeEvent }) =>
-            setLegendWidth(Math.ceil(nativeEvent.layout.width))
-          }
-        >
-          <View style={{ width: 12 }} />
-          <View>
-            {WIND_LEGEND.map(({ label }) => (
-              <BlurText key={label} style={styles.legendText} numberOfLines={1}>
-                {formatWindLegendLabel(label, "kn")}
-              </BlurText>
-            ))}
-          </View>
+        <LoadingIcon loading={loading}>
+          <SymbolView
+            name={{ ios: "wind", android: "air", web: "air" }}
+            size={enabled ? 22 : BLUR_PANEL_ICON_SIZE}
+            style={styles.icon}
+            tintColor="#FFFFFF"
+            type="monochrome"
+          />
+        </LoadingIcon>
+        <View style={styles.speedReadout}>
+          <BlurText style={styles.speedValue} numberOfLines={1}>
+            {speedText}
+          </BlurText>
+          {hasCurrentWind ? (
+            <BlurText style={styles.speedUnit} numberOfLines={1}>
+              kt
+            </BlurText>
+          ) : null}
         </View>
       </View>
-      <Animated.View
-        style={[
-          styles.content,
-          {
-            width: panelWidth,
-            height: expansion.interpolate({
-              inputRange: [0, 1],
-              outputRange: [CLOSED_HEIGHT, EXPANDED_HEIGHT],
-            }),
-          },
-        ]}
-      >
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={
-            loading ? "Loading wind" : enabled ? "Disable wind" : "Enable wind"
-          }
-          accessibilityState={{
-            busy: loading,
-            disabled: loading,
-            expanded: legendExpanded,
-            selected: enabled,
-          }}
-          disabled={loading}
-          onPress={onToggle}
-          style={({ pressed }) => [
-            styles.header,
-            { width: EXPANDED_WIDTH },
-            pressed && styles.pressed,
-          ]}
-        >
-          <LoadingIcon loading={loading}>
-            <SymbolView
-              name={{ ios: "wind", android: "air", web: "air" }}
-              size={enabled ? 22 : BLUR_PANEL_ICON_SIZE}
-              style={{
-                width: BLUR_PANEL_ICON_SIZE,
-                height: BLUR_PANEL_ICON_SIZE,
-              }}
-              tintColor="#FFFFFF"
-              type="monochrome"
-            />
-          </LoadingIcon>
-          <Animated.View
-            style={[styles.headerText, { opacity: headerOpacity }]}
-          >
-            <View
-              accessible={false}
-              accessibilityElementsHidden
-              importantForAccessibility="no-hide-descendants"
-              style={styles.measurement}
-            >
-              {reservedHeader !== null ? (
-                <BlurText style={styles.speedValue} numberOfLines={1}>
-                  {reservedHeaderMeasurement}
-                </BlurText>
-              ) : null}
-              <BlurText style={styles.headerMeasureText} numberOfLines={1}>
-                kn
-              </BlurText>
-            </View>
-            {!legendExpanded && hasCurrentWind ? (
-              <View
-                style={styles.speedReadout}
-                accessible
-                accessibilityLabel={`Wind: ${speedText} kn`}
-              >
-                <BlurText style={styles.speedValue} numberOfLines={1}>
-                  {speedText}
-                </BlurText>
-                <BlurText style={styles.speedUnit} numberOfLines={1}>
-                  kn
-                </BlurText>
-              </View>
-            ) : (
-              <BlurText
-                style={[
-                  styles.legendText,
-                  styles.labelOverlay,
-                  styles.headerLabelOverlay,
-                ]}
-                numberOfLines={1}
-                accessibilityLabel={"Knots"}
-              >
-                kn
-              </BlurText>
-            )}
-          </Animated.View>
-        </Pressable>
-        <Animated.View
-          pointerEvents="none"
-          accessibilityElementsHidden={!legendExpanded}
-          importantForAccessibility={
-            legendExpanded ? "auto" : "no-hide-descendants"
-          }
-          style={[
-            styles.legend,
-            { opacity: expansion, width: legendWidth || undefined },
-          ]}
-        >
-          <View style={styles.colorBar} accessible={false}>
-            {WIND_LEGEND.map(({ label, color }) => (
-              <View
-                key={label}
-                style={[styles.band, { backgroundColor: color }]}
-              />
-            ))}
-          </View>
-          <View>
-            {WIND_LEGEND.map(({ label }) => (
-              <View key={label} style={styles.legendRow}>
-                <BlurText
-                  accessible={false}
-                  accessibilityElementsHidden
-                  importantForAccessibility="no-hide-descendants"
-                  style={[styles.legendText, styles.measurement]}
-                  numberOfLines={1}
-                >
-                  {formatWindLegendLabel(label, "kn")}
-                </BlurText>
-                <BlurText
-                  style={[styles.legendText, styles.labelOverlay]}
-                  numberOfLines={1}
-                >
-                  {formatWindLegendLabel(label, "kn")}
-                </BlurText>
-              </View>
-            ))}
-          </View>
-        </Animated.View>
-      </Animated.View>
     </BlurPanel>
   );
 }
 
 const styles = StyleSheet.create({
-  // Measure intrinsic content outside the animated width. Measuring inside it
-  // feeds intermediate layout widths back into the animation's target.
-  measurementHost: { position: "absolute", left: 0, top: 0, opacity: 0 },
-  measurementRow: {
-    alignSelf: "flex-start",
+  panel: {
+    width: PANEL_WIDTH,
+    height: PANEL_HEIGHT,
+    paddingVertical: 0,
+    paddingHorizontal: 6,
+  },
+  content: {
+    width: "100%",
+    height: PANEL_HEIGHT,
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-  },
-  headerMeasureText: { fontSize: 12, lineHeight: 14 },
-  headerText: {
-    height: CLOSED_HEIGHT,
-    flex: 1,
-    alignItems: "center",
     justifyContent: "center",
+    gap: 4,
+  },
+  icon: {
+    width: BLUR_PANEL_ICON_SIZE,
+    height: BLUR_PANEL_ICON_SIZE,
   },
   speedReadout: {
-    position: "absolute",
-    top: 0,
-    bottom: 0,
-    left: 0,
-    right: 0,
     alignItems: "center",
     justifyContent: "center",
   },
-  speedValue: { fontSize: 14, lineHeight: 22 },
-  speedUnit: { fontSize: 10, lineHeight: 10, marginTop: -2 },
-  legendText: { fontSize: 12 },
-  measurement: { opacity: 0 },
-  labelOverlay: { position: "absolute", left: 0, top: 0 },
-  headerLabelOverlay: {
-    top: (CLOSED_HEIGHT - BLUR_TEXT_LINE_HEIGHT) / 2,
-    right: 0,
-    textAlign: "center",
-    transform: [{ translateX: -6 }],
-  },
-  content: { overflow: "hidden" },
-  header: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    height: CLOSED_HEIGHT,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    flexShrink: 0,
-  },
-  pressed: { opacity: 0.62, transform: [{ scale: 0.94 }] },
-  legend: {
-    position: "absolute",
-    top: LEGEND_TOP,
-    left: 0,
-    flexDirection: "row",
-    gap: 12,
-  },
-  colorBar: { width: 12, borderRadius: 6, overflow: "hidden" },
-  selectedBand: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    height: LEGEND_ROW_HEIGHT,
-    backgroundColor: "rgba(0, 0, 0, 0.38)",
-  },
-  band: { height: LEGEND_ROW_HEIGHT },
-  legendRow: { height: LEGEND_ROW_HEIGHT, justifyContent: "center" },
+  speedValue: { fontSize: 12, lineHeight: 16 },
+  speedUnit: { fontSize: 9, lineHeight: 10, marginTop: -2 },
 });

@@ -3,8 +3,9 @@ import { StyleSheet, View } from "react-native";
 
 import { BlurPanel } from "./BlurPanel";
 import { BlurText } from "./BlurText";
+import { METRES_PER_SECOND_TO_KNOTS } from "./wind-legend-band";
 
-type NavigationDataItem = {
+export type DataPanelItem = {
   label: string;
   value: string;
   unit: string;
@@ -12,7 +13,7 @@ type NavigationDataItem = {
   androidIcon: string;
 };
 
-const MOCK_NAVIGATION_DATA: NavigationDataItem[] = [
+const NAVIGATION_DATA: DataPanelItem[] = [
   { label: "SOG", value: "8.4", unit: "kt", iosIcon: "gauge.open.with.lines.needle.33percent", androidIcon: "speed_2" },
   { label: "COG", value: "132°", unit: "", iosIcon: "location.north", androidIcon: "navigation" },
   { label: "Heading", value: "128°", unit: "", iosIcon: "location.north.line", androidIcon: "near_me" },
@@ -21,13 +22,35 @@ const MOCK_NAVIGATION_DATA: NavigationDataItem[] = [
   { label: "UKC", value: "10.9", unit: "m", iosIcon: "arrow.up.and.down", androidIcon: "height" },
 ];
 
+const WEATHER_CONDITIONS_DATA: DataPanelItem[] = [
+  ...NAVIGATION_DATA.slice(0, -1),
+  { label: "Wind", value: "8.4", unit: "kt", iosIcon: "wind", androidIcon: "air" },
+];
+
 export function NavigationDataPanel() {
+  return <DataMetricsPanel items={NAVIGATION_DATA} />;
+}
+
+export function WeatherConditionsPanel({ windSpeed }: { windSpeed?: number | null }) {
+  const hasWindSpeed =
+    typeof windSpeed === "number" && Number.isFinite(windSpeed) && windSpeed >= 0;
+  const windValue = hasWindSpeed
+    ? (windSpeed * METRES_PER_SECOND_TO_KNOTS).toFixed(1)
+    : "—";
+  const items = WEATHER_CONDITIONS_DATA.map((item) =>
+    item.label === "Wind" ? { ...item, value: windValue } : item,
+  );
+
+  return <DataMetricsPanel items={items} />;
+}
+
+function DataMetricsPanel({ items }: { items: DataPanelItem[] }) {
   return (
     <BlurPanel flexDirection="row" alignSelf="stretch" style={styles.panel}>
-      {MOCK_NAVIGATION_DATA.map((item, index) => (
+      {items.map((item, index) => (
         <View
           key={item.label}
-          style={[styles.item, index < MOCK_NAVIGATION_DATA.length - 1 && styles.divider]}
+          style={[styles.item, index < items.length - 1 && styles.divider]}
         >
           <SymbolView
             name={{ ios: item.iosIcon, android: item.androidIcon, web: item.androidIcon } as never}

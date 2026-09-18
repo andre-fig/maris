@@ -22,15 +22,16 @@ import {
   MapControlsPanel,
   type MapStyleMode,
 } from "./components/MapControlsPanel";
-import { WindPanel } from "./components/WindPanel";
 import { GpsAccuracyPanel } from "./components/GpsAccuracyPanel";
 import { CenterCoordinatesPanel } from "./components/CenterCoordinatesPanel";
-import { NavigationDataPanel } from "./components/NavigationDataPanel";
+import {
+  NavigationDataPanel,
+  WeatherConditionsPanel,
+} from "./components/NavigationDataPanel";
 import { RouteStatusPanel } from "./components/RouteStatusPanel";
 import { WeatherPanel } from "./components/WeatherPanel";
 import { MapOverlayGrid, MapOverlaySlot } from "./components/MapOverlayGrid";
 import { DrawerCompass } from "./components/DrawerCompass";
-import { windLegendBand } from "./components/wind-legend-band";
 import { useDeviceLocation } from "./location/use-device-location";
 import { NativeWindLayer } from "@maris/native-wind";
 import { MAP_AMBIENT_CACHE_BYTES } from "./offline/offline-areas";
@@ -112,8 +113,8 @@ export default function App() {
   const [mapStyleMode, setMapStyleMode] = useState<
     MapStyleMode | "initial"
   >("initial");
-  const [windEnabled, setWindEnabled] = useState(false);
-  const [windLoading, setWindLoading] = useState(false);
+  const windEnabled = true;
+  const [windLoading, setWindLoading] = useState(true);
   const [mapSheetVisible, setMapSheetVisible] = useState(false);
   const [chartRequested, setChartRequested] = useState(false);
   const chartRequestPending = useRef(false);
@@ -361,15 +362,11 @@ export default function App() {
         fieldOpacity={0}
         density={0.5}
         animationSpeed={1}
-        sampleCoordinate={windEnabled ? windSampleCoordinate : null}
+        sampleCoordinate={windEnabled
+          ? (windSampleCoordinate ?? [viewState.longitude, viewState.latitude])
+          : null}
         onCenterWind={({ nativeEvent }) => {
-          if (windEnabled && windSampleCoordinate &&
-              nativeEvent.coordinate[0] === windSampleCoordinate[0] &&
-              nativeEvent.coordinate[1] === windSampleCoordinate[1]) {
-            setCenterWindSpeed(previous =>
-              windLegendBand(previous) === windLegendBand(nativeEvent.speed)
-                ? previous : nativeEvent.speed);
-          }
+          setCenterWindSpeed(nativeEvent.speed);
         }}
         onDataStatus={({ nativeEvent }) => {
           setWindLoading(nativeEvent.loading);
@@ -377,7 +374,7 @@ export default function App() {
         style={{ width: 0, height: 0, position: "absolute" }}
       />
       <MapOverlayGrid>
-        <MapOverlaySlot column={2} row={0} columnSpan={2} alignItems="center">
+        <MapOverlaySlot column={2} row={5} columnSpan={2} alignItems="center">
           <ScaleRuler
             latitude={viewState.latitude}
             maxWidth={scaleMaxWidth}
@@ -386,7 +383,7 @@ export default function App() {
             zoom={viewState.zoom}
           />
         </MapOverlaySlot>
-        <MapOverlaySlot column={0} row={0} columnSpan={2} rowSpan={8} alignItems="flex-start">
+        <MapOverlaySlot column={0} row={5} columnSpan={2} rowSpan={3} alignItems="flex-start">
           <WeatherPanel
             visible={isWeatherScaleVisible(viewState.latitude, scaleMaxWidth, viewState.zoom)}
             weather={currentWeather.weather}
@@ -467,22 +464,8 @@ export default function App() {
         <MapOverlaySlot column={3} row={23} columnSpan={3} rowSpan={1} alignItems="flex-end" justifyContent="flex-end">
           <CenterCoordinatesPanel latitude={viewState.latitude} longitude={viewState.longitude} />
         </MapOverlaySlot>
-        <MapOverlaySlot column={4} row={0} columnSpan={2} rowSpan={8} alignItems="flex-end">
-          <WindPanel
-            enabled={windEnabled}
-            loading={windLoading}
-            centerWindSpeed={centerWindSpeed}
-            currentWindSpeed={currentWeather.windSpeed}
-            onToggle={() => {
-              const nextEnabled = !windEnabled;
-              setCenterWindSpeed(null);
-              setWindSampleCoordinate(
-                nextEnabled ? [viewState.longitude, viewState.latitude] : null,
-              );
-              setWindLoading(nextEnabled);
-              setWindEnabled(nextEnabled);
-            }}
-          />
+        <MapOverlaySlot column={0} row={0} columnSpan={6} rowSpan={5} alignItems="stretch" justifyContent="flex-start">
+          <WeatherConditionsPanel windSpeed={centerWindSpeed} />
         </MapOverlaySlot>
       </MapOverlayGrid>
       <BlurBottomSheet

@@ -38,13 +38,9 @@ export function WeatherPanel({ weather, visible, style }: WeatherPanelProps) {
   const forecast = weather?.forecast?.slice(0, MAX_FORECAST_ROWS) ?? [];
   const hasForecast = forecast.length > 0;
   const expansion = usePanelTransition(expanded && hasForecast ? 1 : 0);
-  const weatherIcon = weather
-    ? openWeatherIconMap[weather.icon_code]
-    : undefined;
+  const weatherIcon = weather ? openWeatherIconMap[weather.icon_code] : undefined;
   const windSpeedInKnots = weather
-    ? Math.round(
-        weather.wind_speed_metres_per_second * METRES_PER_SECOND_TO_KNOTS * 10,
-      ) / 10
+    ? Math.round(weather.wind_speed_metres_per_second * METRES_PER_SECOND_TO_KNOTS * 10) / 10
     : undefined;
 
   useEffect(() => {
@@ -63,18 +59,14 @@ export function WeatherPanel({ weather, visible, style }: WeatherPanelProps) {
           <View style={styles.headerMeasure}>
             <View style={styles.conditionMeasure} />
             <View style={styles.valueColumn}>
-              <BlurText style={[styles.temperature, styles.measurementTemperature]}>
-                00°
-              </BlurText>
+              <BlurText style={[styles.temperature, styles.measurementTemperature]}>00°</BlurText>
               <BlurText style={styles.nowLabel}>Now</BlurText>
             </View>
           </View>
           <View style={styles.forecastMeasure}>
             <View style={styles.conditionMeasure} />
             <View style={styles.valueColumn}>
-              <BlurText style={[styles.temperature, styles.measurementTemperature]}>
-                00°
-              </BlurText>
+              <BlurText style={[styles.temperature, styles.measurementTemperature]}>00°</BlurText>
               <BlurText style={styles.nowLabel}>00</BlurText>
             </View>
           </View>
@@ -92,18 +84,10 @@ export function WeatherPanel({ weather, visible, style }: WeatherPanelProps) {
         >
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={
-              hasForecast
-                ? expanded
-                  ? "Hide weather forecast"
-                  : "Show weather forecast"
-                : undefined
-            }
+            accessibilityLabel={hasForecast ? (expanded ? "Hide weather forecast" : "Show weather forecast") : undefined}
             accessibilityState={{ expanded: hasForecast && expanded }}
             disabled={!hasForecast}
-            onPress={
-              hasForecast ? () => setExpanded((value) => !value) : undefined
-            }
+            onPress={hasForecast ? () => setExpanded((value) => !value) : undefined}
             style={({ pressed }) => [styles.header, pressed && styles.pressed]}
           >
             <View style={styles.condition}>
@@ -120,25 +104,13 @@ export function WeatherPanel({ weather, visible, style }: WeatherPanelProps) {
                 />
               ) : null}
               {typeof weather?.rain_probability_percent === "number" ? (
-                <BlurText
-                  style={styles.rainChance}
-                  accessibilityLabel={`Chance of rain in the next hour: ${Math.round(weather.rain_probability_percent)} percent`}
-                >
+                <BlurText style={styles.rainChance}>
                   {Math.round(weather.rain_probability_percent)}%
                 </BlurText>
               ) : null}
             </View>
             <View style={styles.valueColumn}>
-              <BlurText
-                style={[styles.temperature, styles.currentTemperature]}
-                accessibilityLabel={
-                  weather
-                    ? `${weather.condition}, ${Math.round(
-                        weather.temperature_celsius,
-                      )} degrees, humidity ${weather.humidity_percent} percent, wind ${windSpeedInKnots} knots, precipitation ${weather.precipitation_millimetres_last_hour} millimetres in the last hour`
-                    : undefined
-                }
-              >
+              <BlurText style={[styles.temperature, styles.currentTemperature]}>
                 {weather ? `${Math.round(weather.temperature_celsius)}°` : ""}
               </BlurText>
               <BlurText style={styles.nowLabel}>Now</BlurText>
@@ -147,9 +119,7 @@ export function WeatherPanel({ weather, visible, style }: WeatherPanelProps) {
           <Animated.View
             pointerEvents={expanded ? "auto" : "none"}
             accessibilityElementsHidden={!expanded}
-            importantForAccessibility={
-              expanded ? "auto" : "no-hide-descendants"
-            }
+            importantForAccessibility={expanded ? "auto" : "no-hide-descendants"}
             onLayout={({ nativeEvent }) => {
               const height = Math.ceil(nativeEvent.layout.height);
               if (height !== forecastHeight) setForecastHeight(height);
@@ -181,9 +151,7 @@ export function WeatherPanel({ weather, visible, style }: WeatherPanelProps) {
                     <BlurText style={[styles.temperature, styles.forecastTemperature]}>
                       {Math.round(hour.temperature_celsius)}°
                     </BlurText>
-                    <BlurText style={styles.nowLabel}>
-                      {formatHour(hour.forecast_at)}h
-                    </BlurText>
+                    <BlurText style={styles.nowLabel}>{formatHour(hour.forecast_at)}h</BlurText>
                   </View>
                 </View>
               );
@@ -200,66 +168,20 @@ function formatHour(timestamp: string) {
 }
 
 const styles = StyleSheet.create({
-  panel: {
-    paddingHorizontal: 6,
-    paddingVertical: 0,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  panel: { paddingHorizontal: 6, paddingVertical: 0, alignItems: "center", justifyContent: "center" },
   content: { flexShrink: 0, overflow: "hidden" },
   measurementHost: { position: "absolute", left: 0, top: 0, opacity: 0 },
-  headerMeasure: {
-    alignSelf: "flex-start",
-    flexDirection: "column",
-    alignItems: "center",
-  },
+  headerMeasure: { alignSelf: "flex-start", flexDirection: "column", alignItems: "center" },
   conditionMeasure: { width: 32, height: 30 },
-  forecastMeasure: {
-    alignSelf: "flex-start",
-    flexDirection: "column",
-    alignItems: "center",
-  },
-  header: {
-    height: CLOSED_HEIGHT,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 1,
-  },
+  forecastMeasure: { alignSelf: "flex-start", flexDirection: "column", alignItems: "center" },
+  header: { height: CLOSED_HEIGHT, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 1 },
   pressed: { opacity: 0.62, transform: [{ scale: 0.98 }] },
   condition: { width: 32, alignItems: "center" },
-  nowLabel: {
-    fontSize: 9,
-    fontWeight: "400",
-    lineHeight: 11,
-  },
-  rainChance: {
-    alignSelf: "stretch",
-    textAlign: "center",
-    transform: [{ translateX: 2 }],
-    color: "#8ED8FF",
-    fontSize: 10,
-    lineHeight: 10,
-  },
-  forecast: {
-    position: "absolute",
-    top: CLOSED_HEIGHT,
-    right: 0,
-    left: 0,
-    gap: 8,
-    paddingBottom: 4,
-    paddingTop: 6,
-  },
-  forecastRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 1,
-  },
-  valueColumn: {
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 0,
-  },
+  nowLabel: { fontSize: 9, fontWeight: "400", lineHeight: 11 },
+  rainChance: { alignSelf: "stretch", textAlign: "center", transform: [{ translateX: 2 }], color: "#8ED8FF", fontSize: 10, lineHeight: 10 },
+  forecast: { position: "absolute", top: CLOSED_HEIGHT, right: 0, left: 0, gap: 8, paddingBottom: 4, paddingTop: 6 },
+  forecastRow: { flexDirection: "row", alignItems: "center", gap: 1 },
+  valueColumn: { alignItems: "center", justifyContent: "center", gap: 0 },
   temperature: { fontSize: 14, lineHeight: 18 },
   currentTemperature: {},
   measurementTemperature: {},
