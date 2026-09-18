@@ -17,6 +17,7 @@ static maris::TileCache tileCache;
 @property BOOL windVisible;
 @property (copy) void (^dataStatus)(BOOL stale, double savedAt, BOOL loading);
 - (void)load:(maris::Plan)plan;
+- (void)resetRequests;
 - (int)resolutionPenalty;
 - (int)maximumDimension;
 - (BOOL)fadeFinished;
@@ -153,6 +154,13 @@ static maris::TileCache tileCache;
 - (NSData *)fetch:(NSString *)url { return [self fetch:url cacheOnly:NO]; }
 - (void)cancelActiveRequest {
   @synchronized (self) { [_activeTask cancel]; _activeTask = nil; }
+}
+- (void)resetRequests {
+  ++_generation;
+  [self cancelActiveRequest];
+  _key = nil;
+  _loading = NO;
+  _nextLoadAt = 0;
 }
 - (void)load:(maris::Plan)p {
   NSString *key = @(p.key().c_str());
@@ -493,6 +501,10 @@ static MLNMapView *findMap(UIView *view) {
 - (void)setSampleCoordinate:(NSArray<NSNumber *> *)coordinate {
   _sampleCoordinate = [coordinate copy];
   [self emitSample];
+}
+- (void)setEnabled:(BOOL)enabled {
+  if (enabled && !_enabled) [_layer resetRequests];
+  _enabled = enabled;
 }
 - (void)emitSample {
   if (_sampleCoordinate.count != 2 || !_onCenterWind) return;

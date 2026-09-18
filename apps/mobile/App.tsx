@@ -375,7 +375,7 @@ export default function App() {
         style={{ width: 0, height: 0, position: "absolute" }}
       />
       <MapOverlayGrid>
-        <MapOverlaySlot column={1} row={0} columnSpan={4} alignItems="center">
+        <MapOverlaySlot column={1} row={0} columnSpan={3} alignItems="center">
           <ScaleRuler
             latitude={viewState.latitude}
             maxWidth={scaleMaxWidth}
@@ -385,7 +385,13 @@ export default function App() {
             zoom={viewState.zoom}
           />
         </MapOverlaySlot>
-        <MapOverlaySlot column={5} row={4} rowSpan={6} alignItems="flex-end" justifyContent="flex-end">
+        <MapOverlaySlot
+          column={5}
+          row={ROUTE_STATUS_ENABLED ? 4 : 8}
+          rowSpan={ROUTE_STATUS_ENABLED ? 6 : 9}
+          alignItems="flex-end"
+          justifyContent="flex-end"
+        >
           <View pointerEvents="box-none" style={styles.controlsStack}>
             <CompassPanel
               heading={deviceLocation?.heading ?? null}
@@ -454,20 +460,20 @@ export default function App() {
         <MapOverlaySlot column={3} row={23} columnSpan={3} rowSpan={1} alignItems="flex-end" justifyContent="flex-end">
           <CenterCoordinatesPanel latitude={viewState.latitude} longitude={viewState.longitude} />
         </MapOverlaySlot>
-        <MapOverlaySlot column={5} row={0} alignItems="flex-end">
+        <MapOverlaySlot column={4} row={0} columnSpan={2} rowSpan={8} alignItems="flex-end">
           <WindPanel
             enabled={windEnabled}
             loading={windLoading}
             centerWindSpeed={centerWindSpeed}
             currentWindSpeed={currentWeather.windSpeed}
             onToggle={() => {
+              const nextEnabled = !windEnabled;
               setCenterWindSpeed(null);
-              setWindSampleCoordinate([viewState.longitude, viewState.latitude]);
-              setWindEnabled((enabled) => {
-                const nextEnabled = !enabled;
-                setWindLoading(nextEnabled);
-                return nextEnabled;
-              });
+              setWindSampleCoordinate(
+                nextEnabled ? [viewState.longitude, viewState.latitude] : null,
+              );
+              setWindLoading(nextEnabled);
+              setWindEnabled(nextEnabled);
             }}
           />
         </MapOverlaySlot>
