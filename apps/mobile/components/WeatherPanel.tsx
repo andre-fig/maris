@@ -22,7 +22,7 @@ import { usePanelTransition } from "./use-panel-transition";
 import { METRES_PER_SECOND_TO_KNOTS } from "./wind-legend-band";
 
 const CLOSED_HEIGHT = 32;
-const HEADER_ITEM_GAP = 6;
+const HEADER_ITEM_GAP = 4;
 const MAX_FORECAST_ROWS = 6;
 
 type WeatherPanelProps = {
