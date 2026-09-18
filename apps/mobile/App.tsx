@@ -321,7 +321,10 @@ export default function App() {
               const shouldEnableCourseUp = locationActive;
               const canAlignHeading =
                 shouldEnableCourseUp && deviceLocation.heading !== null;
-              courseUpTransitionPending.current = canAlignHeading;
+              // Skip the heading effect only when course-up is actually being
+              // enabled now. Re-selecting an already active mode must keep
+              // following the next heading sample.
+              courseUpTransitionPending.current = canAlignHeading && !courseUp;
               cameraRef.current?.flyTo({
                 center: deviceLocation.coordinate,
                 zoom: shouldEnableCourseUp ? viewState.zoom : DEFAULT_MAP_ZOOM,

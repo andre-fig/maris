@@ -4,6 +4,21 @@ import { WEATHER_TTL_MS, WEATHER_RETRY_MS, WEATHER_REQUEST_TIMEOUT_MS, isWeather
 
 export type MapCenter = [longitude: number, latitude: number];
 
+export type WeatherForecast = {
+  forecast_at: string;
+  temperature_celsius: number;
+  feels_like_celsius: number;
+  condition: string;
+  humidity_percent: number;
+  wind_speed_metres_per_second: number;
+  wind_direction_degrees: number;
+  precipitation_millimetres: number;
+  rain_probability_percent: number;
+  snow_probability_percent: number;
+  icon_code: string;
+  is_day: boolean;
+};
+
 export type CurrentWeather = {
   latitude: number;
   longitude: number;
@@ -17,6 +32,7 @@ export type CurrentWeather = {
   rain_probability_at?: string | null;
   icon_code: string;
   observed_at: string;
+  forecast?: WeatherForecast[];
 };
 
 type CameraSample = {

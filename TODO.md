@@ -16,3 +16,12 @@
 - [ ] Criar bulsola no drawer
 - [x] Criar informações da carta
 - [x] Deixar medidas em nós
+
+brasil: https://forms.cloud.microsoft/Pages/ResponsePage.aspx?id=yS-tgvNBlESbEpJ2DHuMeq5isCLUG5VJlUhxrm76w5JURThVREwyTVJTUEZQNVpDUVVLTTlKTEs4TS4u
+
+eua: https://www.charts.noaa.gov/ENCs/ENCs.shtml?utm_source=chatgpt.com
+
+nova zelandia: https://www.encservice.linz.govt.nz/download vai ter q fazer o fluxo:
+S-63 protegido → validar licença/permit → descriptografar → S-57 → seu pipeline atual
+
+dinamarca: https://data.europa.eu/data/datasets/sdfe-dk-enc-01?locale=en&utm_source=chatgpt.com

@@ -22,6 +22,20 @@ test("course up activates before heading is available and follows north without 
     __courseUp?: typeof fixture; IS_REACT_ACT_ENVIRONMENT?: boolean;
   };
   const previous = globals.IS_REACT_ACT_ENVIRONMENT;
+  const previousRaf = globalThis.requestAnimationFrame;
+  const previousCancel = globalThis.cancelAnimationFrame;
+  const frames = new Map<number, FrameRequestCallback>();
+  let nextFrame = 0;
+  globalThis.requestAnimationFrame = callback => {
+    frames.set(++nextFrame, callback);
+    return nextFrame;
+  };
+  globalThis.cancelAnimationFrame = id => { if (id != null) frames.delete(id); };
+  const flushFrames = async () => {
+    const callbacks = [...frames.values()];
+    frames.clear();
+    await act(async () => callbacks.forEach(callback => callback(0)));
+  };
   globals.IS_REACT_ACT_ENVIRONMENT = true;
   globals.__courseUp = fixture;
   let renderer: ReactTestRenderer | undefined;
@@ -57,10 +71,8 @@ test("course up activates before heading is available and follows north without 
     await act(async () => { renderer = create(React.createElement(App)); });
     const wind = () => renderer!.root.find(node => node.type === ("WindPanel" as unknown));
     const stack = wind().parent!;
-    const overlay = stack.parent!;
-    assert.equal(overlay.props.style.left, 38);
-    assert.equal(overlay.props.style.right, 38);
-    assert.equal(overlay.props.pointerEvents, "box-none");
+    assert.equal(stack.props.style.top, 64);
+    assert.equal(stack.props.style.right, 38);
     assert.equal(stack.props.pointerEvents, "box-none");
     await act(async () => wind().props.onToggle());
     assert.equal(wind().props.enabled, true);
@@ -71,6 +83,7 @@ test("course up activates before heading is available and follows north without 
       map.props.onTouchStart();
       map.props.onRegionIsChanging({nativeEvent:{center,zoom:14,bearing:0}});
     });
+    await flushFrames();
     assert.deepEqual(nativeWind().props.sampleCoordinate, center,
       "wind queries current center without touchend, moveend or debounce");
     await act(async () => nativeWind().props.onCenterWind({nativeEvent:{coordinate:center,speed:6}}));
@@ -78,8 +91,9 @@ test("course up activates before heading is available and follows north without 
     await act(async () => nativeWind().props.onCenterWind({nativeEvent:{coordinate:center,speed:7}}));
     assert.equal(wind().props.centerWindSpeed, 6, "same band keeps selection stable");
     await act(async () => map.props.onRegionDidChange({nativeEvent:{center:coordinate,zoom:14,bearing:0}}));
-    assert.equal(wind().parent!.parent!.props.style, overlay.props.style,
-      "expansion must not change the containing block of the right-aligned controls");
+    await flushFrames();
+    assert.equal(wind().parent, stack,
+      "expansion must not change the containing block of the right-aligned wind panel");
     const controls = () => renderer!.root.find(node => node.type === ("MapControlsPanel" as unknown));
     assert.equal(controls().props.locationActive, true);
     await act(async () => controls().props.onLocate());
@@ -105,6 +119,8 @@ test("course up activates before heading is available and follows north without 
   } finally {
     if (renderer) await act(async () => renderer!.unmount());
     delete globals.__courseUp;
+    globalThis.requestAnimationFrame = previousRaf;
+    globalThis.cancelAnimationFrame = previousCancel;
     globals.IS_REACT_ACT_ENVIRONMENT = previous;
     await rm(directory, { recursive: true, force: true });
   }
