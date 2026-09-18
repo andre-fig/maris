@@ -23,7 +23,6 @@ import { METRES_PER_SECOND_TO_KNOTS } from "./wind-legend-band";
 
 const CLOSED_HEIGHT = 32;
 const HEADER_ITEM_GAP = 8;
-const NOW_LABEL_WIDTH = 28;
 const MAX_FORECAST_ROWS = 6;
 
 type WeatherPanelProps = {
@@ -38,6 +37,7 @@ export function WeatherPanel({ weather, visible, style }: WeatherPanelProps) {
   const [expandedHeaderWidth, setExpandedHeaderWidth] = useState(0);
   const [forecastWidth, setForecastWidth] = useState(0);
   const [forecastHeight, setForecastHeight] = useState(0);
+  const [nowLabelWidth, setNowLabelWidth] = useState(0);
   const displayWeather = visible && weather !== undefined;
   const { mounted, opacity } = useFadeVisibility(displayWeather);
   const forecast = weather?.forecast?.slice(0, MAX_FORECAST_ROWS) ?? [];
@@ -80,7 +80,15 @@ export function WeatherPanel({ weather, visible, style }: WeatherPanelProps) {
               if (width !== expandedHeaderWidth) setExpandedHeaderWidth(width);
             }}
           >
-            <BlurText style={styles.nowLabel}>Now</BlurText>
+            <BlurText
+              style={styles.nowLabel}
+              onLayout={({ nativeEvent }) => {
+                const width = Math.ceil(nativeEvent.layout.width);
+                if (width !== nowLabelWidth) setNowLabelWidth(width);
+              }}
+            >
+              Now
+            </BlurText>
             <View style={styles.conditionMeasure} />
             <BlurText style={styles.temperature}>00°</BlurText>
           </View>
@@ -149,7 +157,7 @@ export function WeatherPanel({ weather, visible, style }: WeatherPanelProps) {
                   opacity: expansion,
                   width: expansion.interpolate({
                     inputRange: [0, 1],
-                    outputRange: [0, NOW_LABEL_WIDTH + HEADER_ITEM_GAP],
+                    outputRange: [0, nowLabelWidth + HEADER_ITEM_GAP],
                   }),
                 },
               ]}
@@ -271,7 +279,6 @@ const styles = StyleSheet.create({
   condition: { width: 32, alignItems: "center" },
   nowSlot: { flexShrink: 0, overflow: "hidden" },
   nowLabel: {
-    width: NOW_LABEL_WIDTH,
     fontSize: 11,
     lineHeight: 16,
   },
