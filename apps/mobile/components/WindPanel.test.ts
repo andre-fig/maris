@@ -53,6 +53,15 @@ test("wind width and fade use the shared transition when speed arrives, disappea
       renderer!.root.findAllByType("BlurText" as any).some(node => node.props.children === "0.0"),
       "compact integer speeds keep one decimal place",
     );
+    await act(async () => renderer!.update(panel(0, true, true)));
+    assert.equal(content().props.style[1].width.value, 90,
+      "loading wind keeps the compact speed width");
+    assert.ok(
+      renderer!.root.findAllByType("BlurText" as any).some(node => node.props.children === "0.0"),
+      "loading wind keeps the compact speed visible",
+    );
+    assert.equal(renderer!.root.findAllByType("ActivityIndicator" as any).length, 1,
+      "only the wind icon changes to a spinner");
     await act(async () => renderer!.update(panel()));
     assert.equal(content().props.style[1].width.value, 28);
     assert.equal(expansion.stopped, true, "cancel the previous transition before retargeting");

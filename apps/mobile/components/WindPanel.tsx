@@ -82,12 +82,12 @@ export function WindPanel({
   );
 
   const panelWidth = usePanelTransition(
-    legendExpanded || (!loading && hasCurrentWind)
+    legendExpanded || hasCurrentWind
       ? expandedWidth
       : BLUR_PANEL_ICON_SIZE,
   );
   const headerOpacity = usePanelTransition(
-    legendExpanded || (!loading && hasCurrentWind) ? 1 : 0,
+    legendExpanded || hasCurrentWind ? 1 : 0,
   );
 
   return (
@@ -214,7 +214,7 @@ export function WindPanel({
                 kn
               </BlurText>
             </View>
-            {!legendExpanded && !loading && hasCurrentWind ? (
+            {!legendExpanded && hasCurrentWind ? (
               <View
                 style={styles.speedReadout}
                 accessible
