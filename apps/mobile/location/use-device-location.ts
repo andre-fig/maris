@@ -6,12 +6,15 @@ import { navigationHeading } from './navigation-heading';
 
 export type DeviceLocation = {
   coordinate: [number, number];
+  /** Estimated horizontal accuracy in metres, when provided by iOS/Android. */
+  accuracy: number | null;
   heading: number | null;
   headingValue: SharedValue<number | null>;
 };
 
 export function useDeviceLocation(): DeviceLocation | null {
   const [coordinate, setCoordinate] = useState<[number, number] | null>(null);
+  const [accuracy, setAccuracy] = useState<number | null>(null);
   const [heading, setHeading] = useState<number | null>(null);
   const headingValue = useSharedValue<number | null>(null);
   const courseRef = useRef<number | null>(null);
@@ -19,7 +22,7 @@ export function useDeviceLocation(): DeviceLocation | null {
   const compassRef = useRef<number | null>(null);
 
   useEffect(() => {
-    let active = true;
+  let active = true;
     let locationSubscription: Location.LocationSubscription | undefined;
     let headingSubscription: Location.LocationSubscription | undefined;
 
@@ -52,6 +55,7 @@ export function useDeviceLocation(): DeviceLocation | null {
           lastKnownPosition.coords.longitude,
           lastKnownPosition.coords.latitude,
         ]);
+        setAccuracy(lastKnownPosition.coords.accuracy ?? null);
       }
 
       locationSubscription = await Location.watchPositionAsync(
@@ -63,6 +67,7 @@ export function useDeviceLocation(): DeviceLocation | null {
         ({ coords }) => {
           if (!active) return;
           setCoordinate([coords.longitude, coords.latitude]);
+          setAccuracy(coords.accuracy ?? null);
           courseRef.current = coords.heading;
           speedRef.current = coords.speed;
           publishHeading();
@@ -93,5 +98,5 @@ export function useDeviceLocation(): DeviceLocation | null {
 
   if (!coordinate) return null;
 
-  return { coordinate, heading, headingValue };
+  return { coordinate, accuracy, heading, headingValue };
 }
