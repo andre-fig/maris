@@ -41,8 +41,8 @@ dinamarca: https://data.europa.eu/data/datasets/sdfe-dk-enc-01?locale=en&utm_sou
 - [ ] Tide
 
 - [x] SOG
-- [ ] COG
-- [ ] Heading
+- [x] COG
+- [x] Heading
 - [ ] Depth
 - [ ] Draft
 - [ ] UKC
