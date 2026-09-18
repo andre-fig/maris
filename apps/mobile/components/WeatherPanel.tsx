@@ -21,9 +21,7 @@ import { useFadeVisibility } from "./use-fade-visibility";
 import { usePanelTransition } from "./use-panel-transition";
 import { METRES_PER_SECOND_TO_KNOTS } from "./wind-legend-band";
 
-const CLOSED_HEIGHT = 32;
-const FIRST_COLUMN_GAP = 4;
-const SECOND_COLUMN_GAP = 8;
+const CLOSED_HEIGHT = 64;
 const MAX_FORECAST_ROWS = 6;
 
 type WeatherPanelProps = {
@@ -34,21 +32,12 @@ type WeatherPanelProps = {
 
 export function WeatherPanel({ weather, visible, style }: WeatherPanelProps) {
   const [expanded, setExpanded] = useState(false);
-  const [headerWidth, setHeaderWidth] = useState(0);
-  const [expandedHeaderWidth, setExpandedHeaderWidth] = useState(0);
-  const [forecastWidth, setForecastWidth] = useState(0);
   const [forecastHeight, setForecastHeight] = useState(0);
-  const [nowLabelWidth, setNowLabelWidth] = useState(0);
   const displayWeather = visible && weather !== undefined;
   const { mounted, opacity } = useFadeVisibility(displayWeather);
   const forecast = weather?.forecast?.slice(0, MAX_FORECAST_ROWS) ?? [];
   const hasForecast = forecast.length > 0;
   const expansion = usePanelTransition(expanded && hasForecast ? 1 : 0);
-  const expandedWidth = Math.max(
-    headerWidth,
-    expandedHeaderWidth,
-    forecastWidth,
-  );
   const weatherIcon = weather
     ? openWeatherIconMap[weather.icon_code]
     : undefined;
@@ -69,65 +58,30 @@ export function WeatherPanel({ weather, visible, style }: WeatherPanelProps) {
         key={displayWeather ? "weather-blur-visible" : "weather-blur-hidden"}
         flexDirection="column"
       >
-        <View
-          pointerEvents="none"
-          accessible={false}
-          style={styles.measurementHost}
-        >
-          <View
-            style={styles.headerMeasure}
-            onLayout={({ nativeEvent }) => {
-              const width = Math.ceil(nativeEvent.layout.width);
-              if (width !== expandedHeaderWidth) setExpandedHeaderWidth(width);
-            }}
-          >
-            <BlurText
-              style={styles.nowLabel}
-              onLayout={({ nativeEvent }) => {
-                const width = Math.ceil(nativeEvent.layout.width);
-                if (width !== nowLabelWidth) setNowLabelWidth(width);
-              }}
-            >
-              Now
-            </BlurText>
-            <View
-              style={[styles.conditionMeasure, styles.firstColumnSpacing]}
-            />
-            <BlurText
-              style={[styles.temperature, styles.measurementTemperature]}
-            >
-              00°
-            </BlurText>
+        <View pointerEvents="none" accessible={false} style={styles.measurementHost}>
+          <View style={styles.headerMeasure}>
+            <View style={styles.conditionMeasure} />
+            <View style={styles.valueColumn}>
+              <BlurText style={[styles.temperature, styles.measurementTemperature]}>
+                00°
+              </BlurText>
+              <BlurText style={styles.nowLabel}>Now</BlurText>
+            </View>
           </View>
-          <View
-            style={styles.forecastMeasure}
-            onLayout={({ nativeEvent }) => {
-              const width = Math.ceil(nativeEvent.layout.width);
-              if (width !== forecastWidth) setForecastWidth(width);
-            }}
-          >
-            <BlurText style={styles.nowLabel}>00</BlurText>
-            <View
-              style={[styles.conditionMeasure, styles.firstColumnSpacing]}
-            />
-            <BlurText
-              style={[styles.temperature, styles.measurementTemperature]}
-            >
-              00°
-            </BlurText>
+          <View style={styles.forecastMeasure}>
+            <View style={styles.conditionMeasure} />
+            <View style={styles.valueColumn}>
+              <BlurText style={[styles.temperature, styles.measurementTemperature]}>
+                00°
+              </BlurText>
+              <BlurText style={styles.nowLabel}>00</BlurText>
+            </View>
           </View>
         </View>
         <Animated.View
           style={[
             styles.content,
             {
-              width:
-                headerWidth > 0
-                  ? expansion.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [headerWidth, expandedWidth],
-                    })
-                  : undefined,
               height: expansion.interpolate({
                 inputRange: [0, 1],
                 outputRange: [CLOSED_HEIGHT, CLOSED_HEIGHT + forecastHeight],
@@ -149,39 +103,8 @@ export function WeatherPanel({ weather, visible, style }: WeatherPanelProps) {
             onPress={
               hasForecast ? () => setExpanded((value) => !value) : undefined
             }
-            onLayout={({ nativeEvent }) => {
-              const width = Math.ceil(nativeEvent.layout.width);
-              // Keep the natural closed width. When the panel is expanded,
-              // this layout callback sees the animated width and must not
-              // replace the compact measurement with it.
-              if (headerWidth === 0 && width > 0) setHeaderWidth(width);
-            }}
             style={({ pressed }) => [styles.header, pressed && styles.pressed]}
           >
-            <Animated.View
-              pointerEvents="none"
-              accessibilityElementsHidden={!expanded}
-              importantForAccessibility={
-                expanded ? "auto" : "no-hide-descendants"
-              }
-              style={[
-                styles.nowSlot,
-                {
-                  width: expansion.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0, nowLabelWidth + FIRST_COLUMN_GAP],
-                  }),
-                },
-              ]}
-            >
-              <BlurText
-                style={styles.nowLabel}
-                numberOfLines={1}
-                ellipsizeMode="clip"
-              >
-                Now
-              </BlurText>
-            </Animated.View>
             <View style={styles.condition}>
               {weatherIcon ? (
                 <SymbolView
@@ -204,18 +127,21 @@ export function WeatherPanel({ weather, visible, style }: WeatherPanelProps) {
                 </BlurText>
               ) : null}
             </View>
-            <BlurText
-              style={[styles.temperature, styles.currentTemperature]}
-              accessibilityLabel={
-                weather
-                  ? `${weather.condition}, ${Math.round(
-                      weather.temperature_celsius,
-                    )} degrees, humidity ${weather.humidity_percent} percent, wind ${windSpeedInKnots} knots, precipitation ${weather.precipitation_millimetres_last_hour} millimetres in the last hour`
-                  : undefined
-              }
-            >
-              {weather ? `${Math.round(weather.temperature_celsius)}°` : ""}
-            </BlurText>
+            <View style={styles.valueColumn}>
+              <BlurText
+                style={[styles.temperature, styles.currentTemperature]}
+                accessibilityLabel={
+                  weather
+                    ? `${weather.condition}, ${Math.round(
+                        weather.temperature_celsius,
+                      )} degrees, humidity ${weather.humidity_percent} percent, wind ${windSpeedInKnots} knots, precipitation ${weather.precipitation_millimetres_last_hour} millimetres in the last hour`
+                    : undefined
+                }
+              >
+                {weather ? `${Math.round(weather.temperature_celsius)}°` : ""}
+              </BlurText>
+              <BlurText style={styles.nowLabel}>Now</BlurText>
+            </View>
           </Pressable>
           <Animated.View
             pointerEvents={expanded ? "auto" : "none"}
@@ -233,17 +159,7 @@ export function WeatherPanel({ weather, visible, style }: WeatherPanelProps) {
               const hourIcon = openWeatherIconMap[hour.icon_code];
               return (
                 <View key={hour.forecast_at} style={styles.forecastRow}>
-                  <BlurText
-                    style={[
-                      styles.nowLabel,
-                      nowLabelWidth > 0 ? { width: nowLabelWidth } : undefined,
-                    ]}
-                  >
-                    {formatHour(hour.forecast_at)}
-                  </BlurText>
-                  <View
-                    style={[styles.condition, styles.firstColumnSpacing]}
-                  >
+                  <View style={styles.condition}>
                     {hourIcon ? (
                       <SymbolView
                         name={{
@@ -260,11 +176,14 @@ export function WeatherPanel({ weather, visible, style }: WeatherPanelProps) {
                       {Math.round(hour.rain_probability_percent)}%
                     </BlurText>
                   </View>
-                  <BlurText
-                    style={[styles.temperature, styles.forecastTemperature]}
-                  >
-                    {Math.round(hour.temperature_celsius)}°
-                  </BlurText>
+                  <View style={styles.valueColumn}>
+                    <BlurText style={[styles.temperature, styles.forecastTemperature]}>
+                      {Math.round(hour.temperature_celsius)}°
+                    </BlurText>
+                    <BlurText style={styles.nowLabel}>
+                      {formatHour(hour.forecast_at)}
+                    </BlurText>
+                  </View>
                 </View>
               );
             })}
@@ -284,24 +203,24 @@ const styles = StyleSheet.create({
   measurementHost: { position: "absolute", left: 0, top: 0, opacity: 0 },
   headerMeasure: {
     alignSelf: "flex-start",
-    flexDirection: "row",
+    flexDirection: "column",
     alignItems: "center",
   },
   conditionMeasure: { width: 32, height: 30 },
   forecastMeasure: {
     alignSelf: "flex-start",
-    flexDirection: "row",
+    flexDirection: "column",
     alignItems: "center",
   },
   header: {
     height: CLOSED_HEIGHT,
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
+    gap: 1,
   },
   pressed: { opacity: 0.62, transform: [{ scale: 0.98 }] },
   condition: { width: 32, alignItems: "center" },
-  firstColumnSpacing: { marginLeft: FIRST_COLUMN_GAP },
-  nowSlot: { flexShrink: 0, overflow: "hidden" },
   nowLabel: {
     fontSize: 11,
     lineHeight: 16,
@@ -319,18 +238,22 @@ const styles = StyleSheet.create({
     top: CLOSED_HEIGHT,
     right: 0,
     left: 0,
-    gap: 6,
+    gap: 8,
     paddingBottom: 4,
     paddingTop: 6,
   },
   forecastRow: {
     flexDirection: "row",
     alignItems: "center",
+    gap: 1,
+  },
+  valueColumn: {
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 1,
   },
   temperature: { fontSize: 16, lineHeight: 22 },
-  currentTemperature: { marginLeft: SECOND_COLUMN_GAP },
-  measurementTemperature: { marginLeft: SECOND_COLUMN_GAP },
-  forecastTemperature: {
-    marginLeft: "auto",
-  },
+  currentTemperature: {},
+  measurementTemperature: {},
+  forecastTemperature: {},
 });
