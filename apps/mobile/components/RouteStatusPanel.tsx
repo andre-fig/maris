@@ -9,7 +9,7 @@ export function RouteStatusPanel() {
     <BlurPanel flexDirection="column" alignSelf="stretch" style={styles.panel}>
       <View style={styles.routeHeader}>
         <SymbolView
-          name="flag.fill"
+          name="flag"
           size={28}
           tintColor="#FFFFFF"
           type="hierarchical"
@@ -20,12 +20,14 @@ export function RouteStatusPanel() {
             Ilha da Mãe → Marina da Glória
           </BlurText>
         </View>
-        <SymbolView
-          name="chevron.right"
-          size={22}
-          tintColor="#FFFFFF"
-          type="hierarchical"
-        />
+        <View style={styles.nextManeuver}>
+          <BlurText style={styles.nextManeuverLabel} numberOfLines={1}>
+            Next maneuver
+          </BlurText>
+          <BlurText style={styles.nextManeuverValue} numberOfLines={1}>
+            Turn port in 0.8 NM
+          </BlurText>
+        </View>
       </View>
 
       <View style={styles.progressTrack}>
@@ -44,7 +46,7 @@ export function RouteStatusPanel() {
       <View style={styles.bottomRow}>
         <RouteValue label="Remaining" value="8.4 NM" />
         <RouteValue label="Time remaining" value="1h 12m" />
-        <RouteValue label="Progress" value="28%" />
+        <RouteValue label="XTE" value="0.06 NM" />
         <Pressable
           accessibilityLabel="Stop route"
           accessibilityRole="button"
@@ -52,11 +54,6 @@ export function RouteStatusPanel() {
         >
           <BlurText style={styles.stopLabel}>Stop Route</BlurText>
         </Pressable>
-      </View>
-
-      <View style={styles.maneuverRow}>
-        <RouteValue label="XTE" value="0.06 NM" />
-        <RouteValue label="Next maneuver" value="Turn port in 0.8 NM" />
       </View>
     </BlurPanel>
   );
@@ -97,6 +94,19 @@ const styles = StyleSheet.create({
     fontWeight: "400",
     lineHeight: 18,
   },
+  nextManeuver: {
+    width: 112,
+    gap: 1,
+  },
+  nextManeuverLabel: {
+    fontSize: 10,
+    fontWeight: "400",
+    lineHeight: 13,
+  },
+  nextManeuverValue: {
+    fontSize: 11,
+    lineHeight: 14,
+  },
   progressTrack: {
     height: 7,
     borderRadius: 4,
@@ -130,18 +140,18 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
   value: {
-    fontSize: 18,
-    lineHeight: 22,
+    fontSize: 15,
+    lineHeight: 18,
   },
   divider: {
     height: 1,
     backgroundColor: "rgba(255, 255, 255, 0.22)",
   },
   stopButton: {
-    minWidth: 112,
-    marginLeft: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    width: 86,
+    marginLeft: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
     borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
@@ -153,9 +163,5 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.7,
-  },
-  maneuverRow: {
-    flexDirection: "row",
-    gap: 8,
   },
 });
