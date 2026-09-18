@@ -23,7 +23,7 @@ import { METRES_PER_SECOND_TO_KNOTS } from "./wind-legend-band";
 
 const CLOSED_HEIGHT = 32;
 const FORECAST_ROW_HEIGHT = 22;
-const MAX_FORECAST_ROWS = 8;
+const MAX_FORECAST_ROWS = 5;
 
 type WeatherPanelProps = {
   weather?: CurrentWeather;
@@ -34,13 +34,23 @@ type WeatherPanelProps = {
 export function WeatherPanel({ weather, visible, style }: WeatherPanelProps) {
   const [expanded, setExpanded] = useState(false);
   const [headerWidth, setHeaderWidth] = useState(0);
+  const [expandedHeaderWidth, setExpandedHeaderWidth] = useState(0);
   const [forecastWidth, setForecastWidth] = useState(0);
+  const [forecastHeight, setForecastHeight] = useState(0);
   const displayWeather = visible && weather !== undefined;
   const { mounted, opacity } = useFadeVisibility(displayWeather);
   const forecast = weather?.forecast?.slice(0, MAX_FORECAST_ROWS) ?? [];
   const hasForecast = forecast.length > 0;
   const expansion = usePanelTransition(expanded && hasForecast ? 1 : 0);
-  const expandedWidth = Math.max(headerWidth, forecastWidth);
+  const measuredForecastHeight = Math.max(
+    forecastHeight,
+    forecast.length * FORECAST_ROW_HEIGHT + 4,
+  );
+  const expandedWidth = Math.max(
+    headerWidth,
+    expandedHeaderWidth,
+    forecastWidth,
+  );
   const weatherIcon = weather
     ? openWeatherIconMap[weather.icon_code]
     : undefined;
@@ -66,6 +76,17 @@ export function WeatherPanel({ weather, visible, style }: WeatherPanelProps) {
           accessible={false}
           style={styles.measurementHost}
         >
+          <View
+            style={styles.headerMeasure}
+            onLayout={({ nativeEvent }) => {
+              const width = Math.ceil(nativeEvent.layout.width);
+              if (width !== expandedHeaderWidth) setExpandedHeaderWidth(width);
+            }}
+          >
+            <BlurText style={styles.nowLabel}>Now</BlurText>
+            <View style={styles.conditionMeasure} />
+            <BlurText>00°</BlurText>
+          </View>
           <View
             style={styles.forecastMeasure}
             onLayout={({ nativeEvent }) => {
@@ -94,13 +115,13 @@ export function WeatherPanel({ weather, visible, style }: WeatherPanelProps) {
                 inputRange: [0, 1],
                 outputRange: [
                   CLOSED_HEIGHT,
-                  CLOSED_HEIGHT + forecast.length * FORECAST_ROW_HEIGHT,
+                  CLOSED_HEIGHT + measuredForecastHeight,
                 ],
               }),
             },
           ]}
-        >
-          <Pressable
+          >
+            <Pressable
             accessibilityRole="button"
             accessibilityLabel={
               hasForecast
@@ -123,6 +144,7 @@ export function WeatherPanel({ weather, visible, style }: WeatherPanelProps) {
             }}
             style={({ pressed }) => [styles.header, pressed && styles.pressed]}
           >
+            {expanded ? <BlurText style={styles.nowLabel}>Now</BlurText> : null}
             <View style={styles.condition}>
               {weatherIcon ? (
                 <SymbolView
@@ -163,6 +185,10 @@ export function WeatherPanel({ weather, visible, style }: WeatherPanelProps) {
             importantForAccessibility={
               expanded ? "auto" : "no-hide-descendants"
             }
+            onLayout={({ nativeEvent }) => {
+              const height = Math.ceil(nativeEvent.layout.height);
+              if (height !== forecastHeight) setForecastHeight(height);
+            }}
             style={[styles.forecast, { opacity: expansion }]}
           >
             {forecast.map((hour) => {
@@ -201,15 +227,19 @@ export function WeatherPanel({ weather, visible, style }: WeatherPanelProps) {
 }
 
 function formatHour(timestamp: string) {
-  return new Intl.DateTimeFormat(undefined, {
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(timestamp));
+  return new Date(timestamp).getHours().toString().padStart(2, "0");
 }
 
 const styles = StyleSheet.create({
   content: { overflow: "hidden" },
   measurementHost: { position: "absolute", left: 0, top: 0, opacity: 0 },
+  headerMeasure: {
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  conditionMeasure: { width: 20, height: 20 },
   forecastMeasure: {
     alignSelf: "flex-start",
     flexDirection: "row",
@@ -226,6 +256,11 @@ const styles = StyleSheet.create({
   },
   pressed: { opacity: 0.62, transform: [{ scale: 0.98 }] },
   condition: { minWidth: 20, alignItems: "center" },
+  nowLabel: {
+    width: 28,
+    fontSize: 11,
+    lineHeight: 16,
+  },
   rainChance: {
     alignSelf: "stretch",
     textAlign: "center",
@@ -240,6 +275,7 @@ const styles = StyleSheet.create({
     right: 0,
     left: 0,
     gap: 0,
+    paddingBottom: 4,
   },
   forecastRow: {
     height: FORECAST_ROW_HEIGHT,
