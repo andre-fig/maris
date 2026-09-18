@@ -9,9 +9,12 @@ type Sample = { view: CameraEvent; settled: boolean };
 
 /** Native/Fabric events can arrive during a React commit. Never update React
  * state synchronously from them: deliver only the latest sample next frame. */
-export function useCameraEvents(onSample: (view: CameraEvent, settled: boolean) => void) {
+export function useCameraEvents(onSample: (view: CameraEvent, settled: boolean) => void,
+  onImmediateSample?: (view: CameraEvent) => void) {
   const handler = useRef(onSample);
   handler.current = onSample;
+  const immediateHandler = useRef(onImmediateSample);
+  immediateHandler.current = onImmediateSample;
   const pending = useRef<Sample | null>(null);
   const frame = useRef<number | null>(null);
   const delivered = useRef<Sample | null>(null);
@@ -29,6 +32,8 @@ export function useCameraEvents(onSample: (view: CameraEvent, settled: boolean) 
 
   const enqueue = useCallback((view: CameraEvent, settled: boolean) => {
     if (!mounted.current || ![...view.center, view.zoom, view.bearing].every(Number.isFinite)) return;
+    // Shared-value updates only; React state still goes through the frame queue.
+    immediateHandler.current?.(view);
     pending.current = { view: { ...view, center: [...view.center] }, settled };
     if (frame.current !== null) return;
     frame.current = requestAnimationFrame(() => {

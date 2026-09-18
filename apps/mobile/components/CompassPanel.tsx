@@ -1,5 +1,6 @@
 import { Pressable, StyleSheet, View } from "react-native";
 import Svg, { Path } from "react-native-svg";
+import Animated, { useAnimatedStyle, type SharedValue } from "react-native-reanimated";
 
 import { BlurPanel } from "./BlurPanel";
 import {
@@ -25,15 +26,17 @@ function getDirectionIndex(heading: number | null) {
 
 export function CompassPanel({
   heading,
-  mapBearing,
+  mapBearingValue,
   onPress,
 }: {
   heading: number | null;
-  mapBearing: number;
+  mapBearingValue: SharedValue<number>;
   onPress: () => void;
 }) {
-  const direction = getCardinalDirection(heading);
   const directionIndex = getDirectionIndex(heading);
+  const rotationStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${-mapBearingValue.value}deg` }],
+  }));
 
   return (
     <Pressable
@@ -43,12 +46,12 @@ export function CompassPanel({
       style={({ pressed }) => [styles.button, pressed && styles.pressed]}
     >
       <BlurPanel shape="circle">
-        <View
+        <Animated.View
           pointerEvents="none"
           style={[
             styles.compass,
             // The red north triangle follows the map, not the device heading.
-            { transform: [{ rotate: `${-mapBearing}deg` }] },
+            rotationStyle,
           ]}
         >
           <Svg height="36" width="36" viewBox="0 0 36 36">
@@ -66,7 +69,7 @@ export function CompassPanel({
             <Path d={SOUTH_TRIANGLE_PATH} fill={directionIndex === 8 ? "#FFD60A" : "#FFFFFF"} />
             <Path d={WEST_TRIANGLE_PATH} fill={directionIndex === 12 ? "#FFD60A" : "#FFFFFF"} />
           </Svg>
-        </View>
+        </Animated.View>
         <View pointerEvents="none" style={styles.centerLabel}>
           <BlurText style={styles.directionLabel}>
             {getCardinalDirection(heading)}

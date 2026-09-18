@@ -32,10 +32,12 @@ test("repeated native camera events settle without a render/command feedback loo
       bundle: true, write: false, platform: "node", format: "cjs", jsx: "automatic",
       plugins: [{ name: "native-feedback", setup(builder) {
         builder.onResolve({ filter: /^react(?:\/jsx-runtime)?$/ }, args => ({ path: require.resolve(args.path), external: true }));
+        builder.onResolve({ filter: /^react-native-reanimated$/ }, args => ({ path: args.path, namespace: "mock" }));
         builder.onResolve({ filter: /^(react-native|@maplibre\/maplibre-react-native|@maris\/native-wind|\.\/components\/.*|\.\/location\/.*|\.\/weather\/.*|\.\/offline\/.*|\.\/charts\/.*)$/ }, args => ({ path: args.path, namespace: "mock" }));
         builder.onLoad({ filter: /.*/, namespace: "mock" }, ({ path: name }) => {
           let contents: string;
-          if (name === "react-native") contents = 'export const StyleSheet={create:x=>x},View="View",ScrollView="ScrollView",useWindowDimensions=()=>({width:400});';
+          if (name === "react-native-reanimated") contents = 'import React from "react"; export const useSharedValue=value=>React.useRef({value}).current;';
+          else if (name === "react-native") contents = 'export const StyleSheet={create:x=>x},View="View",ScrollView="ScrollView",useWindowDimensions=()=>({width:400});';
           else if (name === "@maplibre/maplibre-react-native") contents = `import React from "react";
             export function Map(props){const f=globalThis.__cameraFeedback;f.renders++;if(f.renders>30)throw Error("camera feedback loop");React.useLayoutEffect(()=>props.onRegionIsChanging({nativeEvent:{center:[f.longitude,25.7],zoom:f.zoom,bearing:f.bearing}}));return React.createElement("Map",props,props.children)};
             export const Camera=React.forwardRef((props,ref)=>{React.useImperativeHandle(ref,()=>({jumpTo(){globalThis.__cameraFeedback.jumps++},flyTo(){}}));return null});

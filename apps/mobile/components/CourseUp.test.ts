@@ -31,10 +31,12 @@ test("course up activates before heading is available and follows north without 
       bundle: true, write: false, platform: "node", format: "cjs", jsx: "automatic",
       plugins: [{ name: "camera-test-adapters", setup(builder) {
         builder.onResolve({ filter: /^react(?:\/jsx-runtime)?$/ }, args => ({ path: require.resolve(args.path), external: true }));
+        builder.onResolve({ filter: /^react-native-reanimated$/ }, args => ({ path: args.path, namespace: "mock" }));
         builder.onResolve({ filter: /^(react-native|@maplibre\/maplibre-react-native|@maris\/native-wind|\.\/components\/.*|\.\/location\/.*|\.\/weather\/.*|\.\/offline\/.*)$/ }, args => args.path.endsWith('/wind-legend-band') ? undefined : ({ path: args.path, namespace: "mock" }));
         builder.onLoad({ filter: /.*/, namespace: "mock" }, args => {
           let contents: string;
-          if (args.path === "react-native") contents = 'export const StyleSheet={create:x=>x}, View="View", ScrollView="ScrollView", useWindowDimensions=()=>({width:400}), AppState={currentState:"background",addEventListener:()=>({remove(){}})};';
+          if (args.path === "react-native-reanimated") contents = 'import React from "react"; export const useSharedValue=value=>React.useRef({value}).current;';
+          else if (args.path === "react-native") contents = 'export const StyleSheet={create:x=>x}, View="View", ScrollView="ScrollView", useWindowDimensions=()=>({width:400}), AppState={currentState:"background",addEventListener:()=>({remove(){}})};';
           else if (args.path === "@maplibre/maplibre-react-native") contents = `import React from "react"; export const Camera=React.forwardRef((props,ref)=>{React.useImperativeHandle(ref,()=>globalThis.__courseUp.camera);return null}); export const Map="Map", Layer="Layer", VectorSource="VectorSource", OfflineManager={setMaximumAmbientCacheSize:()=>Promise.resolve()};`;
           else if (args.path === "@maris/native-wind") contents = 'export const NativeWindLayer="NativeWindLayer";';
           else if (args.path.includes("/location/")) contents = 'export const useDeviceLocation=()=>globalThis.__courseUp.location;';

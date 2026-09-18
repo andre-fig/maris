@@ -8,6 +8,7 @@ import {
   VectorSource,
 } from "@maplibre/maplibre-react-native";
 import { useEffect, useRef, useState } from "react";
+import { useSharedValue } from "react-native-reanimated";
 import { useCameraEvents } from "./map/use-camera-events";
 import { isWithinChartBounds } from "./map/chart-bounds";
 import { ScrollView, StyleSheet, useWindowDimensions, View } from "react-native";
@@ -54,6 +55,8 @@ function distanceKm(a: [number, number], b: [number, number]) {
 export default function App() {
   const { width } = useWindowDimensions();
   const deviceLocation = useDeviceLocation();
+  const compassMapBearing = useSharedValue(0);
+  const unavailableHeading = useSharedValue<number | null>(null);
   const mapRef = useRef<MapRef>(null);
   const {
     ready: offlineReady,
@@ -178,7 +181,7 @@ export default function App() {
       currentWeather.onCameraDidChange(view.center);
       void onViewportSettled().catch(() => {});
     } else currentWeather.onCameraChanging(view.center);
-  });
+  }, (view) => { compassMapBearing.value = view.bearing; });
 
   if (!offlineReady || (!deviceLocation && !offlineArea)) {
     return <View style={styles.container} />;
@@ -278,7 +281,7 @@ export default function App() {
         <View pointerEvents="box-none" style={styles.controlsStack}>
           <CompassPanel
             heading={deviceLocation?.heading ?? null}
-            mapBearing={viewState.bearing}
+            mapBearingValue={compassMapBearing}
             onPress={() => {
               if (Math.abs(viewState.bearing) < 0.001) {
                 chartRequestPending.current = false;
@@ -386,7 +389,7 @@ export default function App() {
             </ScrollView>
           </>
         ) : (
-          <DrawerCompass heading={deviceLocation?.heading ?? null} />
+          <DrawerCompass headingValue={deviceLocation?.headingValue ?? unavailableHeading} />
         )}
       </BlurBottomSheet>
     </View>

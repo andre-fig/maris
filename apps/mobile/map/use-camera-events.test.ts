@@ -14,6 +14,7 @@ test("native commit events are deferred, coalesced, deduplicated and cancelled o
   globalThis.requestAnimationFrame = callback => { frames.set(++id, callback); return id; };
   globalThis.cancelAnimationFrame = key => { if (key != null) frames.delete(key); };
   const calls: { view: CameraEvent; settled: boolean }[] = [];
+  const immediateSamples: CameraEvent[] = [];
   let events: ReturnType<typeof useCameraEvents>;
   let renderer: ReactTestRenderer | undefined;
   const view = { center: [-80, 25] as [number, number], zoom: 14, bearing: 0 };
@@ -22,7 +23,7 @@ test("native commit events are deferred, coalesced, deduplicated and cancelled o
     events = useCameraEvents((view, settled) => {
       assert.equal(inCommit, false, "state must never be updated inside a native commit event");
       calls.push({ view, settled }); render(value => value + 1);
-    });
+    }, view => immediateSamples.push(view));
     useLayoutEffect(() => {
       inCommit = true;
       events.onRegionIsChanging({ nativeEvent: view });
@@ -37,6 +38,7 @@ test("native commit events are deferred, coalesced, deduplicated and cancelled o
   try {
     await act(async () => { renderer = create(React.createElement(Probe)); });
     assert.equal(calls.length, 0);
+    assert.equal(immediateSamples.length, 1, "shared compass bearing is updated before the React frame queue");
     assert.equal(frames.size, 1);
     await flush();
     await flush();

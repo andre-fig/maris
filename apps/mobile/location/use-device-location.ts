@@ -1,14 +1,17 @@
 import * as Location from 'expo-location';
 import { useEffect, useState } from 'react';
+import { useSharedValue, type SharedValue } from 'react-native-reanimated';
 
 export type DeviceLocation = {
   coordinate: [number, number];
   heading: number | null;
+  headingValue: SharedValue<number | null>;
 };
 
 export function useDeviceLocation(): DeviceLocation | null {
   const [coordinate, setCoordinate] = useState<[number, number] | null>(null);
   const [heading, setHeading] = useState<number | null>(null);
+  const headingValue = useSharedValue<number | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -49,7 +52,10 @@ export function useDeviceLocation(): DeviceLocation | null {
       headingSubscription = await Location.watchHeadingAsync((value) => {
         if (!active || value.accuracy <= 0) return;
 
-        setHeading(value.trueHeading >= 0 ? value.trueHeading : value.magHeading);
+        const nextHeading = value.trueHeading >= 0 ? value.trueHeading : value.magHeading;
+        if (!Number.isFinite(nextHeading)) return;
+        headingValue.value = nextHeading;
+        setHeading(nextHeading);
       });
     };
 
@@ -62,9 +68,9 @@ export function useDeviceLocation(): DeviceLocation | null {
       locationSubscription?.remove();
       headingSubscription?.remove();
     };
-  }, []);
+  }, [headingValue]);
 
   if (!coordinate) return null;
 
-  return { coordinate, heading };
+  return { coordinate, heading, headingValue };
 }

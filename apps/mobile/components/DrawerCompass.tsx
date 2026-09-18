@@ -1,4 +1,4 @@
-import React, { memo, useEffect, useMemo, useRef } from "react";
+import React, { memo, useMemo } from "react";
 import { Platform, StyleSheet, View } from "react-native";
 import Svg, {
   Circle,
@@ -8,10 +8,8 @@ import Svg, {
   Text as SvgText,
 } from "react-native-svg";
 import Animated, {
-  Easing,
   useAnimatedProps,
-  useSharedValue,
-  withTiming,
+  useDerivedValue,
   type SharedValue,
 } from "react-native-reanimated";
 import { compassRotationMatrix, svgMatrixAdapter } from "./compassTransform";
@@ -60,23 +58,8 @@ const CompassDegree = memo(function CompassDegree({
 });
 
 type Props = {
-  heading: number | null;
+  headingValue: SharedValue<number | null>;
 };
-
-function normalizeDelta(current: number, target: number) {
-  const normalizedCurrent = ((current % 360) + 360) % 360;
-  const normalizedTarget = ((target % 360) + 360) % 360;
-
-  let delta = normalizedTarget - normalizedCurrent;
-
-  if (delta > 180) {
-    delta -= 360;
-  } else if (delta < -180) {
-    delta += 360;
-  }
-
-  return current + delta;
-}
 
 const CompassTicks = memo(function CompassTicks() {
   const ticks = useMemo(
@@ -105,38 +88,9 @@ const CompassTicks = memo(function CompassTicks() {
   return <>{ticks}</>;
 });
 
-export function DrawerCompass({ heading }: Props) {
-  const rotation = useSharedValue(0);
-
-  const initialized = useRef(false);
-  const continuousRotation = useRef(0);
-
-  useEffect(() => {
-    if (heading === null || !Number.isFinite(heading)) {
-      return;
-    }
-
-    const targetRotation = -heading;
-
-    if (!initialized.current) {
-      continuousRotation.current = targetRotation;
-      rotation.value = targetRotation;
-      initialized.current = true;
-      return;
-    }
-
-    const nextRotation = normalizeDelta(
-      continuousRotation.current,
-      targetRotation,
-    );
-
-    continuousRotation.current = nextRotation;
-
-    rotation.value = withTiming(nextRotation, {
-      duration: 160,
-      easing: Easing.out(Easing.cubic),
-    });
-  }, [heading, rotation]);
+export function DrawerCompass({ headingValue }: Props) {
+  // Apply each sensor sample on the UI runtime, without chasing it with timing.
+  const rotation = useDerivedValue(() => -(headingValue.value ?? 0));
 
   const dialAnimatedProps = useAnimatedProps(() => ({
     transform: compassRotationMatrix(rotation.value, CENTER, CENTER),
