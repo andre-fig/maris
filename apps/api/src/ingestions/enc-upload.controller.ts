@@ -38,8 +38,11 @@ export class EncUploadController {
     const repo = this.db.getRepository(EncUpload); const upload = await repo.findOneByOrFail({ uploadId });
     if (upload.status === 'queued' && upload.ingestionId) return { uploadId, objectKey: upload.objectKey, status: 'queued', parts: upload.parts };
     if (!body.parts?.length) throw new BadRequestException('At least one uploaded part is required');
-    try { await this.storage.completeMultipart(upload.objectKey, uploadId, body.parts); }
-    catch (error) { if (!await this.storage.tryHead(upload.objectKey)) throw error; }
+    const existingObject = await this.storage.tryHead(upload.objectKey);
+    if (!existingObject) {
+      try { await this.storage.completeMultipart(upload.objectKey, uploadId, body.parts); }
+      catch (error) { if (!await this.storage.tryHead(upload.objectKey)) throw error; }
+    }
     upload.parts = body.parts; upload.status = 'completed'; await repo.save(upload);
     const ingestionId = randomUUID();
     await this.dispatcher.dispatch({ archivePath: '', ingestionId, versionId: randomUUID(), versionKey: `pending-${upload.id}`, objectKey: upload.objectKey, sourceFilename: upload.sourceFilename, ...(upload.checksumSha256 ? { checksum: upload.checksumSha256 } : {}), ...(upload.expectedSize ? { sizeBytes: Number(upload.expectedSize) } : {}) });
