@@ -182,6 +182,17 @@ parâmetros do PostgreSQL. HTTP real: tile novo/antigo 200, vazio 204 e versão
 inexistente 404 sem cache. O app mantém as mesmas URLs PBF; não recebe nem
 baixa o arquivo PMTiles inteiro.
 
+### Deploy automático da API
+
+O serviço `api` do projeto Railway `maris`, ambiente `production`, acompanha
+`andre-fig/maris`, branch `main`, via integração GitHub. Os watch paths estão
+configurados diretamente no serviço: `/apps/api/**`, `/ops/**`, `/Dockerfile`,
+`/.dockerignore`, `/railway.json`, `/package.json`, `/pnpm-lock.yaml`,
+`/pnpm-workspace.yaml` e `/apps/mobile/package.json` (copiado pelo Dockerfile).
+Mudanças somente no código/telas mobile ou no TODO não disparam deploy da API.
+Os filtros não dependem do `railway.json`: a API atual do Railway rejeita
+novas configurações desse arquivo legado em favor de Infrastructure as Code.
+
 Para gerar/testar PMTiles localmente:
 
 ```bash
