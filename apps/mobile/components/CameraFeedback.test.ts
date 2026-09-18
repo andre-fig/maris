@@ -65,8 +65,16 @@ test("repeated native camera events settle without a render/command feedback loo
     assert.equal(controls().props.locationActive, false);
     assert.ok(fixture.renders < 6, "identical events must stop rendering");
     assert.equal(map().props.mapStyle, "https://tiles.openfreemap.org/styles/bright");
+    const genericPoiLayers = () => renderer!.root.findAll(node =>
+      node.type === ("Layer" as unknown) && /^poi_r(?:1|7|20)$/.test(node.props.id));
+    assert.equal(genericPoiLayers().length, 3);
+    for (const layer of genericPoiLayers()) {
+      assert.ok(JSON.stringify(layer.props.filter).includes('["match",["get","class"],["bus"],false,true]'),
+        `${layer.props.id} must exclude bus stops`);
+    }
     await act(async () => controls().props.onMapModeChange("satellite"));
     const satelliteStyle = JSON.parse(map().props.mapStyle);
+    assert.equal(genericPoiLayers().length, 0, "satellite has no vector POI overrides");
     assert.equal(satelliteStyle.sources["google-satellite"].type, "raster");
     assert.deepEqual(satelliteStyle.sources["google-satellite"].tiles, [
       "https://mt0.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",

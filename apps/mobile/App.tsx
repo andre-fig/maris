@@ -252,13 +252,53 @@ export default function App() {
         onRegionDidChange={cameraEvents.onRegionDidChange}
       >
         {mapStyleMode !== "satellite" ? (
-          <Layer
-            id="poi_transit"
-            type="symbol"
-            source="openmaptiles"
-            source-layer="poi"
-            filter={["match", ["get", "class"], ["airport", "rail"], true, false]}
-          />
+          <>
+            <Layer
+              id="poi_r20"
+              type="symbol"
+              source="openmaptiles"
+              source-layer="poi"
+              filter={[
+                "all",
+                ["match", ["geometry-type"], ["MultiPoint", "Point"], true, false],
+                [">=", ["get", "rank"], 20],
+                ["match", ["get", "class"], ["bus"], false, true],
+              ]}
+            />
+            <Layer
+              id="poi_r7"
+              type="symbol"
+              source="openmaptiles"
+              source-layer="poi"
+              filter={[
+                "all",
+                ["match", ["geometry-type"], ["MultiPoint", "Point"], true, false],
+                [">=", ["get", "rank"], 7],
+                ["<", ["get", "rank"], 20],
+                ["match", ["get", "class"], ["bus"], false, true],
+              ]}
+            />
+            <Layer
+              id="poi_r1"
+              type="symbol"
+              source="openmaptiles"
+              source-layer="poi"
+              filter={[
+                "all",
+                ["match", ["geometry-type"], ["MultiPoint", "Point"], true, false],
+                [">=", ["get", "rank"], 1],
+                ["<", ["get", "rank"], 7],
+                ["match", ["get", "class"], ["bus"], false, true],
+              ]}
+            />
+            <Layer
+              id="poi_transit"
+              type="symbol"
+              source="openmaptiles"
+              source-layer="poi"
+              filter={["match", ["get", "class"], ["airport", "rail"], true, false]}
+            />
+          </>
         ) : null}
         <Camera
           ref={cameraRef}

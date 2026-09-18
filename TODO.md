@@ -5,7 +5,7 @@
 - [ ] Rotas
 - [x] Tempo
 - [x] Ícone do App
-- [ ] Permitir alterar a visualização do mapa
+- [x] Permitir alterar a visualização do mapa
 - [x] Vento
 - [x] Búlsola
 - [ ] Cache CDN Cloudfare para o vento?
