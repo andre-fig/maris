@@ -357,7 +357,8 @@ export default function App() {
       </Map>
       <NativeWindLayer
         enabled={windEnabled}
-        opacity={0.8}
+        opacity={0.75}
+        fieldOpacity={0}
         density={0.75}
         animationSpeed={1}
         sampleCoordinate={windEnabled ? windSampleCoordinate : null}

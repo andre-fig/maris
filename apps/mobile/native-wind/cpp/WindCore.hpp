@@ -221,11 +221,13 @@ inline std::array<ClipVertex, 4> quad(const Plan &p, const double *m,
           project((p.right + 1) / n, (p.bottom + 1) / n, 1, 1, m, zoom)};
 }
 struct Particle {
-  static constexpr size_t trailCapacity = 75;
+  static constexpr size_t trailCapacity = 40;
+  static constexpr double trailSampleInterval = 1. / 30.;
   double x = 0, y = 0;
   float age = 100, lifetime = 4;
   std::array<std::array<double, 2>, trailCapacity> trail{};
   size_t head = 0, size = 0;
+  double trailAccumulator = 0;
 };
 // Five equally sized groups: retain 0/20/40/60/80/100% locally, using
 // decoded MET m/s, never the animation-speed multiplier.
@@ -292,6 +294,7 @@ public:
         p.lifetime = 2 + float(rng() * 3);
         p.size = 0;
         p.head = 0;
+        p.trailAccumulator = 0;
         if (!sampleTransition(f, old, progress, p.x, p.y, u, v))
           continue;
       }
@@ -311,11 +314,17 @@ public:
       if (int(index % 5) >= windParticleGroups(std::hypot(midU, midV))) {
         p.size = 0;
         p.head = 0;
+        p.trailAccumulator = 0;
         continue;
       }
-      p.trail[p.head] = {p.x, p.y};
-      p.head = (p.head + 1) % Particle::trailCapacity;
-      p.size = std::min(Particle::trailCapacity, p.size + 1);
+      p.trailAccumulator += dt;
+      if (p.trailAccumulator >= Particle::trailSampleInterval) {
+        p.trailAccumulator = std::fmod(
+            p.trailAccumulator, Particle::trailSampleInterval);
+        p.trail[p.head] = {p.x, p.y};
+        p.head = (p.head + 1) % Particle::trailCapacity;
+        p.size = std::min(Particle::trailCapacity, p.size + 1);
+      }
       for (size_t i = 1; i < p.size; i++) {
         float alpha = float(i) / p.size *
                       std::clamp((p.lifetime - p.age) * 2, 0.f, 1.f) *

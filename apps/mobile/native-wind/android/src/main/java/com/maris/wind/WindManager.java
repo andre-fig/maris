@@ -30,6 +30,10 @@ public class WindManager extends SimpleViewManager<WindControl> {
   public void opacity(WindControl view, float value) {
     view.opacity = Math.max(0, Math.min(1, value));
   }
+  @ReactProp(name = "fieldOpacity", defaultFloat = .65f)
+  public void fieldOpacity(WindControl view, float value) {
+    view.fieldOpacity = Math.max(0, Math.min(1, value));
+  }
   @ReactProp(name = "density", defaultFloat = .6f)
   public void density(WindControl view, float value) {
     view.density = Math.max(0, Math.min(1, value));

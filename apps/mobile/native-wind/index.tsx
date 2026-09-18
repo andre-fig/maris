@@ -3,6 +3,7 @@ import { requireNativeComponent, type ViewProps, type NativeSyntheticEvent } fro
 export type WindLayerProps = ViewProps & {
   enabled: boolean;
   opacity?: number;
+  fieldOpacity?: number;
   density?: number;
   animationSpeed?: number;
   sampleCoordinate?: [number, number] | null;

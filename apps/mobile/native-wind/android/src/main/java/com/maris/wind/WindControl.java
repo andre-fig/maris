@@ -26,7 +26,7 @@ public class WindControl extends View
                          String url);
   static native boolean cached(long id, int gen, int x, int y, String url);
   static native boolean publish(long id, int gen);
-  static native void configure(long id, float opacity, float density,
+  static native void configure(long id, float opacity, float fieldOpacity, float density,
                                float speed, boolean visible);
   static native boolean fadedOut(long id);
   static native double speedAtCenter(long id, double longitude, double latitude);
@@ -47,7 +47,7 @@ public class WindControl extends View
   static native void save(long id, int gen, String path, String catalog, long now);
   boolean enabled = false, active = true, attached = false;
   final boolean benchmarkEnabled;
-  float opacity = .65f, density = .6f, speed = 1;
+  float opacity = .65f, fieldOpacity = .65f, density = .6f, speed = 1;
   MapView mapView;
   MapLibreMap map;
   Style style;
@@ -184,7 +184,7 @@ public class WindControl extends View
           else
             style.addLayer(layer);
         }
-        configure(id, opacity, density, speed, true);
+        configure(id, opacity, fieldOpacity, density, speed, true);
         if (nanos - checked > 350000000L) {
           checked = nanos;
           var b = map.getProjection().getVisibleRegion().latLngBounds;
@@ -200,7 +200,7 @@ public class WindControl extends View
         map.triggerRepaint();
       }
     } else if (layer != null) {
-      configure(id, opacity, density, speed, false);
+      configure(id, opacity, fieldOpacity, density, speed, false);
       if (fadedOut(id)) remove();
       else if (map != null) map.triggerRepaint();
     }

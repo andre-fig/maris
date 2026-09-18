@@ -1,4 +1,4 @@
-- [x] Mapa-base
+- [ ] Mapa-base: trocar ao clicar no GPS
 - [ ] SOUNDG
 - [x] Régua
 - [x] GPS
@@ -14,10 +14,13 @@
 - [ ] Direcão do vento na badge
 - [x] Criar Drawer
 - [ ] Criar bulsola no drawer
-- [x] Criar informações da carta
+- [ ] Criar informações da carta: exibir ao clicar na coordenada
 - [x] Deixar medidas em nós
+- [ ] Painel de navegação
+- [ ] Painel de rota
+- [ ] Coordenadas
 
-brasil: https://forms.cloud.microsoft/Pages/ResponsePage.aspx?id=yS-tgvNBlESbEpJ2DHuMeq5isCLUG5VJlUhxrm76w5JURThVREwyTVJTUEZQNVpDUVVLTTlKTEs4TS4u
+      brasil: https://forms.cloud.microsoft/Pages/ResponsePage.aspx?id=yS-tgvNBlESbEpJ2DHuMeq5isCLUG5VJlUhxrm76w5JURThVREwyTVJTUEZQNVpDUVVLTTlKTEs4TS4u
 
 eua: https://www.charts.noaa.gov/ENCs/ENCs.shtml?utm_source=chatgpt.com
 
