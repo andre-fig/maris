@@ -35,22 +35,23 @@ const API_URL =
 const LOCATION_MATCH_THRESHOLD_KM = 0.08;
 
 const MOCK_CHART_INFORMATION = [
-  ["Fonte", "NOAA"],
-  ["Célula ENC", "US5MIABC"],
-  ["Edição", "2"],
-  ["Atualização", "0"],
-  ["Data de emissão", "03/09/2025"],
-  ["Última atualização aplicada", "03/09/2025"],
-  ["Escala de compilação", "1:22.000"],
+  ["Source", "NOAA"],
+  ["ENC Cell", "US5MIABC"],
+  ["Edition", "2"],
+  ["Update Number", "0"],
+  ["Issue Date", "Sep 3, 2025"],
+  ["Last Update Applied", "Sep 3, 2025"],
+  ["Compilation Scale", "1:22,000"],
   [
-    "Cobertura",
-    "Biscayne Bay, Key Biscayne, Biscayne Channel, No Name Harbor e Cape Florida Channel",
+    "Coverage",
+    "Biscayne Bay, Key Biscayne, Biscayne Channel, No Name Harbor, Cape Florida Channel",
   ],
-  ["Qualidade dos dados", "CATZOC A1"],
-  ["Datum horizontal", "WGS 84"],
-  ["Referência de profundidade", "datum vertical informado pela ENC"],
-  ["Fonte do levantamento", "NOAA / levantamento hidrográfico oficial"],
-  ["Data do levantamento", "conforme registro da área coberta"],
+  ["Data Quality", "CATZOC A1"],
+  ["Horizontal Datum", "WGS 84"],
+  ["Sounding Datum", "Chart datum defined by the ENC"],
+  ["Survey Source", "NOAA / official hydrographic survey"],
+  ["Survey Date", "Date recorded for the covered survey area"],
+  ["Processed by MARIS", "Sep 17, 2026"],
 ] as const;
 
 function distanceKm(a: [number, number], b: [number, number]) {
@@ -318,17 +319,19 @@ export default function App() {
               setCourseUp(shouldEnableCourseUp);
             }}
           />
-          <WindPanel
-            enabled={windEnabled}
-            centerWindSpeed={centerWindSpeed}
-            currentWindSpeed={currentWeather.windSpeed}
-            onToggle={() => {
-              setCenterWindSpeed(null);
-              setWindSampleCoordinate([viewState.longitude, viewState.latitude]);
-              setWindEnabled((enabled) => !enabled);
-            }}
-          />
         </View>
+      </View>
+      <View pointerEvents="box-none" style={styles.windOverlay}>
+        <WindPanel
+          enabled={windEnabled}
+          centerWindSpeed={centerWindSpeed}
+          currentWindSpeed={currentWeather.windSpeed}
+          onToggle={() => {
+            setCenterWindSpeed(null);
+            setWindSampleCoordinate([viewState.longitude, viewState.latitude]);
+            setWindEnabled((enabled) => !enabled);
+          }}
+        />
       </View>
       <View pointerEvents="none" style={styles.scaleOverlay}>
         <ScaleRuler
@@ -345,11 +348,12 @@ export default function App() {
         closeSignal={mapSheetCloseSignal}
         onClose={() => setMapSheetVisible(false)}
       >
-        <BlurText style={styles.sheetTitle}>Informações da carta</BlurText>
+        <BlurText style={styles.sheetTitle}>Chart information</BlurText>
         <ScrollView
           style={styles.chartInfoList}
           contentContainerStyle={styles.chartInfoContent}
-          showsVerticalScrollIndicator={false}
+          showsVerticalScrollIndicator
+          persistentScrollbar
         >
           {MOCK_CHART_INFORMATION.map(([label, value], index) => (
             <View key={label} style={styles.chartInfoRow}>
@@ -375,9 +379,11 @@ const styles = StyleSheet.create({
   },
   chartInfoList: {
     maxHeight: 520,
+    marginRight: -20,
   },
   chartInfoContent: {
     paddingBottom: 4,
+    paddingRight: 20,
   },
   chartInfoRow: {
     minHeight: 38,
@@ -433,5 +439,10 @@ const styles = StyleSheet.create({
   controlsStack: {
     alignItems: "flex-end",
     gap: 8,
+  },
+  windOverlay: {
+    position: "absolute",
+    top: 64,
+    right: 38,
   },
 });

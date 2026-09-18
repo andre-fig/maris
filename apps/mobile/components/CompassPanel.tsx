@@ -37,7 +37,7 @@ export function CompassPanel({
 
   return (
     <Pressable
-      accessibilityLabel="Orientar mapa para o norte"
+      accessibilityLabel="Orient map to north"
       accessibilityRole="button"
       onPress={onPress}
       style={({ pressed }) => [styles.button, pressed && styles.pressed]}

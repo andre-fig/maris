@@ -51,7 +51,7 @@ export function WeatherPanel({ weather, visible, style }: WeatherPanelProps) {
           {typeof weather?.rain_probability_percent === "number" ? (
             <BlurText
               style={styles.rainChance}
-              accessibilityLabel={`Chance de chuva na próxima hora: ${Math.round(weather.rain_probability_percent)} por cento`}
+              accessibilityLabel={`Chance of rain in the next hour: ${Math.round(weather.rain_probability_percent)} percent`}
             >
               {Math.round(weather.rain_probability_percent)}%
             </BlurText>
@@ -62,7 +62,7 @@ export function WeatherPanel({ weather, visible, style }: WeatherPanelProps) {
             weather
               ? `${weather.condition}, ${Math.round(
                   weather.temperature_celsius,
-                )} graus, umidade ${weather.humidity_percent} por cento, vento ${windSpeedInKnots} nós, precipitação ${weather.precipitation_millimetres_last_hour} milímetros na última hora`
+                )} degrees, humidity ${weather.humidity_percent} percent, wind ${windSpeedInKnots} knots, precipitation ${weather.precipitation_millimetres_last_hour} millimetres in the last hour`
               : undefined
           }
         >

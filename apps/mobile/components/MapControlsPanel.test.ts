@@ -50,9 +50,9 @@ test("Android location icon loses its fill off GPS and preserves centered/course
     assert.equal(icons()[0].props.name, "navigation");
     await act(async () => { renderer!.update(panel(false, false)); });
     assert.equal(icons()[0].props.name, "navigation-variant-outline");
-    renderer!.root.find(node => node.props.accessibilityLabel === "Centralizar na minha localização").props.onPress();
+    renderer!.root.find(node => node.props.accessibilityLabel === "Center on my location").props.onPress();
     assert.equal(presses, 1);
-    renderer!.root.find(node => node.props.accessibilityLabel === "Abrir opções do mapa").props.onPress();
+    renderer!.root.find(node => node.props.accessibilityLabel === "Open map options").props.onPress();
     assert.equal(mapPresses, 1);
   } finally {
     if (renderer) await act(async () => { renderer!.unmount(); });

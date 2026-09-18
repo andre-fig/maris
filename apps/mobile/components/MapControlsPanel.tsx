@@ -22,7 +22,7 @@ export function MapControlsPanel({
   return (
     <BlurPanel alignSelf="flex-end">
       <Pressable
-        accessibilityLabel="Centralizar na minha localização"
+        accessibilityLabel="Center on my location"
         accessibilityRole="button"
         onPress={onLocate}
         style={({ pressed }) => [styles.action, pressed && styles.pressed]}
@@ -43,7 +43,7 @@ export function MapControlsPanel({
         )}
       </Pressable>
       <Pressable
-        accessibilityLabel="Abrir opções do mapa"
+        accessibilityLabel="Open map options"
         accessibilityRole="button"
         onPress={onMapPress}
         style={({ pressed }) => [styles.action, pressed && styles.pressed]}

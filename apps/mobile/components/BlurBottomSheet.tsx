@@ -97,7 +97,7 @@ export function BlurBottomSheet({
             tint="systemMaterialDark"
             style={StyleSheet.absoluteFill}
           />
-          <View accessible accessibilityLabel="Arraste para baixo para fechar" style={styles.handle} />
+          <View accessible accessibilityLabel="Drag down to close" style={styles.handle} />
           <View style={styles.content}>{children}</View>
         </Animated.View>
     </View>

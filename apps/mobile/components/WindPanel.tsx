@@ -30,7 +30,8 @@ const WIND_LEGEND = [
 ] as const;
 
 const LEGEND_ROW_HEIGHT = BLUR_TEXT_LINE_HEIGHT;
-const LEGEND_TOP = BLUR_PANEL_ICON_SIZE;
+const CLOSED_HEIGHT = 32;
+const LEGEND_TOP = CLOSED_HEIGHT;
 const EXPANDED_HEIGHT = LEGEND_TOP + WIND_LEGEND.length * LEGEND_ROW_HEIGHT;
 
 export function WindPanel({
@@ -46,13 +47,17 @@ export function WindPanel({
 }) {
   const expansion = useRef(new Animated.Value(enabled ? 1 : 0)).current;
   const selectedBand = enabled ? windLegendBand(centerWindSpeed) : -1;
-  const hasCurrentWind = typeof currentWindSpeed === "number" &&
-    Number.isFinite(currentWindSpeed) && currentWindSpeed >= 0;
+  const hasCurrentWind =
+    typeof currentWindSpeed === "number" &&
+    Number.isFinite(currentWindSpeed) &&
+    currentWindSpeed >= 0;
   const speedText = hasCurrentWind
     ? `${Math.round(currentWindSpeed * METRES_PER_SECOND_TO_KNOTS * 10) / 10}`
     : "kn";
   const reservedHeader = hasCurrentWind
-    ? (Math.round(currentWindSpeed * METRES_PER_SECOND_TO_KNOTS * 10) / 10).toString()
+    ? (
+        Math.round(currentWindSpeed * METRES_PER_SECOND_TO_KNOTS * 10) / 10
+      ).toString()
     : null;
   const [headerWidth, setHeaderWidth] = useState(0);
   const [legendWidth, setLegendWidth] = useState(0);
@@ -108,18 +113,21 @@ export function WindPanel({
           {
             width: expansion.interpolate({
               inputRange: [0, 1],
-              outputRange: [hasCurrentWind ? expandedWidth : BLUR_PANEL_ICON_SIZE, expandedWidth],
+              outputRange: [
+                hasCurrentWind ? expandedWidth : BLUR_PANEL_ICON_SIZE,
+                expandedWidth,
+              ],
             }),
             height: expansion.interpolate({
               inputRange: [0, 1],
-              outputRange: [BLUR_PANEL_ICON_SIZE, EXPANDED_HEIGHT],
+              outputRange: [CLOSED_HEIGHT, EXPANDED_HEIGHT],
             }),
           },
         ]}
       >
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={enabled ? "Desativar vento" : "Ativar vento"}
+          accessibilityLabel={enabled ? "Disable wind" : "Enable wind"}
           accessibilityState={{ expanded: enabled, selected: enabled }}
           onPress={onToggle}
           onLayout={({ nativeEvent }) =>
@@ -130,11 +138,19 @@ export function WindPanel({
           <SymbolView
             name={{ ios: "wind", android: "air", web: "air" }}
             size={enabled ? 22 : BLUR_PANEL_ICON_SIZE}
-            style={{ width: BLUR_PANEL_ICON_SIZE, height: BLUR_PANEL_ICON_SIZE }}
+            style={{
+              width: BLUR_PANEL_ICON_SIZE,
+              height: BLUR_PANEL_ICON_SIZE,
+            }}
             tintColor="#FFFFFF"
             type="monochrome"
           />
-          <Animated.View style={[styles.headerText, { opacity: hasCurrentWind ? 1 : expansion }]}>
+          <Animated.View
+            style={[
+              styles.headerText,
+              { opacity: hasCurrentWind ? 1 : expansion },
+            ]}
+          >
             <View
               accessible={false}
               accessibilityElementsHidden
@@ -142,24 +158,36 @@ export function WindPanel({
               style={styles.measurement}
             >
               {reservedHeader !== null ? (
-                <BlurText style={styles.speedValue} numberOfLines={1}>{reservedHeader}</BlurText>
+                <BlurText style={styles.speedValue} numberOfLines={1}>
+                  {reservedHeader}
+                </BlurText>
               ) : null}
-              <BlurText style={styles.headerMeasureText} numberOfLines={1}>kn</BlurText>
+              <BlurText style={styles.headerMeasureText} numberOfLines={1}>
+                kn
+              </BlurText>
             </View>
             {!enabled && hasCurrentWind ? (
-              <View style={styles.speedReadout} accessible accessibilityLabel={`Vento: ${speedText} kn`}>
-                <BlurText style={styles.speedValue} numberOfLines={1}>{speedText}</BlurText>
-                <BlurText style={styles.speedUnit} numberOfLines={1}>kn</BlurText>
+              <View
+                style={styles.speedReadout}
+                accessible
+                accessibilityLabel={`Wind: ${speedText} kn`}
+              >
+                <BlurText style={styles.speedValue} numberOfLines={1}>
+                  {speedText}
+                </BlurText>
+                <BlurText style={styles.speedUnit} numberOfLines={1}>
+                  kn
+                </BlurText>
               </View>
-            ) : <BlurText
-              style={[styles.legendText, styles.labelOverlay]}
-              numberOfLines={1}
-              accessibilityLabel={
-                "Nós"
-              }
-            >
-              kn
-            </BlurText>}
+            ) : (
+              <BlurText
+                style={[styles.legendText, styles.labelOverlay, styles.headerLabelOverlay]}
+                numberOfLines={1}
+                accessibilityLabel={"Knots"}
+              >
+                kn
+              </BlurText>
+            )}
           </Animated.View>
         </Pressable>
         <Animated.View
@@ -191,7 +219,10 @@ export function WindPanel({
                 >
                   {formatWindLegendLabel(label, "kn")}
                 </BlurText>
-                <BlurText style={[styles.legendText, styles.labelOverlay]} numberOfLines={1}>
+                <BlurText
+                  style={[styles.legendText, styles.labelOverlay]}
+                  numberOfLines={1}
+                >
                   {formatWindLegendLabel(label, "kn")}
                 </BlurText>
               </View>
@@ -205,19 +236,28 @@ export function WindPanel({
 
 const styles = StyleSheet.create({
   headerMeasureText: { fontSize: 12, lineHeight: 14 },
-  headerText: { height: BLUR_PANEL_ICON_SIZE, justifyContent: "center" },
-  speedReadout: { position: "absolute", top: 0, bottom: 0, left: 0, right: 0, alignItems: "center", justifyContent: "center" },
-  speedValue: { fontSize: 16, lineHeight: 18 },
+  headerText: { height: CLOSED_HEIGHT, justifyContent: "center" },
+  speedReadout: {
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    left: 0,
+    right: 0,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  speedValue: { fontSize: 16, lineHeight: 22 },
   speedUnit: { fontSize: 10, lineHeight: 10, marginTop: -2 },
   legendText: { fontSize: 12 },
   measurement: { opacity: 0 },
   labelOverlay: { position: "absolute", left: 0, top: 0 },
+  headerLabelOverlay: { top: (CLOSED_HEIGHT - BLUR_TEXT_LINE_HEIGHT) / 2 },
   content: { overflow: "hidden" },
   header: {
     position: "absolute",
     top: 0,
     left: 0,
-    height: BLUR_PANEL_ICON_SIZE,
+    height: CLOSED_HEIGHT,
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
