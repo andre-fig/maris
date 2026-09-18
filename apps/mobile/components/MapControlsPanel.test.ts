@@ -65,16 +65,16 @@ test("Android location icon loses its fill off GPS and preserves centered/course
     assert.equal(globeIcons()[0].props.name, "language");
     assert.equal(mapModes.at(-1), "satellite");
     await act(async () => {
-      renderer!.root.find(node => node.props.accessibilityLabel === "Show 3D view").props.onPress();
+      renderer!.root.find(node => node.props.accessibilityLabel === "Show bright map").props.onPress();
     });
     const threeDimensionalIcon = renderer!.root.findByType("MaterialIcons" as any);
     assert.equal(threeDimensionalIcon.props.name, "3d-rotation");
-    assert.equal(mapModes.at(-1), "three-dimensional");
+    assert.equal(mapModes.at(-1), "bright");
     await act(async () => {
-      renderer!.root.find(node => node.props.accessibilityLabel === "Show street map").props.onPress();
+      renderer!.root.find(node => node.props.accessibilityLabel === "Show Liberty map").props.onPress();
     });
     assert.equal(globeIcons()[0].props.name, "globe");
-    assert.equal(mapModes.at(-1), "streets");
+    assert.equal(mapModes.at(-1), "liberty");
     renderer!.root.find(node => node.props.accessibilityLabel === "Open map options").props.onPress();
     assert.equal(mapPresses, 1);
     await act(async () => renderer!.update(panel(false, false, true)));

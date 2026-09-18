@@ -20,7 +20,7 @@ import { BlurText } from "./components/BlurText";
 import { UserLocationMarker } from "./components/UserLocationMarker";
 import {
   MapControlsPanel,
-  type MapMode,
+  type MapStyleMode,
 } from "./components/MapControlsPanel";
 import { WindPanel } from "./components/WindPanel";
 import { DrawerCompass } from "./components/DrawerCompass";
@@ -38,6 +38,7 @@ import {
 } from "./weather/current-weather";
 
 const BASE_MAP_STYLE = "https://tiles.openfreemap.org/styles/bright";
+const LIBERTY_MAP_STYLE = "https://tiles.openfreemap.org/styles/liberty";
 const GOOGLE_SATELLITE_STYLE = JSON.stringify({
   version: 8,
   glyphs: "https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf",
@@ -101,7 +102,9 @@ export default function App() {
   const cameraRef = useRef<CameraRef>(null);
   const [locationActive, setLocationActive] = useState(false);
   const [courseUp, setCourseUp] = useState(false);
-  const [mapMode, setMapMode] = useState<MapMode>("streets");
+  const [mapStyleMode, setMapStyleMode] = useState<
+    MapStyleMode | "initial"
+  >("initial");
   const [windEnabled, setWindEnabled] = useState(false);
   const [mapSheetVisible, setMapSheetVisible] = useState(false);
   const [chartRequested, setChartRequested] = useState(false);
@@ -220,11 +223,15 @@ export default function App() {
         ref={mapRef}
         style={styles.map}
         mapStyle={
-          mapMode === "streets"
-            ? offlineArea
+          mapStyleMode === "satellite"
+            ? GOOGLE_SATELLITE_STYLE
+            : mapStyleMode === "liberty"
+              ? LIBERTY_MAP_STYLE
+              : mapStyleMode === "bright"
+                ? BASE_MAP_STYLE
+                : offlineArea
               ? JSON.stringify(offlineArea.baseStyle)
               : BASE_MAP_STYLE
-            : GOOGLE_SATELLITE_STYLE
         }
         logo={false}
         attribution={false}
@@ -244,7 +251,7 @@ export default function App() {
         onRegionIsChanging={cameraEvents.onRegionIsChanging}
         onRegionDidChange={cameraEvents.onRegionDidChange}
       >
-        {mapMode === "streets" ? (
+        {mapStyleMode !== "satellite" ? (
           <Layer
             id="poi_transit"
             type="symbol"
@@ -273,7 +280,9 @@ export default function App() {
             type="symbol"
             source-layer="soundings"
             beforeId={
-              mapMode === "streets" ? "water_name_point_label" : undefined
+              mapStyleMode !== "satellite"
+                ? "water_name_point_label"
+                : undefined
             }
             minzoom={10}
             layout={{
@@ -341,7 +350,7 @@ export default function App() {
           <MapControlsPanel
             locationActive={locationActive}
             courseUp={courseUp}
-            onMapModeChange={setMapMode}
+            onMapModeChange={setMapStyleMode}
             showMapButton={mapButtonVisible}
             mapLoading={chartRequested && chartInformation.loading && !mapSheetVisible}
             onMapPress={() => {

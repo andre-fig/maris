@@ -20,14 +20,18 @@ type MapControlsPanelProps = {
   courseUp: boolean;
   onLocate: () => void;
   onMapPress: () => void;
-  onMapModeChange?: (mode: MapMode) => void;
+  onMapModeChange?: (mode: MapStyleMode) => void;
   mapLoading?: boolean;
   showMapButton?: boolean;
 };
 
-export type MapMode = "streets" | "satellite" | "three-dimensional";
+export type MapStyleMode = "bright" | "satellite" | "liberty";
 
-const MAP_MODES: MapMode[] = ["streets", "satellite", "three-dimensional"];
+const MAP_STYLE_AFTER_PRESS: MapStyleMode[] = [
+  "satellite",
+  "bright",
+  "liberty",
+];
 
 export function MapControlsPanel({
   locationActive,
@@ -39,15 +43,14 @@ export function MapControlsPanel({
   showMapButton = true,
 }: MapControlsPanelProps) {
   const isAndroid = Platform.OS === "android";
-  const [mapModeIndex, setMapModeIndex] = useState(0);
-  const mapMode = MAP_MODES[mapModeIndex];
+  const [iconIndex, setIconIndex] = useState(0);
   const reveal = usePanelTransition(showMapButton ? 1 : 0);
   const globeAccessibilityLabel =
-    mapMode === "streets"
+    iconIndex === 0
       ? "Show satellite map"
-      : mapMode === "satellite"
-        ? "Show 3D view"
-        : "Show street map";
+      : iconIndex === 1
+        ? "Show bright map"
+        : "Show Liberty map";
 
   return (
     <BlurPanel alignSelf="flex-end">
@@ -89,19 +92,18 @@ export function MapControlsPanel({
           accessibilityLabel={globeAccessibilityLabel}
           accessibilityRole="button"
           onPress={() => {
-            const nextIndex = (mapModeIndex + 1) % MAP_MODES.length;
-            setMapModeIndex(nextIndex);
-            onMapModeChange?.(MAP_MODES[nextIndex]);
+            onMapModeChange?.(MAP_STYLE_AFTER_PRESS[iconIndex]);
+            setIconIndex((iconIndex + 1) % MAP_STYLE_AFTER_PRESS.length);
           }}
           style={({ pressed }) => [styles.action, pressed && styles.pressed]}
         >
-          {mapMode === "three-dimensional" && isAndroid ? (
+          {iconIndex === 2 && isAndroid ? (
             <MaterialIcons
               color="#FFFFFF"
               name="3d-rotation"
               size={BLUR_PANEL_ICON_SIZE}
             />
-          ) : mapMode === "three-dimensional" ? (
+          ) : iconIndex === 2 ? (
             <SymbolView
               name="view.3d"
               size={BLUR_PANEL_ICON_SIZE}
@@ -111,14 +113,12 @@ export function MapControlsPanel({
           ) : isAndroid ? (
             <FontAwesome6
               color="#FFFFFF"
-              name={mapMode === "satellite" ? "language" : "globe"}
+              name={iconIndex === 1 ? "language" : "globe"}
               size={BLUR_PANEL_ICON_SIZE}
             />
           ) : (
             <SymbolView
-              name={
-                mapMode === "satellite" ? "globe" : "globe.americas.fill"
-              }
+              name={iconIndex === 1 ? "globe" : "globe.americas.fill"}
               size={BLUR_PANEL_ICON_SIZE}
               tintColor="#FFFFFF"
               type="monochrome"

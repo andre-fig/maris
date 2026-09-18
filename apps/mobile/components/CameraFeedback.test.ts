@@ -74,8 +74,10 @@ test("repeated native camera events settle without a render/command feedback loo
       "https://mt2.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
       "https://mt3.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
     ]);
-    await act(async () => controls().props.onMapModeChange("streets"));
+    await act(async () => controls().props.onMapModeChange("bright"));
     assert.equal(map().props.mapStyle, "https://tiles.openfreemap.org/styles/bright");
+    await act(async () => controls().props.onMapModeChange("liberty"));
+    assert.equal(map().props.mapStyle, "https://tiles.openfreemap.org/styles/liberty");
     await act(async () => renderer!.root.findByType("WindPanel" as any).props.onToggle());
     await flush();
     assert.ok(fixture.renders < 10, "unchanged wind coordinates must not restart rendering");
