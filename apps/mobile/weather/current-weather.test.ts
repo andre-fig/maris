@@ -105,7 +105,7 @@ test('restores fresh weather after the card is cleared and the camera returns be
     assert.equal(calls,1);
     assert.equal(hook.windSpeed,4);
     await act(async () => hook.onCameraChanging([-79,25]));
-    assert.equal(hook.windSpeed,undefined,'old wind is hidden while moving to an unqueried area');
+    assert.equal(hook.windSpeed,4,'old wind remains visible while loading an unqueried area');
     await act(async () => hook.onCameraChanging([-80,25]));
     assert.equal(hook.windSpeed,4,'returning to valid cached data restores wind without fetching');
 
@@ -113,12 +113,12 @@ test('restores fresh weather after the card is cleared and the camera returns be
     assert.equal(hook.windSpeed,undefined,'disabled weather cannot expose the old speed');
     await act(async () => hook.onCameraDidChange([-79,25]));
     await act(async () => renderer.update(React.createElement(Harness,{enabled:true})));
-    assert.equal(hook.weather,undefined,'unrelated weather is hidden');
+    assert.equal(hook.windSpeed,undefined,'reopening does not expose the closed panel reading');
     await act(async () => hook.onCameraDidChange([-80,25]));
     await act(async () => { t.mock.timers.tick(1_000); });
-    assert.equal(hook.weather,cached,'fresh cached payload is restored, not just a skipped request');
+    assert.equal(calls,2,'reopening refreshes the wind instead of restoring the cache');
+    assert.equal(hook.weather?.wind_speed_metres_per_second,4);
     assert.equal(hook.error,undefined);
-    assert.equal(calls,1,'restoring the cache does not call the API');
 
     // The same round trip after TTL must fetch, not revive an expired entry.
     await act(async () => renderer.update(React.createElement(Harness,{enabled:false})));
@@ -127,7 +127,7 @@ test('restores fresh weather after the card is cleared and the camera returns be
     await act(async () => renderer.update(React.createElement(Harness,{enabled:true})));
     await act(async () => hook.onCameraDidChange([-80,25]));
     await act(async () => { t.mock.timers.tick(1_000); });
-    assert.equal(calls,2,'expired weather is fetched again');
+    assert.equal(calls,3,'expired weather is fetched again');
     assert.deepEqual(hook.weather,{temperature_celsius:25,latitude:25,longitude:-80,wind_speed_metres_per_second:4});
   } finally {
     if (renderer) await act(async () => renderer.unmount());

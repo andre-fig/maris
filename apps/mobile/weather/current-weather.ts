@@ -46,6 +46,10 @@ const CAMERA_SAMPLE_WINDOW_MS = 180;
 const INERTIA_PROJECTION_MS = 450;
 const EARTH_RADIUS_METRES = 6_371_000;
 
+function isValidWindSpeed(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0;
+}
+
 function toRadians(value: number) {
   return (value * Math.PI) / 180;
 }
@@ -121,6 +125,7 @@ export function useCurrentViewportWeather(
   const cameraSeen = useRef(false);
   const requestGeneration = useRef(0);
   const enabledRef = useRef(enabled);
+  const refreshOnEnable = useRef(false);
 
   const fetchWeather = useCallback(
     async (center: MapCenter) => {
@@ -129,6 +134,7 @@ export function useCurrentViewportWeather(
       if (
         lastSuccessfulWeather.current &&
         lastSuccessfulPoint.current &&
+        !refreshOnEnable.current &&
         isWeatherFresh(lastSuccessAt.current, Date.now()) &&
         distanceMetres(lastSuccessfulPoint.current, center) <
           MINIMUM_FETCH_DISTANCE_METRES
@@ -140,8 +146,8 @@ export function useCurrentViewportWeather(
         return;
       }
 
-      setWindSpeed(undefined);
       activeRequest.current?.abort();
+      refreshOnEnable.current = false;
       const controller = new AbortController();
       const generation = ++requestGeneration.current;
       activeRequest.current = controller;
@@ -169,8 +175,10 @@ export function useCurrentViewportWeather(
           lastSuccessAt.current = Date.now();
           retryAt.current = 0;
           setWeather(payload);
-          const visibleCenter = samples.current.at(-1)?.center ?? pendingTarget.current;
-          setWindSpeed(distanceMetres(center, visibleCenter) < MINIMUM_FETCH_DISTANCE_METRES
+          // Keep the previous reading while this request is in flight. Only
+          // replace it after a completed response, and clear it when that
+          // response does not contain a usable wind speed.
+          setWindSpeed(isValidWindSpeed(payload.wind_speed_metres_per_second)
             ? payload.wind_speed_metres_per_second : undefined);
           setError(undefined);
         }
@@ -196,11 +204,6 @@ export function useCurrentViewportWeather(
   const scheduleFetch = useCallback(
     (center: MapCenter) => {
       pendingTarget.current = center;
-      if (!lastSuccessfulPoint.current ||
-          !isWeatherFresh(lastSuccessAt.current, Date.now()) ||
-          distanceMetres(lastSuccessfulPoint.current, center) >= MINIMUM_FETCH_DISTANCE_METRES) {
-        setWindSpeed(undefined);
-      }
       if (!enabledRef.current && !destinationObserver.current) return;
 
       // A new destination only invalidates an in-flight request when it is a
@@ -225,10 +228,6 @@ export function useCurrentViewportWeather(
   );
 
   const recordCameraCenter = useCallback((center: MapCenter) => {
-    const valid = !activeRequest.current && lastSuccessfulPoint.current &&
-      isWeatherFresh(lastSuccessAt.current, Date.now()) &&
-      distanceMetres(lastSuccessfulPoint.current, center) < MINIMUM_FETCH_DISTANCE_METRES;
-    setWindSpeed(valid ? lastSuccessfulWeather.current?.wind_speed_metres_per_second : undefined);
     cameraSeen.current = true;
     const timestamp = Date.now();
     samples.current = [
@@ -287,6 +286,10 @@ export function useCurrentViewportWeather(
     enabledRef.current = enabled;
 
     if (!enabled) {
+      // Closing the wind panel must discard the displayed reading. Reopening
+      // it should request a fresh value instead of briefly showing the old one.
+      setWindSpeed(undefined);
+      refreshOnEnable.current = true;
       if (debounceTimer.current && !destinationObserver.current) {
         clearTimeout(debounceTimer.current);
         debounceTimer.current = undefined;

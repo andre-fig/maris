@@ -161,13 +161,14 @@ export function ScaleRuler({
   const { opacity } = useFadeVisibility(showImmediately);
 
   return (
-    <View style={[styles.container, { width: viewportWidth }]}>
+    <View pointerEvents="box-none" style={[styles.container, { width: viewportWidth }]}>
       <WeatherPanel
         style={styles.weatherBadge}
         visible={showWeather}
         weather={weather}
       />
       <Animated.View
+        pointerEvents="none"
         style={[
           styles.rulerContainer,
           {

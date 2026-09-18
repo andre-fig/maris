@@ -1,6 +1,12 @@
 import { SymbolView } from "expo-symbols";
 import { useState } from "react";
-import { Animated, Pressable, StyleSheet, View, useWindowDimensions } from "react-native";
+import {
+  Animated,
+  Pressable,
+  StyleSheet,
+  View,
+  useWindowDimensions,
+} from "react-native";
 
 import {
   BLUR_PANEL_ICON_SIZE,
@@ -60,6 +66,10 @@ export function WindPanel({
         Math.round(currentWindSpeed * METRES_PER_SECOND_TO_KNOTS * 10) / 10
       ).toString()
     : null;
+  const reservedHeaderMeasurement = reservedHeader !== null &&
+    reservedHeader.replace(/\./g, "").length === 2
+    ? `${reservedHeader}0`
+    : reservedHeader;
   const [headerWidth, setHeaderWidth] = useState(0);
   const [legendWidth, setLegendWidth] = useState(0);
   const expandedWidth = Math.max(
@@ -68,7 +78,9 @@ export function WindPanel({
     legendWidth,
   );
 
-  const panelWidth = usePanelTransition(enabled || hasCurrentWind ? expandedWidth : BLUR_PANEL_ICON_SIZE);
+  const panelWidth = usePanelTransition(
+    enabled || hasCurrentWind ? expandedWidth : BLUR_PANEL_ICON_SIZE,
+  );
   const headerOpacity = usePanelTransition(enabled || hasCurrentWind ? 1 : 0);
 
   return (
@@ -108,18 +120,28 @@ export function WindPanel({
         <View
           testID="wind-header-measurement"
           style={styles.measurementRow}
-          onLayout={({ nativeEvent }) => setHeaderWidth(Math.ceil(nativeEvent.layout.width))}
+          onLayout={({ nativeEvent }) =>
+            setHeaderWidth(Math.ceil(nativeEvent.layout.width))
+          }
         >
           <View style={{ width: BLUR_PANEL_ICON_SIZE }} />
           <View>
-            {reservedHeader !== null ? <BlurText style={styles.speedValue} numberOfLines={1}>{reservedHeader}</BlurText> : null}
-            <BlurText style={styles.headerMeasureText} numberOfLines={1}>kn</BlurText>
+            {reservedHeader !== null ? (
+              <BlurText style={styles.speedValue} numberOfLines={1}>
+                {reservedHeaderMeasurement}
+              </BlurText>
+            ) : null}
+            <BlurText style={styles.headerMeasureText} numberOfLines={1}>
+              kn
+            </BlurText>
           </View>
         </View>
         <View
           testID="wind-legend-measurement"
           style={styles.measurementRow}
-          onLayout={({ nativeEvent }) => setLegendWidth(Math.ceil(nativeEvent.layout.width))}
+          onLayout={({ nativeEvent }) =>
+            setLegendWidth(Math.ceil(nativeEvent.layout.width))
+          }
         >
           <View style={{ width: 12 }} />
           <View>
@@ -148,7 +170,11 @@ export function WindPanel({
           accessibilityLabel={enabled ? "Disable wind" : "Enable wind"}
           accessibilityState={{ expanded: enabled, selected: enabled }}
           onPress={onToggle}
-          style={({ pressed }) => [styles.header, { width: headerWidth || undefined }, pressed && styles.pressed]}
+          style={({ pressed }) => [
+            styles.header,
+            { width: headerWidth || undefined },
+            pressed && styles.pressed,
+          ]}
         >
           <SymbolView
             name={{ ios: "wind", android: "air", web: "air" }}
@@ -161,10 +187,7 @@ export function WindPanel({
             type="monochrome"
           />
           <Animated.View
-            style={[
-              styles.headerText,
-              { opacity: headerOpacity },
-            ]}
+            style={[styles.headerText, { opacity: headerOpacity }]}
           >
             <View
               accessible={false}
@@ -174,7 +197,7 @@ export function WindPanel({
             >
               {reservedHeader !== null ? (
                 <BlurText style={styles.speedValue} numberOfLines={1}>
-                  {reservedHeader}
+                  {reservedHeaderMeasurement}
                 </BlurText>
               ) : null}
               <BlurText style={styles.headerMeasureText} numberOfLines={1}>
@@ -196,7 +219,11 @@ export function WindPanel({
               </View>
             ) : (
               <BlurText
-                style={[styles.legendText, styles.labelOverlay, styles.headerLabelOverlay]}
+                style={[
+                  styles.legendText,
+                  styles.labelOverlay,
+                  styles.headerLabelOverlay,
+                ]}
                 numberOfLines={1}
                 accessibilityLabel={"Knots"}
               >
@@ -209,7 +236,10 @@ export function WindPanel({
           pointerEvents="none"
           accessibilityElementsHidden={!enabled}
           importantForAccessibility={enabled ? "auto" : "no-hide-descendants"}
-          style={[styles.legend, { opacity: expansion, width: legendWidth || undefined }]}
+          style={[
+            styles.legend,
+            { opacity: expansion, width: legendWidth || undefined },
+          ]}
         >
           <View style={styles.colorBar} accessible={false}>
             {WIND_LEGEND.map(({ label, color }) => (
@@ -250,7 +280,12 @@ const styles = StyleSheet.create({
   // Measure intrinsic content outside the animated width. Measuring inside it
   // feeds intermediate layout widths back into the animation's target.
   measurementHost: { position: "absolute", left: 0, top: 0, opacity: 0 },
-  measurementRow: { alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 8 },
+  measurementRow: {
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
   headerMeasureText: { fontSize: 12, lineHeight: 14 },
   headerText: { height: CLOSED_HEIGHT, justifyContent: "center" },
   speedReadout: {
@@ -262,7 +297,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  speedValue: { fontSize: 16, lineHeight: 22 },
+  speedValue: { fontSize: 14, lineHeight: 22 },
   speedUnit: { fontSize: 10, lineHeight: 10, marginTop: -2 },
   legendText: { fontSize: 12 },
   measurement: { opacity: 0 },
@@ -276,7 +311,7 @@ const styles = StyleSheet.create({
     height: CLOSED_HEIGHT,
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 4,
     flexShrink: 0,
   },
   pressed: { opacity: 0.62, transform: [{ scale: 0.94 }] },

@@ -339,6 +339,16 @@ export default function App() {
           />
         </View>
       </View>
+      <View pointerEvents="box-none" style={styles.scaleOverlay}>
+        <ScaleRuler
+          latitude={viewState.latitude}
+          maxWidth={scaleMaxWidth}
+          viewportWidth={width}
+          visible={isZooming}
+          weather={currentWeather.weather}
+          zoom={viewState.zoom}
+        />
+      </View>
       <View pointerEvents="box-none" style={styles.windOverlay}>
         <WindPanel
           enabled={windEnabled}
@@ -349,16 +359,6 @@ export default function App() {
             setWindSampleCoordinate([viewState.longitude, viewState.latitude]);
             setWindEnabled((enabled) => !enabled);
           }}
-        />
-      </View>
-      <View pointerEvents="none" style={styles.scaleOverlay}>
-        <ScaleRuler
-          latitude={viewState.latitude}
-          maxWidth={scaleMaxWidth}
-          viewportWidth={width}
-          visible={isZooming}
-          weather={currentWeather.weather}
-          zoom={viewState.zoom}
         />
       </View>
       <BlurBottomSheet

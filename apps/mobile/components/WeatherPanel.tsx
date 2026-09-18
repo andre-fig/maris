@@ -1,6 +1,13 @@
 import { SymbolView } from "expo-symbols";
 import { useEffect, useState } from "react";
-import { Animated, Pressable, StyleProp, StyleSheet, View, ViewStyle } from "react-native";
+import {
+  Animated,
+  Pressable,
+  StyleProp,
+  StyleSheet,
+  View,
+  ViewStyle,
+} from "react-native";
 
 import type { CurrentWeather } from "../weather/current-weather";
 import {
@@ -8,7 +15,7 @@ import {
   iosWeatherIcons,
   openWeatherIconMap,
 } from "../weather/weather-icons";
-import { BLUR_PANEL_ICON_SIZE, BlurPanel } from "./BlurPanel";
+import { BlurPanel } from "./BlurPanel";
 import { BlurText } from "./BlurText";
 import { useFadeVisibility } from "./use-fade-visibility";
 import { usePanelTransition } from "./use-panel-transition";
@@ -38,7 +45,9 @@ export function WeatherPanel({ weather, visible, style }: WeatherPanelProps) {
     ? openWeatherIconMap[weather.icon_code]
     : undefined;
   const windSpeedInKnots = weather
-    ? Math.round(weather.wind_speed_metres_per_second * METRES_PER_SECOND_TO_KNOTS * 10) / 10
+    ? Math.round(
+        weather.wind_speed_metres_per_second * METRES_PER_SECOND_TO_KNOTS * 10,
+      ) / 10
     : undefined;
 
   useEffect(() => {
@@ -52,11 +61,18 @@ export function WeatherPanel({ weather, visible, style }: WeatherPanelProps) {
         key={displayWeather ? "weather-blur-visible" : "weather-blur-hidden"}
         flexDirection="column"
       >
-        <View pointerEvents="none" accessible={false} style={styles.measurementHost}>
-          <View style={styles.forecastMeasure} onLayout={({ nativeEvent }) => {
-            const width = Math.ceil(nativeEvent.layout.width);
-            if (width !== forecastWidth) setForecastWidth(width);
-          }}>
+        <View
+          pointerEvents="none"
+          accessible={false}
+          style={styles.measurementHost}
+        >
+          <View
+            style={styles.forecastMeasure}
+            onLayout={({ nativeEvent }) => {
+              const width = Math.ceil(nativeEvent.layout.width);
+              if (width !== forecastWidth) setForecastWidth(width);
+            }}
+          >
             <BlurText style={styles.forecastTime}>00:00</BlurText>
             <View style={styles.forecastIconMeasure} />
             <BlurText style={styles.forecastTemperature}>00°</BlurText>
@@ -67,28 +83,43 @@ export function WeatherPanel({ weather, visible, style }: WeatherPanelProps) {
           style={[
             styles.content,
             {
-              width: headerWidth > 0
-                ? expansion.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [headerWidth, expandedWidth],
-                  })
-                : undefined,
+              width:
+                headerWidth > 0
+                  ? expansion.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [headerWidth, expandedWidth],
+                    })
+                  : undefined,
               height: expansion.interpolate({
                 inputRange: [0, 1],
-                outputRange: [CLOSED_HEIGHT, CLOSED_HEIGHT + forecast.length * FORECAST_ROW_HEIGHT],
+                outputRange: [
+                  CLOSED_HEIGHT,
+                  CLOSED_HEIGHT + forecast.length * FORECAST_ROW_HEIGHT,
+                ],
               }),
             },
           ]}
         >
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={hasForecast ? (expanded ? "Hide weather forecast" : "Show weather forecast") : undefined}
+            accessibilityLabel={
+              hasForecast
+                ? expanded
+                  ? "Hide weather forecast"
+                  : "Show weather forecast"
+                : undefined
+            }
             accessibilityState={{ expanded: hasForecast && expanded }}
             disabled={!hasForecast}
-            onPress={hasForecast ? () => setExpanded((value) => !value) : undefined}
+            onPress={
+              hasForecast ? () => setExpanded((value) => !value) : undefined
+            }
             onLayout={({ nativeEvent }) => {
               const width = Math.ceil(nativeEvent.layout.width);
-              if (width !== headerWidth) setHeaderWidth(width);
+              // Keep the natural closed width. When the panel is expanded,
+              // this layout callback sees the animated width and must not
+              // replace the compact measurement with it.
+              if (headerWidth === 0 && width > 0) setHeaderWidth(width);
             }}
             style={({ pressed }) => [styles.header, pressed && styles.pressed]}
           >
@@ -129,14 +160,18 @@ export function WeatherPanel({ weather, visible, style }: WeatherPanelProps) {
           <Animated.View
             pointerEvents={expanded ? "auto" : "none"}
             accessibilityElementsHidden={!expanded}
-            importantForAccessibility={expanded ? "auto" : "no-hide-descendants"}
+            importantForAccessibility={
+              expanded ? "auto" : "no-hide-descendants"
+            }
             style={[styles.forecast, { opacity: expansion }]}
           >
             {forecast.map((hour) => {
               const hourIcon = openWeatherIconMap[hour.icon_code];
               return (
                 <View key={hour.forecast_at} style={styles.forecastRow}>
-                  <BlurText style={styles.forecastTime}>{formatHour(hour.forecast_at)}</BlurText>
+                  <BlurText style={styles.forecastTime}>
+                    {formatHour(hour.forecast_at)}
+                  </BlurText>
                   {hourIcon ? (
                     <SymbolView
                       name={{
@@ -149,8 +184,12 @@ export function WeatherPanel({ weather, visible, style }: WeatherPanelProps) {
                       type="hierarchical"
                     />
                   ) : null}
-                  <BlurText style={styles.forecastTemperature}>{Math.round(hour.temperature_celsius)}°</BlurText>
-                  <BlurText style={styles.forecastRain}>{Math.round(hour.rain_probability_percent)}%</BlurText>
+                  <BlurText style={styles.forecastTemperature}>
+                    {Math.round(hour.temperature_celsius)}°
+                  </BlurText>
+                  <BlurText style={styles.forecastRain}>
+                    {Math.round(hour.rain_probability_percent)}%
+                  </BlurText>
                 </View>
               );
             })}
@@ -162,7 +201,10 @@ export function WeatherPanel({ weather, visible, style }: WeatherPanelProps) {
 }
 
 function formatHour(timestamp: string) {
-  return new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" }).format(new Date(timestamp));
+  return new Intl.DateTimeFormat(undefined, {
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(timestamp));
 }
 
 const styles = StyleSheet.create({
@@ -192,7 +234,13 @@ const styles = StyleSheet.create({
     fontSize: 10,
     lineHeight: 10,
   },
-  forecast: { gap: 0 },
+  forecast: {
+    position: "absolute",
+    top: CLOSED_HEIGHT,
+    right: 0,
+    left: 0,
+    gap: 0,
+  },
   forecastRow: {
     height: FORECAST_ROW_HEIGHT,
     flexDirection: "row",
@@ -201,5 +249,10 @@ const styles = StyleSheet.create({
   },
   forecastTime: { width: 48, fontSize: 12, lineHeight: 18 },
   forecastTemperature: { width: 38, fontSize: 13, lineHeight: 18 },
-  forecastRain: { marginLeft: "auto", color: "#8ED8FF", fontSize: 12, lineHeight: 18 },
+  forecastRain: {
+    marginLeft: "auto",
+    color: "#8ED8FF",
+    fontSize: 12,
+    lineHeight: 18,
+  },
 });
