@@ -97,9 +97,8 @@ export function DrawerCompass({ headingValue }: Props) {
   }), undefined, svgMatrixAdapter);
 
   /*
-   * O dial inteiro gira, mas os textos recebem a rotação inversa.
-   * Assim eles mudam de posição ao redor da bússola, porém continuam
-   * sempre retos/horizontais.
+   * The entire dial rotates, while the labels receive the inverse rotation.
+   * They move around the compass while remaining straight and horizontal.
    */
 
   const northTextAnimatedProps = useAnimatedProps(() => ({

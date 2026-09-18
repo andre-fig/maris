@@ -107,7 +107,7 @@ export class OfflineAreas {
       } else {
         record.state = "failed";
         record.error =
-          "Download interrompido. Tente novamente; a revisão anterior foi preservada.";
+          "Download interrupted. Try again; the previous revision was preserved.";
       }
       await this.ports.save(record);
     }
@@ -124,8 +124,8 @@ export class OfflineAreas {
     progress: (percentage: number, bytes: number) => void,
   ) {
     validateArea(options.bounds, options.minZoom, options.maxZoom);
-    if (!options.name.trim()) throw new Error("Informe o nome da área.");
-    if (this.busy) throw new Error("Aguarde o download atual.");
+    if (!options.name.trim()) throw new Error("Enter an area name.");
+    if (this.busy) throw new Error("Wait for the current download to finish.");
     this.busy = true;
     let record: AreaRevision | undefined;
     const created: NativePack[] = [];
@@ -149,7 +149,7 @@ export class OfflineAreas {
         ).size >= MAX_OFFLINE_AREAS
       )
         throw new Error(
-          "Limite de 5 áreas. Remova uma área antes de baixar outra.",
+          "Limit of 5 areas reached. Remove an area before downloading another.",
         );
       const packs = await this.ports.packs();
       const occupied = (await Promise.all(packs.map((p) => p.status()))).reduce(
@@ -161,7 +161,7 @@ export class OfflineAreas {
         this.ports.freeDisk() < MIN_FREE_DISK_BYTES
       )
         throw new Error(
-          "Espaço insuficiente para manter a versão atual e baixar a nova.",
+        "Not enough storage to keep the current version and download the new one.",
         );
       const [baseStyle, chart] = await Promise.all([
         this.ports.json<StyleSnapshot>(options.baseStyleUrl),
@@ -174,7 +174,7 @@ export class OfflineAreas {
         s >= chart.bounds[3] ||
         n <= chart.bounds[1]
       )
-        throw new Error("Área fora da cobertura ENC disponível.");
+        throw new Error("Area is outside the available ENC coverage.");
       for (const source of Object.values(baseStyle.sources)) {
         if (typeof source.url !== "string") continue;
         const catalog = await this.ports.json<Record<string, unknown>>(
@@ -227,7 +227,7 @@ export class OfflineAreas {
         timer = setTimeout(
           () =>
             fail(
-              "Download sem progresso por 60 segundos. A versão anterior foi mantida.",
+              "Download made no progress for 60 seconds. The previous version was kept.",
             ),
           60_000,
         );
@@ -257,7 +257,7 @@ export class OfflineAreas {
             this.ports.freeDisk() < MIN_FREE_DISK_BYTES
           ) {
             fail(
-              "Limite de armazenamento atingido. A versão anterior foi mantida.",
+              "Storage limit reached. The previous version was kept.",
             );
             return;
           }
@@ -326,7 +326,7 @@ export class OfflineAreas {
   }
   async remove(areaId: string) {
     if (this.busy)
-      throw new Error("Aguarde o download atual antes de remover.");
+      throw new Error("Wait for the current download to finish before removing an area.");
     for (const record of (await this.list()).filter(
       (r) => r.areaId === areaId,
     )) {

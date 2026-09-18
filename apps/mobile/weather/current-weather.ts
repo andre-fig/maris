@@ -187,7 +187,7 @@ export function useCurrentViewportWeather(
           generation === requestGeneration.current &&
           (timedOut || !(requestError instanceof Error && requestError.name === 'AbortError'))
         ) {
-          setError('Clima indisponível');
+          setError('Weather unavailable');
           retryAt.current = Date.now() + WEATHER_RETRY_MS;
         }
       } finally {

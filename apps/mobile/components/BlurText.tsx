@@ -21,7 +21,7 @@ export const BLUR_TEXT_FONT_FAMILY = Platform.select({
 export const BLUR_TEXT_FONT_SIZE = 16;
 export const BLUR_TEXT_LINE_HEIGHT = 22;
 
-/** Texto padronizado para uso sobre os painéis com blur. */
+/** Standard text component for use over blurred panels. */
 export function BlurText({ children, style, ...props }: BlurTextProps) {
   return (
     <Text {...props} style={[styles.text, style]}>

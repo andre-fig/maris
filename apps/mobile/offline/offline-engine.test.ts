@@ -177,7 +177,7 @@ test("removal releases both packs and style files for all revisions; storage lim
   f.ports.freeDisk = () => 1;
   await assert.rejects(
     f.engine.download({ ...options, areaId: old.areaId }, () => {}),
-    /Espaço insuficiente/,
+    /Not enough storage/,
   );
   assert.equal(activeAreas(await f.engine.list()).length, 1);
   await f.engine.remove(old.areaId);

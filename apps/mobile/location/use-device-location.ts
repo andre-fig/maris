@@ -81,7 +81,7 @@ export function useDeviceLocation(): DeviceLocation | null {
     };
 
     void start().catch(() => {
-      // A localização é opcional: sem permissão ou sinal, o marcador não aparece.
+      // Location is optional: without permission or a signal, the marker is hidden.
     });
 
     return () => {
