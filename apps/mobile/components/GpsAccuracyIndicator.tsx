@@ -31,7 +31,7 @@ export function GpsAccuracyIndicator({ accuracy }: GpsAccuracyIndicatorProps) {
       style={styles.container}
     >
       <View style={styles.bars}>
-        {[4, 8, 12, 16].map((height, index) => (
+        {[3, 6, 9, 12].map((height, index) => (
           <View
             key={height}
             style={[
@@ -55,7 +55,7 @@ const styles = StyleSheet.create({
     alignItems: "flex-end",
     flexDirection: "row",
     gap: 1,
-    height: 16,
+    height: 12,
   },
   bar: {
     borderRadius: 1.5,

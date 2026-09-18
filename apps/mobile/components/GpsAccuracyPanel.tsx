@@ -12,7 +12,7 @@ export function GpsAccuracyPanel({ accuracy }: GpsAccuracyPanelProps) {
   const value = accuracy === null ? "± —" : `± ${Math.round(accuracy)} m`;
 
   return (
-    <BlurPanel flexDirection="row" alignSelf="stretch" style={styles.panel}>
+    <BlurPanel flexDirection="row" alignSelf="flex-start" style={styles.panel}>
       <GpsAccuracyIndicator accuracy={accuracy} />
       <BlurText style={styles.label}>GPS</BlurText>
       <View
@@ -39,7 +39,7 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
   panel: {
-    width: "100%",
+    maxWidth: "100%",
     paddingHorizontal: 4,
     gap: 4,
   },
