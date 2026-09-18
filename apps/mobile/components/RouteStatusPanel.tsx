@@ -25,7 +25,7 @@ export function RouteStatusPanel() {
             <View style={styles.routeTitle}>
               <BlurText style={styles.title}>Active Route</BlurText>
               <BlurText style={styles.routeName} numberOfLines={1}>
-                Ilha da Mãe → Marina da Glória
+                Marina da Glória
               </BlurText>
             </View>
           </View>
@@ -139,8 +139,8 @@ const styles = StyleSheet.create({
     gap: 1,
   },
   title: {
-    fontSize: 16,
-    lineHeight: 20,
+    fontSize: 14,
+    lineHeight: 18,
   },
   routeName: {
     fontSize: 14,
