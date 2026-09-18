@@ -1,4 +1,5 @@
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import FontAwesome6 from "@expo/vector-icons/FontAwesome6";
 import { SymbolView } from "expo-symbols";
 import { useState } from "react";
@@ -23,6 +24,8 @@ type MapControlsPanelProps = {
   showMapButton?: boolean;
 };
 
+const GLOBE_MODE_COUNT = 3;
+
 export function MapControlsPanel({
   locationActive,
   courseUp,
@@ -32,8 +35,14 @@ export function MapControlsPanel({
   showMapButton = true,
 }: MapControlsPanelProps) {
   const isAndroid = Platform.OS === "android";
-  const [globeExpanded, setGlobeExpanded] = useState(false);
+  const [globeMode, setGlobeMode] = useState(0);
   const reveal = usePanelTransition(showMapButton ? 1 : 0);
+  const globeAccessibilityLabel =
+    globeMode === 0
+      ? "Show globe"
+      : globeMode === 1
+        ? "Show 3D view"
+        : "Show Americas globe";
 
   return (
     <BlurPanel alignSelf="flex-end">
@@ -72,22 +81,35 @@ export function MapControlsPanel({
           )}
         </Pressable>
         <Pressable
-          accessibilityLabel={
-            globeExpanded ? "Show globe" : "Show Americas globe"
-          }
+          accessibilityLabel={globeAccessibilityLabel}
           accessibilityRole="button"
-          onPress={() => setGlobeExpanded((expanded) => !expanded)}
+          onPress={() =>
+            setGlobeMode((mode) => (mode + 1) % GLOBE_MODE_COUNT)
+          }
           style={({ pressed }) => [styles.action, pressed && styles.pressed]}
         >
-          {isAndroid ? (
+          {globeMode === 2 && isAndroid ? (
+            <MaterialIcons
+              color="#FFFFFF"
+              name="3d-rotation"
+              size={BLUR_PANEL_ICON_SIZE}
+            />
+          ) : globeMode === 2 ? (
+            <SymbolView
+              name="view.3d"
+              size={BLUR_PANEL_ICON_SIZE}
+              tintColor="#FFFFFF"
+              type="monochrome"
+            />
+          ) : isAndroid ? (
             <FontAwesome6
               color="#FFFFFF"
-              name={globeExpanded ? "language" : "globe"}
+              name={globeMode === 1 ? "language" : "globe"}
               size={BLUR_PANEL_ICON_SIZE}
             />
           ) : (
             <SymbolView
-              name={globeExpanded ? "globe" : "globe.americas.fill"}
+              name={globeMode === 1 ? "globe" : "globe.americas.fill"}
               size={BLUR_PANEL_ICON_SIZE}
               tintColor="#FFFFFF"
               type="monochrome"
