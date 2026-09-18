@@ -6,6 +6,7 @@ import {
   getAndroidWeatherSymbol,
   iosWeatherIcons,
   openWeatherIconMap,
+  weatherIconFromGfs,
 } from "../weather/weather-icons";
 import { BlurPanel } from "./BlurPanel";
 import { BlurText } from "./BlurText";
@@ -158,10 +159,17 @@ export function GfsConditionsPanel({
   const direction = windDirectionDegrees(u, v);
   const cardinal = windCardinal(direction);
   const hasWind = windKt !== null && direction !== null && cardinal !== null;
+  const gfsWeatherIcon = weatherIconFromGfs(
+    sample?.cloudCover,
+    sample?.precipitationRate,
+    sample?.temperature,
+  );
   const weather = {
     ...WEATHER_CONDITIONS_DATA[0],
     value: temperatureCelsius(sample?.temperature ?? null)?.toFixed(0) ?? "",
     unit: "°C",
+    iosIcon: iosWeatherIcons[gfsWeatherIcon],
+    androidIcon: getAndroidWeatherSymbol(gfsWeatherIcon),
     loading: loading || temperatureCelsius(sample?.temperature ?? null) === null,
   };
   const rain = {

@@ -162,8 +162,11 @@ export class GfsService {
 
   private fileForHour(files: Set<string>, hour: number) {
     if (hour === 0) {
-      return [...files].find((file) => file.endsWith('.anl')) ??
-        [...files].find((file) => file.endsWith('.f000'));
+      // f000 is the forecast-hour product and has the same GRIB2 layout as
+      // the other forecast hours. Keep .anl only as a fallback for runs that
+      // do not publish f000.
+      return [...files].find((file) => file.endsWith('.f000')) ??
+        [...files].find((file) => file.endsWith('.anl'));
     }
     return [...files].find((file) => file.endsWith(`.f${String(hour).padStart(3, '0')}`));
   }

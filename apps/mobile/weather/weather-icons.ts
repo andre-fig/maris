@@ -81,3 +81,27 @@ export function getAndroidWeatherSymbol(icon: WeatherIcon): AndroidSymbol {
   const symbol = androidWeatherIcons[icon];
   return symbol === 'clear_night' ? 'moon_stars' : (symbol as AndroidSymbol);
 }
+
+export function weatherIconFromGfs(
+  cloudCover: number | null | undefined,
+  precipitationRate: number | null | undefined,
+  temperatureKelvin: number | null | undefined,
+): WeatherIcon {
+  const temperatureCelsius = typeof temperatureKelvin === 'number'
+    ? temperatureKelvin - 273.15
+    : null;
+
+  if (typeof precipitationRate === 'number' && Number.isFinite(precipitationRate)) {
+    if (temperatureCelsius !== null && temperatureCelsius <= 0) return 'SNOW';
+    if (precipitationRate >= 0.0001) return 'RAIN';
+    if (precipitationRate > 0) return 'SHOWER_RAIN';
+  }
+
+  if (typeof cloudCover !== 'number' || !Number.isFinite(cloudCover)) {
+    return 'BROKEN_CLOUDS';
+  }
+  if (cloudCover <= 10) return 'CLEAR_DAY';
+  if (cloudCover <= 35) return 'FEW_CLOUDS_DAY';
+  if (cloudCover <= 70) return 'SCATTERED_CLOUDS';
+  return 'BROKEN_CLOUDS';
+}
