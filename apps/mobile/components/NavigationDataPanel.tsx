@@ -11,6 +11,14 @@ import { BlurPanel } from "./BlurPanel";
 import { BlurText } from "./BlurText";
 import { LoadingIcon } from "./LoadingIcon";
 import { METRES_PER_SECOND_TO_KNOTS } from "./wind-legend-band";
+import {
+  precipitationRateMillimetresPerHour,
+  temperatureCelsius,
+  windCardinal,
+  windDirectionDegrees,
+  windSpeedKt,
+  type SampledGfsValues,
+} from "../weather/gfs-grid";
 
 export type DataPanelItem = {
   label: string;
@@ -25,7 +33,7 @@ const NAVIGATION_DATA: DataPanelItem[] = [
   { label: "SOG", value: "8.4", unit: "kt", iosIcon: "gauge.open.with.lines.needle.33percent", androidIcon: "speed_2" },
   { label: "COG", value: "132°", unit: "", iosIcon: "location.north", androidIcon: "navigation" },
   { label: "Heading", value: "128°", unit: "", iosIcon: "location.north.line", androidIcon: "near_me" },
-  { label: "Depth", value: "12.6", unit: "m", iosIcon: "water.waves", androidIcon: "waves" },
+  { label: "Depth", value: "12.6", unit: "m", iosIcon: "water.waves.and.arrow.trianglehead.down", androidIcon: "waves" },
   { label: "Draft", value: "1.7", unit: "m", iosIcon: "arrow.down.to.line", androidIcon: "vertical-align-bottom" },
   { label: "UKC", value: "10.9", unit: "m", iosIcon: "arrow.up.and.down", androidIcon: "height" },
 ];
@@ -133,6 +141,48 @@ export function WeatherConditionsPanel({
       ? { ...item, value: windValue, loading: windLoading || !hasWindSpeed }
       : item,
   );
+
+  return <DataMetricsPanel items={items} />;
+}
+
+export function GfsConditionsPanel({
+  sample,
+  loading,
+}: {
+  sample?: SampledGfsValues;
+  loading: boolean;
+}) {
+  const u = sample?.windU ?? null;
+  const v = sample?.windV ?? null;
+  const windKt = windSpeedKt(u, v);
+  const direction = windDirectionDegrees(u, v);
+  const cardinal = windCardinal(direction);
+  const hasWind = windKt !== null && direction !== null && cardinal !== null;
+  const weather = {
+    ...WEATHER_CONDITIONS_DATA[0],
+    value: temperatureCelsius(sample?.temperature ?? null)?.toFixed(0) ?? "",
+    unit: "°C",
+    loading: loading || temperatureCelsius(sample?.temperature ?? null) === null,
+  };
+  const rain = {
+    ...WEATHER_CONDITIONS_DATA[1],
+    value: precipitationRateMillimetresPerHour(sample?.precipitationRate ?? null)?.toFixed(1) ?? "",
+    unit: "mm/h",
+    loading: loading || precipitationRateMillimetresPerHour(sample?.precipitationRate ?? null) === null,
+  };
+  const items: DataPanelItem[] = [
+    weather,
+    rain,
+    {
+      ...WEATHER_CONDITIONS_DATA[2],
+      value: hasWind ? windKt.toFixed(0) : "",
+      unit: hasWind ? `kt · ${cardinal} · ${Math.round(direction)}°` : "",
+      loading: loading || !hasWind,
+    },
+    WEATHER_CONDITIONS_DATA[3],
+    WEATHER_CONDITIONS_DATA[4],
+    WEATHER_CONDITIONS_DATA[5],
+  ];
 
   return <DataMetricsPanel items={items} />;
 }

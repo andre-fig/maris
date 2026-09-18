@@ -22,6 +22,9 @@ ENV NODE_ENV=production
 COPY apps/api/scripts/requirements-pmtiles.txt /tmp/requirements-pmtiles.txt
 RUN python3 -m venv /opt/pmtiles && /opt/pmtiles/bin/pip install --no-cache-dir -r /tmp/requirements-pmtiles.txt
 ENV PMTILES_PYTHON=/opt/pmtiles/bin/python
+COPY apps/api/scripts/requirements-gfs.txt /tmp/requirements-gfs.txt
+RUN python3 -m venv /opt/gfs && /opt/gfs/bin/pip install --no-cache-dir -r /tmp/requirements-gfs.txt
+ENV GFS_PARSER_PYTHON=/opt/gfs/bin/python
 
 COPY --from=build /app/node_modules node_modules
 COPY --from=build /app/apps/api/dist apps/api/dist

@@ -13,7 +13,7 @@ import { useCameraEvents } from "./map/use-camera-events";
 import { isWithinChartBounds } from "./map/chart-bounds";
 import { ScrollView, StyleSheet, useWindowDimensions, View } from "react-native";
 
-import { isWeatherScaleVisible, ScaleRuler } from "./components/ScaleRuler";
+import { ScaleRuler } from "./components/ScaleRuler";
 import { CompassPanel } from "./components/CompassPanel";
 import { BlurBottomSheet } from "./components/BlurBottomSheet";
 import { BlurText } from "./components/BlurText";
@@ -26,7 +26,7 @@ import { GpsAccuracyPanel } from "./components/GpsAccuracyPanel";
 import { CenterCoordinatesPanel } from "./components/CenterCoordinatesPanel";
 import {
   NavigationDataPanel,
-  WeatherConditionsPanel,
+  GfsConditionsPanel,
 } from "./components/NavigationDataPanel";
 import { RouteStatusPanel } from "./components/RouteStatusPanel";
 import { MapOverlayGrid, MapOverlaySlot } from "./components/MapOverlayGrid";
@@ -40,8 +40,9 @@ import { useChartInformation, useOnlineChart } from "./charts/current-chart";
 import { chartInformationRows } from "./charts/chart-information";
 import {
   type MapCenter,
-  useCurrentViewportWeather,
 } from "./weather/current-weather";
+import { useGfsViewport } from "./weather/gfs-client";
+import type { GfsBounds } from "./weather/gfs-grid";
 
 const BASE_MAP_STYLE = "https://tiles.openfreemap.org/styles/bright";
 const LIBERTY_MAP_STYLE = "https://tiles.openfreemap.org/styles/liberty";
@@ -92,6 +93,7 @@ export default function App() {
   const compassMapBearing = useSharedValue(0);
   const unavailableHeading = useSharedValue<number | null>(null);
   const mapRef = useRef<MapRef>(null);
+  const [visibleBounds, setVisibleBounds] = useState<GfsBounds | null>(null);
   const {
     ready: offlineReady,
     area: offlineArea,
@@ -113,13 +115,11 @@ export default function App() {
     MapStyleMode | "initial"
   >("initial");
   const windEnabled = true;
-  const [windLoading, setWindLoading] = useState(true);
   const [mapSheetVisible, setMapSheetVisible] = useState(false);
   const [chartRequested, setChartRequested] = useState(false);
   const chartRequestPending = useRef(false);
   const [sheetContent, setSheetContent] = useState<SheetContent>("chart");
   const [mapSheetCloseSignal, setMapSheetCloseSignal] = useState(0);
-  const [centerWindSpeed, setCenterWindSpeed] = useState<number | null>(null);
   const [windSampleCoordinate, setWindSampleCoordinate] = useState<MapCenter | null>(null);
   const locationTarget = useRef(false);
   const initialLocationApplied = useRef(false);
@@ -181,12 +181,20 @@ export default function App() {
   ]);
 
   const scaleMaxWidth = Math.min(width - 96, 175);
-  const currentWeather = useCurrentViewportWeather(
+  const gfs = useGfsViewport(
     API_URL,
-    initialCenter,
-    Boolean(deviceLocation) &&
-      isWeatherScaleVisible(viewState.latitude, scaleMaxWidth, viewState.zoom),
+    visibleBounds,
+    deviceLocation?.coordinate ?? [viewState.longitude, viewState.latitude],
+    offlineReady,
   );
+
+  const refreshVisibleBounds = () => {
+    void mapRef.current?.getBounds().then(([west, south, east, north]) => {
+      if ([west, south, east, north].every(Number.isFinite)) {
+        setVisibleBounds({ north, south, east, west });
+      }
+    }).catch(() => {});
+  };
 
   useEffect(() => {
     void OfflineManager.setMaximumAmbientCacheSize(MAP_AMBIENT_CACHE_BYTES);
@@ -216,9 +224,9 @@ export default function App() {
     if (windEnabled) setWindSampleCoordinate(previous =>
       previous?.[0] === view.center[0] && previous?.[1] === view.center[1] ? previous : [...view.center]);
     if (settled) {
-      currentWeather.onCameraDidChange(view.center);
       void onViewportSettled().catch(() => {});
-    } else currentWeather.onCameraChanging(view.center);
+      refreshVisibleBounds();
+    }
   }, (view) => { compassMapBearing.value = view.bearing; });
 
   if (!offlineReady || (!deviceLocation && !offlineArea)) {
@@ -248,13 +256,12 @@ export default function App() {
         touchZoom
         touchRotate
         touchPitch={false}
-        onDidFinishLoadingMap={() => { void onViewportSettled().catch(() => {}); }}
-        onTouchStart={() => {
-          currentWeather.onTouchStart();
-          if (mapSheetVisible) setMapSheetCloseSignal((signal) => signal + 1);
+        onDidFinishLoadingMap={() => {
+          void onViewportSettled().catch(() => {});
+          refreshVisibleBounds();
         }}
-        onTouchEnd={({ nativeEvent }) => {
-          currentWeather.onTouchEnd(nativeEvent.touches.length);
+        onTouchStart={() => {
+          if (mapSheetVisible) setMapSheetCloseSignal((signal) => signal + 1);
         }}
         onRegionIsChanging={cameraEvents.onRegionIsChanging}
         onRegionDidChange={cameraEvents.onRegionDidChange}
@@ -363,12 +370,6 @@ export default function App() {
         sampleCoordinate={windEnabled
           ? (windSampleCoordinate ?? [viewState.longitude, viewState.latitude])
           : null}
-        onCenterWind={({ nativeEvent }) => {
-          setCenterWindSpeed(nativeEvent.speed);
-        }}
-        onDataStatus={({ nativeEvent }) => {
-          setWindLoading(nativeEvent.loading);
-        }}
         style={{ width: 0, height: 0, position: "absolute" }}
       />
       <MapOverlayGrid>
@@ -461,12 +462,7 @@ export default function App() {
           <CenterCoordinatesPanel latitude={viewState.latitude} longitude={viewState.longitude} />
         </MapOverlaySlot>
         <MapOverlaySlot column={0} row={0} columnSpan={6} rowSpan={5} alignItems="stretch" justifyContent="flex-start">
-          <WeatherConditionsPanel
-            weather={currentWeather.weather}
-            weatherLoading={currentWeather.loading}
-            windLoading={windLoading}
-            windSpeed={centerWindSpeed}
-          />
+          <GfsConditionsPanel sample={gfs.current} loading={gfs.loading} />
         </MapOverlaySlot>
       </MapOverlayGrid>
       <BlurBottomSheet
