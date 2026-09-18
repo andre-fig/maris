@@ -71,6 +71,7 @@ const API_URL =
   process.env.EXPO_PUBLIC_API_URL ??
   "https://api-production-7dc7.up.railway.app";
 const LOCATION_MATCH_THRESHOLD_KM = 0.08;
+const ROUTE_STATUS_ENABLED = false;
 type SheetContent = "chart" | "empty";
 
 function distanceKm(a: [number, number], b: [number, number]) {
@@ -439,9 +440,11 @@ export default function App() {
             />
           </View>
         </MapOverlaySlot>
-        <MapOverlaySlot column={0} row={10} columnSpan={6} rowSpan={10} alignItems="stretch" justifyContent="flex-end">
-          <RouteStatusPanel />
-        </MapOverlaySlot>
+        {ROUTE_STATUS_ENABLED ? (
+          <MapOverlaySlot column={0} row={10} columnSpan={6} rowSpan={10} alignItems="stretch" justifyContent="flex-end">
+            <RouteStatusPanel />
+          </MapOverlaySlot>
+        ) : null}
         <MapOverlaySlot column={0} row={20} columnSpan={6} rowSpan={3} alignItems="stretch" justifyContent="flex-end">
           <NavigationDataPanel />
         </MapOverlaySlot>
