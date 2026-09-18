@@ -28,3 +28,17 @@ nova zelandia: https://www.encservice.linz.govt.nz/download vai ter q fazer o fl
 S-63 protegido → validar licença/permit → descriptografar → S-57 → seu pipeline atual
 
 dinamarca: https://data.europa.eu/data/datasets/sdfe-dk-enc-01?locale=en&utm_source=chatgpt.com
+
+- [ ] Weather
+- [ ] Rain
+- [ ] Wind
+- [ ] Waves
+- [ ] Current
+- [ ] Tide
+
+- [x] SOG
+- [ ] COG
+- [ ] Heading
+- [ ] Depth
+- [ ] Draft
+- [ ] UKC
