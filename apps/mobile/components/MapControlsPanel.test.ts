@@ -62,19 +62,19 @@ test("Android location icon loses its fill off GPS and preserves centered/course
     await act(async () => {
       renderer!.root.find(node => node.props.accessibilityLabel === "Show satellite map").props.onPress();
     });
-    assert.equal(globeIcons()[0].props.name, "language");
     assert.equal(mapModes.at(-1), "satellite");
-    await act(async () => {
-      renderer!.root.find(node => node.props.accessibilityLabel === "Show bright map").props.onPress();
-    });
     const threeDimensionalIcon = renderer!.root.findByType("MaterialIcons" as any);
     assert.equal(threeDimensionalIcon.props.name, "3d-rotation");
-    assert.equal(mapModes.at(-1), "bright");
     await act(async () => {
       renderer!.root.find(node => node.props.accessibilityLabel === "Show Liberty map").props.onPress();
     });
-    assert.equal(globeIcons()[0].props.name, "globe");
+    assert.equal(globeIcons()[0].props.name, "language");
     assert.equal(mapModes.at(-1), "liberty");
+    await act(async () => {
+      renderer!.root.find(node => node.props.accessibilityLabel === "Show bright map").props.onPress();
+    });
+    assert.equal(globeIcons()[0].props.name, "globe");
+    assert.equal(mapModes.at(-1), "bright");
     renderer!.root.find(node => node.props.accessibilityLabel === "Open map options").props.onPress();
     assert.equal(mapPresses, 1);
     await act(async () => renderer!.update(panel(false, false, true)));
