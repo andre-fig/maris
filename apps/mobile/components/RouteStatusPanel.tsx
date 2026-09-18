@@ -1,5 +1,11 @@
 import { SymbolView } from "expo-symbols";
-import { Pressable, StyleSheet, View } from "react-native";
+import {
+  Pressable,
+  StyleSheet,
+  View,
+  type StyleProp,
+  type ViewStyle,
+} from "react-native";
 
 import { BlurPanel } from "./BlurPanel";
 import { BlurText } from "./BlurText";
@@ -37,20 +43,29 @@ export function RouteStatusPanel() {
       <View style={styles.dataRow}>
         <RouteValue label="Next waypoint" value="WP2" />
         <RouteValue label="Distance" value="3.2 NM" />
-        <RouteValue label="Bearing" value="214°" />
+        <RouteValue
+          label="Bearing"
+          value="214°"
+        />
         <RouteValue label="ETA" value="14:38" />
       </View>
 
       <View style={styles.divider} />
 
       <View style={styles.bottomRow}>
-        <RouteValue label="Remaining" value="8.4 NM" />
-        <RouteValue label="Time remaining" value="1h 12m" />
         <RouteValue label="XTE" value="0.06 NM" />
+        <RouteValue label="Remaining" value="8.4 NM" />
+        <RouteValue
+          label="Time remaining"
+          value="1h 12m"
+        />
         <Pressable
           accessibilityLabel="Stop route"
           accessibilityRole="button"
-          style={({ pressed }) => [styles.stopButton, pressed && styles.pressed]}
+          style={({ pressed }) => [
+            styles.stopButton,
+            pressed && styles.pressed,
+          ]}
         >
           <BlurText style={styles.stopLabel}>Stop Route</BlurText>
         </Pressable>
@@ -59,11 +74,23 @@ export function RouteStatusPanel() {
   );
 }
 
-function RouteValue({ label, value }: { label: string; value: string }) {
+function RouteValue({
+  label,
+  value,
+  style,
+}: {
+  label: string;
+  value: string;
+  style?: StyleProp<ViewStyle>;
+}) {
   return (
-    <View style={styles.valueCell}>
-      <BlurText style={styles.label} numberOfLines={1}>{label}</BlurText>
-      <BlurText style={styles.value} numberOfLines={1}>{value}</BlurText>
+    <View style={[styles.valueCell, style]}>
+      <BlurText style={styles.label} numberOfLines={1}>
+        {label}
+      </BlurText>
+      <BlurText style={styles.value} numberOfLines={1}>
+        {value}
+      </BlurText>
     </View>
   );
 }
@@ -135,13 +162,13 @@ const styles = StyleSheet.create({
     borderRightColor: "rgba(255, 255, 255, 0.22)",
   },
   label: {
-    fontSize: 12,
+    fontSize: 10,
     fontWeight: "400",
-    lineHeight: 16,
+    lineHeight: 14,
   },
   value: {
-    fontSize: 15,
-    lineHeight: 18,
+    fontSize: 14,
+    lineHeight: 17,
   },
   divider: {
     height: 1,
@@ -158,8 +185,8 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(205, 92, 70, 0.9)",
   },
   stopLabel: {
-    fontSize: 14,
-    lineHeight: 18,
+    fontSize: 12,
+    lineHeight: 16,
   },
   pressed: {
     opacity: 0.7,
