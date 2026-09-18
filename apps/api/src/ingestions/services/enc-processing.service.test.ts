@@ -111,7 +111,7 @@ async function checkArchive(names: string[], failConversion: boolean) {
       assert.ok(!commands.some(([command]) => command === process.execPath));
     } else if (names.every((name) => name === 'EMPTY')) {
       await assert.rejects(processing, /No SOUNDG layer found/);
-      assert.equal(commands.length, 0);
+      assert.equal(commands.length, 1, 'all ENC layers are preserved even when SOUNDG is absent');
     } else {
       const result = await processing;
       assert.deepEqual(result.cells.map((cell) => cell.name), names);

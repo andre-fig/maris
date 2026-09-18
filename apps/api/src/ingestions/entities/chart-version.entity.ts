@@ -67,6 +67,9 @@ export class ChartVersion {
   @Column({ name: 'artifact_object_key', nullable: true, type: 'text' })
   artifactObjectKey!: string | null;
 
+  @Column({ name: 'enc_object_key', nullable: true, type: 'text' })
+  encObjectKey!: string | null;
+
   @Column({ name: 'manifest_object_key', nullable: true, type: 'text' })
   manifestObjectKey!: string | null;
 

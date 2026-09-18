@@ -48,6 +48,8 @@ export type ProcessingResult = {
   manifestPath: string;
   storagePath: string;
   artifactObjectKey?: string;
+  /** Versioned GeoPackage containing all imported ENC feature classes. */
+  encObjectKey?: string;
   manifestObjectKey?: string;
 };
 
