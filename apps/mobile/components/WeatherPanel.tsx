@@ -21,7 +21,7 @@ import { useFadeVisibility } from "./use-fade-visibility";
 import { usePanelTransition } from "./use-panel-transition";
 import { METRES_PER_SECOND_TO_KNOTS } from "./wind-legend-band";
 
-const CLOSED_HEIGHT = 64;
+const CLOSED_HEIGHT = 44;
 const MAX_FORECAST_ROWS = 6;
 
 type WeatherPanelProps = {
@@ -57,6 +57,7 @@ export function WeatherPanel({ weather, visible, style }: WeatherPanelProps) {
       <BlurPanel
         key={displayWeather ? "weather-blur-visible" : "weather-blur-hidden"}
         flexDirection="column"
+        style={styles.panel}
       >
         <View pointerEvents="none" accessible={false} style={styles.measurementHost}>
           <View style={styles.headerMeasure}>
@@ -181,7 +182,7 @@ export function WeatherPanel({ weather, visible, style }: WeatherPanelProps) {
                       {Math.round(hour.temperature_celsius)}°
                     </BlurText>
                     <BlurText style={styles.nowLabel}>
-                      {formatHour(hour.forecast_at)}
+                      {formatHour(hour.forecast_at)}h
                     </BlurText>
                   </View>
                 </View>
@@ -199,6 +200,12 @@ function formatHour(timestamp: string) {
 }
 
 const styles = StyleSheet.create({
+  panel: {
+    paddingHorizontal: 6,
+    paddingVertical: 0,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   content: { flexShrink: 0, overflow: "hidden" },
   measurementHost: { position: "absolute", left: 0, top: 0, opacity: 0 },
   headerMeasure: {
@@ -222,8 +229,9 @@ const styles = StyleSheet.create({
   pressed: { opacity: 0.62, transform: [{ scale: 0.98 }] },
   condition: { width: 32, alignItems: "center" },
   nowLabel: {
-    fontSize: 11,
-    lineHeight: 16,
+    fontSize: 9,
+    fontWeight: "400",
+    lineHeight: 11,
   },
   rainChance: {
     alignSelf: "stretch",
@@ -250,9 +258,9 @@ const styles = StyleSheet.create({
   valueColumn: {
     alignItems: "center",
     justifyContent: "center",
-    gap: 1,
+    gap: 0,
   },
-  temperature: { fontSize: 16, lineHeight: 22 },
+  temperature: { fontSize: 14, lineHeight: 18 },
   currentTemperature: {},
   measurementTemperature: {},
   forecastTemperature: {},
