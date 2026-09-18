@@ -29,6 +29,10 @@ S-63 protegido → validar licença/permit → descriptografar → S-57 → seu 
 
 dinamarca: https://data.europa.eu/data/datasets/sdfe-dk-enc-01?locale=en&utm_source=chatgpt.com
 
+- [ ] Mapa
+- [ ] GPS
+- [ ] Coordenadas
+
 - [ ] Weather
 - [ ] Rain
 - [ ] Wind
