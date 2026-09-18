@@ -41,7 +41,9 @@ fragment float4 windFragment(Output in [[stage_in]],texture2d<float> field [[tex
   return float4(windColor(length(direction))*opacity,opacity);
 }
 fragment float4 particleFragment(Output in [[stage_in]],constant float& opacity [[buffer(0)]]) {
-  float a=in.uv.x*.9*opacity;return float4(float3(a),a);
+  float fade = pow(in.uv.x, 0.6);
+  float a = min(fade * 1.2 * opacity, 1.0);
+  return float4(float3(a), a);
 }
 )SHADER";
 }
@@ -68,6 +70,6 @@ color=vec4(windColor(length(direction))*opacity,opacity);}
 }
 inline const char *glParticle = R"SHADER(#version 300 es
 precision highp float;in vec2 texCoord;out vec4 color;uniform float opacity;
-void main(){float a=texCoord.x*.9*opacity;color=vec4(vec3(a),a);}
+void main(){float fade=pow(texCoord.x,0.6);float a=min(fade*1.2*opacity,1.0);color=vec4(vec3(a),a);}
 )SHADER";
 } // namespace maris

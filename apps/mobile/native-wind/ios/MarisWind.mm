@@ -337,6 +337,8 @@ static maris::TileCache tileCache;
   if (progress >= 1) { _oldField.reset(); _oldTexture = nil; }
   const double *matrix = &context.projectionMatrix.m00;
   id<MTLRenderCommandEncoder> encoder = self.renderEncoder;
+  [encoder setCullMode:MTLCullModeNone];
+  [encoder setDepthStencilState:_depth];
   float fade = _fade.update(_windVisible, CACurrentMediaTime());
   if (_windOpacity > .001f && _heat) {
     if (!_texture) {
@@ -355,8 +357,6 @@ static maris::TileCache tileCache;
             bytesPerRow:f->plan.width() * 4];
     }
     auto vertices = maris::quad(f->plan, matrix, context.zoomLevel);
-    [encoder setCullMode:MTLCullModeNone];
-    [encoder setDepthStencilState:_depth];
     [encoder setRenderPipelineState:_heat];
     [encoder setVertexBytes:vertices.data() length:sizeof(vertices) atIndex:0];
     [encoder setFragmentTexture:_texture atIndex:0];
@@ -567,14 +567,10 @@ static MLNMapView *findMap(UIView *view) {
 #endif
   if (!_layer.style) {
     _layer = [[MarisWindLayer alloc] initWithIdentifier:@"maris-native-wind"];
-    MLNStyleLayer *before =
-        [_map.style layerWithIdentifier:@"miami-soundg-depth"];
-    if (!before)
-      before = [_map.style layerWithIdentifier:@"water_name_point_label"];
-    if (before)
-      [_map.style insertLayer:_layer belowLayer:before];
-    else
-      [_map.style addLayer:_layer];
+    [_map.style addLayer:_layer];
+  } else if (_map.style.layers.lastObject != _layer) {
+    [_map.style removeLayer:_layer];
+    [_map.style addLayer:_layer];
   }
   _layer.windOpacity = _fieldOpacity;
   _layer.particleOpacity = _opacity;

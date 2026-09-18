@@ -177,12 +177,7 @@ public class WindControl extends View
           long[] handle = create(lowMemory);
           id = handle[0];
           layer = new CustomLayer("maris-native-wind", handle[1]);
-          if (style.getLayer("miami-soundg-depth") != null)
-            style.addLayerBelow(layer, "miami-soundg-depth");
-          else if (style.getLayer("water_name_point_label") != null)
-            style.addLayerBelow(layer, "water_name_point_label");
-          else
-            style.addLayer(layer);
+          style.addLayer(layer);
         }
         configure(id, opacity, fieldOpacity, density, speed, true);
         if (nanos - checked > 350000000L) {
