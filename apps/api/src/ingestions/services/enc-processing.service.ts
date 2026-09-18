@@ -57,7 +57,6 @@ export class EncProcessingService {
     );
     const extractedDirectory = path.join(workDirectory, 'cell');
     const geopackage = path.join(workDirectory, 'soundings.gpkg');
-    const allLayersGeoPackage = path.join(workDirectory, 'enc.gpkg');
     const normalizedGeoJson = path.join(workDirectory, 'soundings.json');
 
     await rm(workDirectory, { force: true, recursive: true });
@@ -70,7 +69,7 @@ export class EncProcessingService {
       const cells: ProcessedCell[] = [];
       let soundingCellCount = 0;
       let geopackageCreated = false;
-      let allLayersGeoPackageCreated = false;
+      const encCellsObjectPrefix = `datasets/soundg/${job.versionKey}/enc-cells/`;
       for (const entry of archive.cells.sort((a,b) => a.name.localeCompare(b.name))) {
         await rm(extractedDirectory, { force: true, recursive: true });
         await mkdir(extractedDirectory, { recursive: true });
@@ -80,18 +79,28 @@ export class EncProcessingService {
         const cellName = entry.name;
         const updatesApplied = entry.updateNumbers;
         const { hasSoundings, ...metadata } = await this.readCellMetadata(cell);
-        // Preserve every S-57 feature class in a separate dataset artifact.
-        // The SOUNDG GeoPackage below remains specialized for the existing
-        // tile generator, but no ENC layer is discarded during ingestion.
+        // Preserve every S-57 feature class in a per-cell artifact. The
+        // SOUNDG GeoPackage below remains specialized for the existing tile
+        // generator, but no ENC layer is discarded and the worker never has
+        // to hold a multi-gigabyte all-USA GeoPackage on its volume.
+        const cellGeoPackage = path.join(extractedDirectory, `${entry.name}.gpkg`);
         await this.run('ogr2ogr', [
-          ...(allLayersGeoPackageCreated ? ['-update', '-append'] : ['-f', 'GPKG']),
-          allLayersGeoPackage,
+          '-f', 'GPKG',
+          cellGeoPackage,
           cell,
           '-oo', 'SPLIT_MULTIPOINT=ON',
           '-oo', 'ADD_SOUNDG_DEPTH=ON',
           '-oo', 'UPDATES=APPLY',
         ]);
-        allLayersGeoPackageCreated = true;
+        if (this.objectStorage) {
+          const cellObjectKey = `${encCellsObjectPrefix}${entry.name}.gpkg`;
+          const existingCell = await this.objectStorage.tryHead(cellObjectKey);
+          if (!existingCell) {
+            await this.objectStorage.putFile(cellObjectKey, cellGeoPackage, 'application/geopackage+sqlite3');
+          }
+          const cellHead = await this.objectStorage.head(cellObjectKey);
+          if (Number(cellHead.ContentLength ?? 0) <= 0) throw new Error(`Published ENC cell is empty: ${entry.name}`);
+        }
         if (hasSoundings) {
           const arguments_ = [
             ...(geopackageCreated ? ['-update', '-append'] : []),
@@ -201,8 +210,8 @@ export class EncProcessingService {
 
       if (this.objectStorage) {
         const localRoot = path.join(this.chartStorageDirectory, storagePath);
-        const remote = await this.publishArtifacts(job.versionKey, localRoot, allLayersGeoPackage);
-        return { bounds: manifest.bounds, cells, manifestPath, storagePath, ...remote };
+        const remote = await this.publishArtifacts(job.versionKey, localRoot);
+        return { bounds: manifest.bounds, cells, manifestPath, storagePath, encObjectKey: encCellsObjectPrefix, ...remote };
       }
 
       return { bounds: manifest.bounds, cells, manifestPath, storagePath };
@@ -228,10 +237,9 @@ export class EncProcessingService {
     }
   }
 
-  private async publishArtifacts(versionKey: string, localRoot: string, allLayersGeoPackage?: string) {
+  private async publishArtifacts(versionKey: string, localRoot: string) {
     if (!this.objectStorage) return undefined;
     const artifactObjectKey = `datasets/soundg/${versionKey}/tiles.pmtiles`;
-    const encObjectKey = `datasets/soundg/${versionKey}/enc.gpkg`;
     const manifestObjectKey = `datasets/soundg/${versionKey}/manifest.json`;
     const localArtifact = path.join(localRoot, 'tiles.pmtiles');
     const expectedSize = (await stat(localArtifact)).size;
@@ -242,16 +250,11 @@ export class EncProcessingService {
     if (!await this.objectStorage.tryHead(manifestObjectKey)) {
       await this.objectStorage.putFile(manifestObjectKey, path.join(localRoot, 'manifest.json'), 'application/json');
     }
-    if (allLayersGeoPackage && !await this.objectStorage.tryHead(encObjectKey)) {
-      await this.objectStorage.putFile(encObjectKey, allLayersGeoPackage, 'application/geopackage+sqlite3');
-    }
     const head = await this.objectStorage.head(artifactObjectKey);
     if (Number(head.ContentLength ?? 0) !== expectedSize) throw new Error('Published PMTiles object failed validation');
     const manifestHead = await this.objectStorage.head(manifestObjectKey);
     if (Number(manifestHead.ContentLength ?? 0) <= 0) throw new Error('Published PMTiles manifest is empty');
-    const encHead = await this.objectStorage.head(encObjectKey);
-    if (Number(encHead.ContentLength ?? 0) <= 0) throw new Error('Published ENC GeoPackage is empty');
-    return { artifactObjectKey, encObjectKey, manifestObjectKey };
+    return { artifactObjectKey, manifestObjectKey };
   }
 
   private async findFiles(directory: string): Promise<string[]> {
