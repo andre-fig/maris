@@ -24,6 +24,7 @@ import {
 } from "./components/MapControlsPanel";
 import { WindPanel } from "./components/WindPanel";
 import { GpsAccuracyPanel } from "./components/GpsAccuracyPanel";
+import { CenterCoordinatesPanel } from "./components/CenterCoordinatesPanel";
 import { DrawerCompass } from "./components/DrawerCompass";
 import { windLegendBand } from "./components/wind-legend-band";
 import { useDeviceLocation } from "./location/use-device-location";
@@ -445,6 +446,12 @@ export default function App() {
       <View pointerEvents="none" style={styles.gpsAccuracyOverlay}>
         <GpsAccuracyPanel accuracy={deviceLocation?.accuracy ?? null} />
       </View>
+      <View pointerEvents="none" style={styles.centerCoordinatesOverlay}>
+        <CenterCoordinatesPanel
+          latitude={viewState.latitude}
+          longitude={viewState.longitude}
+        />
+      </View>
       <View pointerEvents="box-none" style={styles.windOverlay}>
         <WindPanel
           enabled={windEnabled}
@@ -590,6 +597,13 @@ const styles = StyleSheet.create({
   gpsAccuracyOverlay: {
     position: "absolute",
     left: 38,
+    bottom: 48,
+    zIndex: 2,
+    elevation: 2,
+  },
+  centerCoordinatesOverlay: {
+    position: "absolute",
+    right: 38,
     bottom: 48,
     zIndex: 2,
     elevation: 2,
