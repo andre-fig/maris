@@ -22,7 +22,8 @@ import { usePanelTransition } from "./use-panel-transition";
 import { METRES_PER_SECOND_TO_KNOTS } from "./wind-legend-band";
 
 const CLOSED_HEIGHT = 32;
-const HEADER_ITEM_GAP = 4;
+const FIRST_COLUMN_GAP = 4;
+const SECOND_COLUMN_GAP = 8;
 const MAX_FORECAST_ROWS = 6;
 
 type WeatherPanelProps = {
@@ -89,8 +90,14 @@ export function WeatherPanel({ weather, visible, style }: WeatherPanelProps) {
             >
               Now
             </BlurText>
-            <View style={styles.conditionMeasure} />
-            <BlurText style={styles.temperature}>00°</BlurText>
+            <View
+              style={[styles.conditionMeasure, styles.firstColumnSpacing]}
+            />
+            <BlurText
+              style={[styles.temperature, styles.measurementTemperature]}
+            >
+              00°
+            </BlurText>
           </View>
           <View
             style={styles.forecastMeasure}
@@ -100,8 +107,14 @@ export function WeatherPanel({ weather, visible, style }: WeatherPanelProps) {
             }}
           >
             <BlurText style={styles.nowLabel}>00</BlurText>
-            <View style={styles.conditionMeasure} />
-            <BlurText style={styles.temperature}>00°</BlurText>
+            <View
+              style={[styles.conditionMeasure, styles.firstColumnSpacing]}
+            />
+            <BlurText
+              style={[styles.temperature, styles.measurementTemperature]}
+            >
+              00°
+            </BlurText>
           </View>
         </View>
         <Animated.View
@@ -157,7 +170,7 @@ export function WeatherPanel({ weather, visible, style }: WeatherPanelProps) {
                   opacity: expansion,
                   width: expansion.interpolate({
                     inputRange: [0, 1],
-                    outputRange: [0, nowLabelWidth + HEADER_ITEM_GAP],
+                    outputRange: [0, nowLabelWidth + FIRST_COLUMN_GAP],
                   }),
                 },
               ]}
@@ -223,7 +236,9 @@ export function WeatherPanel({ weather, visible, style }: WeatherPanelProps) {
                   >
                     {formatHour(hour.forecast_at)}
                   </BlurText>
-                  <View style={styles.condition}>
+                  <View
+                    style={[styles.condition, styles.firstColumnSpacing]}
+                  >
                     {hourIcon ? (
                       <SymbolView
                         name={{
@@ -266,14 +281,12 @@ const styles = StyleSheet.create({
     alignSelf: "flex-start",
     flexDirection: "row",
     alignItems: "center",
-    gap: HEADER_ITEM_GAP,
   },
   conditionMeasure: { width: 32, height: 30 },
   forecastMeasure: {
     alignSelf: "flex-start",
     flexDirection: "row",
     alignItems: "center",
-    gap: HEADER_ITEM_GAP,
   },
   header: {
     height: CLOSED_HEIGHT,
@@ -282,6 +295,7 @@ const styles = StyleSheet.create({
   },
   pressed: { opacity: 0.62, transform: [{ scale: 0.98 }] },
   condition: { width: 32, alignItems: "center" },
+  firstColumnSpacing: { marginLeft: FIRST_COLUMN_GAP },
   nowSlot: { flexShrink: 0, overflow: "hidden" },
   nowLabel: {
     fontSize: 11,
@@ -307,10 +321,10 @@ const styles = StyleSheet.create({
   forecastRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: HEADER_ITEM_GAP,
   },
   temperature: { fontSize: 16, lineHeight: 22 },
-  currentTemperature: { marginLeft: HEADER_ITEM_GAP },
+  currentTemperature: { marginLeft: SECOND_COLUMN_GAP },
+  measurementTemperature: { marginLeft: SECOND_COLUMN_GAP },
   forecastTemperature: {
     marginLeft: "auto",
   },
