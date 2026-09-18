@@ -33,6 +33,16 @@ export class EncUploadController {
     return { uploadId, objectKey: upload.objectKey, partNumber: Number(partNumber), url: await this.storage.signPart(upload.objectKey, uploadId, Number(partNumber)) };
   }
   @Get(':uploadId') async progress(@Param('uploadId') uploadId: string) { return this.db.getRepository(EncUpload).findOneByOrFail({ uploadId }); }
+  @Post(':uploadId/retry')
+  async retry(@Param('uploadId') uploadId: string) {
+    const repo = this.db.getRepository(EncUpload);
+    const upload = await repo.findOneByOrFail({ uploadId });
+    if (!await this.storage.tryHead(upload.objectKey)) throw new BadRequestException('Source object is not available in object storage');
+    const ingestionId = randomUUID();
+    await this.dispatcher.dispatch({ archivePath: '', ingestionId, versionId: randomUUID(), versionKey: `pending-${upload.id}`, objectKey: upload.objectKey, sourceFilename: upload.sourceFilename, ...(upload.checksumSha256 ? { checksum: upload.checksumSha256 } : {}), ...(upload.expectedSize ? { sizeBytes: Number(upload.expectedSize) } : {}) });
+    await repo.update(upload.id, { ingestionId, status: 'queued' });
+    return { uploadId, objectKey: upload.objectKey, ingestionId, status: 'queued' };
+  }
   @Post(':uploadId/complete')
   async complete(@Param('uploadId') uploadId: string, @Body() body: { parts: { partNumber: number; etag: string; size?: number }[] }) {
     const repo = this.db.getRepository(EncUpload); const upload = await repo.findOneByOrFail({ uploadId });
