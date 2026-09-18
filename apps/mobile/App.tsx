@@ -17,6 +17,7 @@ import { BlurText } from "./components/BlurText";
 import { UserLocationMarker } from "./components/UserLocationMarker";
 import { MapControlsPanel } from "./components/MapControlsPanel";
 import { WindPanel } from "./components/WindPanel";
+import { DrawerCompass } from "./components/DrawerCompass";
 import { windLegendBand } from "./components/wind-legend-band";
 import { useDeviceLocation } from "./location/use-device-location";
 import { NativeWindLayer } from "@maris/native-wind";
@@ -33,6 +34,7 @@ const API_URL =
   process.env.EXPO_PUBLIC_API_URL ??
   "https://api-production-7dc7.up.railway.app";
 const LOCATION_MATCH_THRESHOLD_KM = 0.08;
+type SheetContent = "chart" | "empty";
 
 const MOCK_CHART_INFORMATION = [
   ["Source", "NOAA"],
@@ -88,6 +90,7 @@ export default function App() {
   const [courseUp, setCourseUp] = useState(false);
   const [windEnabled, setWindEnabled] = useState(false);
   const [mapSheetVisible, setMapSheetVisible] = useState(false);
+  const [sheetContent, setSheetContent] = useState<SheetContent>("chart");
   const [mapSheetCloseSignal, setMapSheetCloseSignal] = useState(0);
   const [centerWindSpeed, setCenterWindSpeed] = useState<number | null>(null);
   const [windSampleCoordinate, setWindSampleCoordinate] = useState<MapCenter | null>(null);
@@ -284,6 +287,12 @@ export default function App() {
             heading={deviceLocation?.heading ?? null}
             mapBearing={viewState.bearing}
             onPress={() => {
+              if (Math.abs(viewState.bearing) < 0.001) {
+                setSheetContent("empty");
+                setMapSheetVisible(true);
+                return;
+              }
+              setSheetContent("chart");
               locationTarget.current = false;
               setCourseUp(false);
               cameraRef.current?.flyTo({
@@ -297,7 +306,10 @@ export default function App() {
           <MapControlsPanel
             locationActive={locationActive}
             courseUp={courseUp}
-            onMapPress={() => setMapSheetVisible(true)}
+            onMapPress={() => {
+              setSheetContent("chart");
+              setMapSheetVisible(true);
+            }}
             onLocate={() => {
               if (!deviceLocation) return;
               locationTarget.current = true;
@@ -348,23 +360,29 @@ export default function App() {
         closeSignal={mapSheetCloseSignal}
         onClose={() => setMapSheetVisible(false)}
       >
-        <BlurText style={styles.sheetTitle}>Chart information</BlurText>
-        <ScrollView
-          style={styles.chartInfoList}
-          contentContainerStyle={styles.chartInfoContent}
-          showsVerticalScrollIndicator
-          persistentScrollbar
-        >
-          {MOCK_CHART_INFORMATION.map(([label, value], index) => (
-            <View key={label} style={styles.chartInfoRow}>
-              <BlurText style={styles.chartInfoLabel}>{label}</BlurText>
-              <BlurText style={styles.chartInfoValue}>{value}</BlurText>
-              {index < MOCK_CHART_INFORMATION.length - 1 ? (
-                <View style={styles.chartInfoDivider} />
-              ) : null}
-            </View>
-          ))}
-        </ScrollView>
+        {sheetContent === "chart" ? (
+          <>
+            <BlurText style={styles.sheetTitle}>Chart information</BlurText>
+            <ScrollView
+              style={styles.chartInfoList}
+              contentContainerStyle={styles.chartInfoContent}
+              showsVerticalScrollIndicator
+              persistentScrollbar
+            >
+              {MOCK_CHART_INFORMATION.map(([label, value], index) => (
+                <View key={label} style={styles.chartInfoRow}>
+                  <BlurText style={styles.chartInfoLabel}>{label}</BlurText>
+                  <BlurText style={styles.chartInfoValue}>{value}</BlurText>
+                  {index < MOCK_CHART_INFORMATION.length - 1 ? (
+                    <View style={styles.chartInfoDivider} />
+                  ) : null}
+                </View>
+              ))}
+            </ScrollView>
+          </>
+        ) : (
+          <DrawerCompass heading={deviceLocation?.heading ?? null} />
+        )}
       </BlurBottomSheet>
     </View>
   );

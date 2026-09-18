@@ -12,3 +12,7 @@
 - [ ] Preciptação
 - [ ] Prognóstico de tempo
 - [ ] Direcão do vento na badge
+- [x] Criar Drawer
+- [ ] Criar bulsola no drawer
+- [ ] Criar informações da carta
+- [x] Deixar medidas em nós
