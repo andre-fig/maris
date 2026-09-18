@@ -74,7 +74,6 @@ export function WindPanel({
     reservedHeader !== null && reservedHeader.replace(/\./g, "").length === 2
       ? `${reservedHeader}0`
       : reservedHeader;
-  const [headerWidth, setHeaderWidth] = useState(0);
   const [legendWidth, setLegendWidth] = useState(0);
   const panelWidth = usePanelTransition(
     legendExpanded || hasCurrentWind ? EXPANDED_WIDTH : BLUR_PANEL_ICON_SIZE,
@@ -117,25 +116,6 @@ export function WindPanel({
         importantForAccessibility="no-hide-descendants"
         style={[styles.measurementHost, { width: viewportWidth }]}
       >
-        <View
-          testID="wind-header-measurement"
-          style={styles.measurementRow}
-          onLayout={({ nativeEvent }) =>
-            setHeaderWidth(Math.ceil(nativeEvent.layout.width))
-          }
-        >
-          <View style={{ width: BLUR_PANEL_ICON_SIZE }} />
-          <View>
-            {reservedHeader !== null ? (
-              <BlurText style={styles.speedValue} numberOfLines={1}>
-                {reservedHeaderMeasurement}
-              </BlurText>
-            ) : null}
-            <BlurText style={styles.headerMeasureText} numberOfLines={1}>
-              kn
-            </BlurText>
-          </View>
-        </View>
         <View
           testID="wind-legend-measurement"
           style={styles.measurementRow}
@@ -180,7 +160,7 @@ export function WindPanel({
           onPress={onToggle}
           style={({ pressed }) => [
             styles.header,
-            { width: headerWidth || undefined },
+            { width: EXPANDED_WIDTH },
             pressed && styles.pressed,
           ]}
         >
@@ -323,6 +303,7 @@ const styles = StyleSheet.create({
     top: (CLOSED_HEIGHT - BLUR_TEXT_LINE_HEIGHT) / 2,
     right: 0,
     textAlign: "center",
+    transform: [{ translateX: -6 }],
   },
   content: { overflow: "hidden" },
   header: {
@@ -341,7 +322,7 @@ const styles = StyleSheet.create({
     top: LEGEND_TOP,
     left: 0,
     flexDirection: "row",
-    gap: 8,
+    gap: 12,
   },
   colorBar: { width: 12, borderRadius: 6, overflow: "hidden" },
   selectedBand: {

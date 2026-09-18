@@ -88,27 +88,24 @@ test("wind width and fade use the shared transition when speed arrives, disappea
             Array.isArray(node.props.style) && node.props.style[1]?.width,
         )!;
     const header = () => renderer!.root.findByType("Pressable" as any);
-    const headerMeasurement = () =>
-      renderer!.root.findByProps({ testID: "wind-header-measurement" });
     assert.equal(
       header().props.onLayout,
       undefined,
       "animated content must not feed widths back into the target",
     );
     assert.equal(
-      headerMeasurement().parent!.props.style[1].width,
-      400,
-      "measurement is independent of animated width",
-    );
-    assert.equal(content().props.style[1].width.value, 28);
-    await act(async () =>
-      headerMeasurement().props.onLayout({
-        nativeEvent: { layout: { width: 90 } },
-      }),
+      header().props.style({ pressed: false })[1].width,
+      66,
+      "header width stays fixed independently of weather data",
     );
     assert.equal(content().props.style[1].width.value, 28);
     await act(async () => renderer!.update(panel(5)));
     assert.equal(content().props.style[1].width.value, 66);
+    assert.equal(
+      header().props.style({ pressed: false })[1].width,
+      66,
+      "current weather speed does not shift the expanded header label",
+    );
     const expansion = animations.findLast((a) => a.toValue === 66)!;
     assert.equal(expansion.duration, 280);
     await act(async () => renderer!.update(panel(0)));
@@ -159,31 +156,11 @@ test("wind width and fade use the shared transition when speed arrives, disappea
       66,
       "legend uses the fixed expanded width",
     );
-    await act(async () =>
-      headerMeasurement().props.onLayout({
-        nativeEvent: { layout: { width: 110 } },
-      }),
-    );
-    assert.equal(
-      content().props.style[1].width.value,
-      66,
-      "content measurement does not change the fixed width",
-    );
     assert.ok(
       animations.every((a) => a.duration === 280),
       "width, height and fade share a single timing",
     );
     const count = animations.length;
-    await act(async () =>
-      headerMeasurement().props.onLayout({
-        nativeEvent: { layout: { width: 109.8 } },
-      }),
-    );
-    assert.equal(
-      animations.length,
-      count,
-      "subpixel layout noise must not retarget the transition",
-    );
     await act(async () => renderer!.update(panel(undefined, true)));
     assert.equal(
       animations.length,
