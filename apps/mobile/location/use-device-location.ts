@@ -8,6 +8,7 @@ export type DeviceLocation = {
   coordinate: [number, number];
   /** Estimated horizontal accuracy in metres, when provided by iOS/Android. */
   accuracy: number | null;
+  speed: number | null;
   heading: number | null;
   headingValue: SharedValue<number | null>;
 };
@@ -15,6 +16,7 @@ export type DeviceLocation = {
 export function useDeviceLocation(): DeviceLocation | null {
   const [coordinate, setCoordinate] = useState<[number, number] | null>(null);
   const [accuracy, setAccuracy] = useState<number | null>(null);
+  const [speed, setSpeed] = useState<number | null>(null);
   const [heading, setHeading] = useState<number | null>(null);
   const headingValue = useSharedValue<number | null>(null);
   const courseRef = useRef<number | null>(null);
@@ -56,6 +58,7 @@ export function useDeviceLocation(): DeviceLocation | null {
           lastKnownPosition.coords.latitude,
         ]);
         setAccuracy(lastKnownPosition.coords.accuracy ?? null);
+        setSpeed(lastKnownPosition.coords.speed ?? null);
       }
 
       locationSubscription = await Location.watchPositionAsync(
@@ -68,6 +71,7 @@ export function useDeviceLocation(): DeviceLocation | null {
           if (!active) return;
           setCoordinate([coords.longitude, coords.latitude]);
           setAccuracy(coords.accuracy ?? null);
+          setSpeed(coords.speed ?? null);
           courseRef.current = coords.heading;
           speedRef.current = coords.speed;
           publishHeading();
@@ -98,5 +102,5 @@ export function useDeviceLocation(): DeviceLocation | null {
 
   if (!coordinate) return null;
 
-  return { coordinate, accuracy, heading, headingValue };
+  return { coordinate, accuracy, speed, heading, headingValue };
 }

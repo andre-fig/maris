@@ -37,8 +37,22 @@ const WEATHER_CONDITIONS_DATA: DataPanelItem[] = [
   { label: "Wind", value: "8.4", unit: "kt", iosIcon: "wind", androidIcon: "air" },
 ];
 
-export function NavigationDataPanel() {
-  return <DataMetricsPanel items={NAVIGATION_DATA} />;
+export function NavigationDataPanel({ speed }: { speed?: number | null }) {
+  const hasSpeed =
+    typeof speed === "number" && Number.isFinite(speed) && speed >= 0;
+  const items = NAVIGATION_DATA.map((item, index) =>
+    index === 0
+      ? {
+          ...item,
+          value: hasSpeed
+            ? (speed * METRES_PER_SECOND_TO_KNOTS).toFixed(1)
+            : "—",
+          loading: !hasSpeed,
+        }
+      : item,
+  );
+
+  return <DataMetricsPanel items={items} />;
 }
 
 export function WeatherConditionsPanel({

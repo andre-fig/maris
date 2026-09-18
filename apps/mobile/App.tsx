@@ -358,7 +358,6 @@ export default function App() {
       <NativeWindLayer
         enabled={windEnabled}
         opacity={1.0}
-        fieldOpacity={0}
         density={0.5}
         animationSpeed={1}
         sampleCoordinate={windEnabled
@@ -449,7 +448,7 @@ export default function App() {
           </MapOverlaySlot>
         ) : null}
         <MapOverlaySlot column={0} row={20} columnSpan={6} rowSpan={3} alignItems="stretch" justifyContent="flex-end">
-          <NavigationDataPanel />
+          <NavigationDataPanel speed={deviceLocation?.speed} />
         </MapOverlaySlot>
         <MapOverlaySlot column={0} row={23} columnSpan={2} rowSpan={1} alignItems="flex-start" justifyContent="flex-end">
           <GpsAccuracyPanel accuracy={deviceLocation?.accuracy ?? null} />

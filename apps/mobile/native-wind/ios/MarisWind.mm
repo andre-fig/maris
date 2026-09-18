@@ -11,7 +11,6 @@
 static maris::TileCache tileCache;
 
 @interface MarisWindLayer : MLNCustomStyleLayer
-@property float windOpacity;
 @property float particleOpacity;
 @property float density;
 @property float animationSpeed;
@@ -27,10 +26,8 @@ static maris::TileCache tileCache;
 
 @implementation MarisWindLayer {
   id<MTLDevice> _device;
-  id<MTLRenderPipelineState> _heat, _trails;
+  id<MTLRenderPipelineState> _trails;
   id<MTLDepthStencilState> _depth;
-  id<MTLTexture> _texture;
-  id<MTLTexture> _oldTexture;
   std::shared_ptr<maris::Field> _oldField;
   maris::WindFade _fieldTransition;
   std::shared_ptr<maris::Field> _field;
@@ -60,7 +57,6 @@ static maris::TileCache tileCache;
 #if DEBUG
     _measure = YES;
 #endif
-    _windOpacity = .65;
     _particleOpacity = .65;
     _density = .6;
     _animationSpeed = 1;
@@ -102,31 +98,22 @@ static maris::TileCache tileCache;
     NSLog(@"[Wind] Metal shader error: %@", error);
     return;
   }
-  for (int pass = 0; pass < 2; pass++) {
-    MTLRenderPipelineDescriptor *d = [MTLRenderPipelineDescriptor new];
-    d.vertexFunction = [lib newFunctionWithName:@"windVertex"];
-    d.fragmentFunction =
-        [lib newFunctionWithName:pass ? @"particleFragment" : @"windFragment"];
-    d.colorAttachments[0].pixelFormat = r.mtkView.colorPixelFormat;
-    d.depthAttachmentPixelFormat = MTLPixelFormatDepth32Float_Stencil8;
-    d.stencilAttachmentPixelFormat = MTLPixelFormatDepth32Float_Stencil8;
-    d.rasterSampleCount = r.mtkView.sampleCount;
-    auto c = d.colorAttachments[0];
-    c.blendingEnabled = YES;
-    c.sourceRGBBlendFactor =
-        pass ? MTLBlendFactorOne : MTLBlendFactorDestinationColor;
-    c.destinationRGBBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
-    c.sourceAlphaBlendFactor = MTLBlendFactorOne;
-    c.destinationAlphaBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
-    id<MTLRenderPipelineState> pipeline =
-        [_device newRenderPipelineStateWithDescriptor:d error:&error];
-    if (!pipeline)
-      NSLog(@"[Wind] Metal pipeline error: %@", error);
-    if (pass)
-      _trails = pipeline;
-    else
-      _heat = pipeline;
-  }
+  MTLRenderPipelineDescriptor *d = [MTLRenderPipelineDescriptor new];
+  d.vertexFunction = [lib newFunctionWithName:@"windVertex"];
+  d.fragmentFunction = [lib newFunctionWithName:@"particleFragment"];
+  d.colorAttachments[0].pixelFormat = r.mtkView.colorPixelFormat;
+  d.depthAttachmentPixelFormat = MTLPixelFormatDepth32Float_Stencil8;
+  d.stencilAttachmentPixelFormat = MTLPixelFormatDepth32Float_Stencil8;
+  d.rasterSampleCount = r.mtkView.sampleCount;
+  auto c = d.colorAttachments[0];
+  c.blendingEnabled = YES;
+  c.sourceRGBBlendFactor = MTLBlendFactorOne;
+  c.destinationRGBBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
+  c.sourceAlphaBlendFactor = MTLBlendFactorOne;
+  c.destinationAlphaBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
+  _trails = [_device newRenderPipelineStateWithDescriptor:d error:&error];
+  if (!_trails)
+    NSLog(@"[Wind] Metal pipeline error: %@", error);
   MTLDepthStencilDescriptor *depth = [MTLDepthStencilDescriptor new];
   depth.depthCompareFunction = MTLCompareFunctionAlways;
   depth.depthWriteEnabled = NO;
@@ -174,8 +161,8 @@ static maris::TileCache tileCache;
   if (self.dataStatus) self.dataStatus(YES, _dataSavedAt, YES);
   [self cancelActiveRequest];
   if (_field && !maris::overlaps(_field->plan, p)) {
-    _oldField.reset(); _oldTexture = nil;
-    _field.reset(); _texture = nil;
+    _oldField.reset();
+    _field.reset();
     _particles = maris::Particles();
     std::vector<maris::ClipVertex>().swap(_trailMesh);
     for (int i = 0; i < 3; ++i) _buffers[i] = nil;
@@ -195,7 +182,6 @@ static maris::TileCache tileCache;
       dispatch_async(dispatch_get_main_queue(), ^{
         if (generation != owner->_generation || owner->_field) return;
         owner->_field = snapshot.field;
-        owner->_texture = nil;
         owner->_dataSavedAt = snapshot.savedAt;
         if (owner.dataStatus) owner.dataStatus(YES, snapshot.savedAt, YES);
         [owner setNeedsDisplay];
@@ -305,11 +291,9 @@ static maris::TileCache tileCache;
         if (owner.dataStatus) owner.dataStatus(staleCatalog, savedAt, NO);
         return;
       }
-      owner->_oldField = owner->_texture ? owner->_field : nullptr;
-      owner->_oldTexture = owner->_texture;
+      owner->_oldField = owner->_field;
       owner->_fieldTransition = maris::WindFade();
       owner->_field = field;
-      owner->_texture = nil;
       owner->_dataSavedAt = savedAt;
       if (owner.dataStatus) owner.dataStatus(staleCatalog || field->received != (p.right-p.left+1)*(p.bottom-p.top+1), savedAt, NO);
       NSLog(@"[Wind] atlas %dx%d tiles=%d load=%.2fs", p.width(), p.height(),
@@ -334,42 +318,12 @@ static maris::TileCache tileCache;
   _stats.begin();
   auto f = _field;
   float progress = _oldField ? _fieldTransition.update(true, CACurrentMediaTime()) : 1;
-  if (progress >= 1) { _oldField.reset(); _oldTexture = nil; }
+  if (progress >= 1) _oldField.reset();
   const double *matrix = &context.projectionMatrix.m00;
   id<MTLRenderCommandEncoder> encoder = self.renderEncoder;
   [encoder setCullMode:MTLCullModeNone];
   [encoder setDepthStencilState:_depth];
   float fade = _fade.update(_windVisible, CACurrentMediaTime());
-  if (_windOpacity > .001f && _heat) {
-    if (!_texture) {
-      auto d = [MTLTextureDescriptor
-          texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Unorm
-                                       width:f->plan.width()
-                                      height:f->plan.height()
-                                   mipmapped:NO];
-      d.usage = MTLTextureUsageShaderRead;
-      d.storageMode = MTLStorageModeShared;
-      _texture = [_device newTextureWithDescriptor:d];
-      [_texture
-          replaceRegion:MTLRegionMake2D(0, 0, f->plan.width(), f->plan.height())
-            mipmapLevel:0
-              withBytes:f->rgba.data()
-            bytesPerRow:f->plan.width() * 4];
-    }
-    auto vertices = maris::quad(f->plan, matrix, context.zoomLevel);
-    [encoder setRenderPipelineState:_heat];
-    [encoder setVertexBytes:vertices.data() length:sizeof(vertices) atIndex:0];
-    [encoder setFragmentTexture:_texture atIndex:0];
-    [encoder setFragmentTexture:_oldTexture ?: _texture atIndex:1];
-    auto uv = _oldField ? maris::previousUv(f->plan, _oldField->plan) : std::array<float,4>{1,1,0,0};
-    [encoder setFragmentBytes:uv.data() length:sizeof(uv) atIndex:1];
-    [encoder setFragmentBytes:&progress length:sizeof(progress) atIndex:2];
-    float opacity = _windOpacity * fade;
-    [encoder setFragmentBytes:&opacity length:sizeof(opacity) atIndex:0];
-    [encoder drawPrimitives:MTLPrimitiveTypeTriangleStrip
-                vertexStart:0
-                vertexCount:4];
-  }
   double now = CACurrentMediaTime(), delta = _previous ? now - _previous : 0,
          dt = std::min(.05, delta);
   _previous = now;
@@ -421,11 +375,8 @@ static maris::TileCache tileCache;
   ++_generation;
   [self cancelActiveRequest];
   _key = nil;
-  _texture = nil;
-  _oldTexture = nil;
   _oldField.reset();
   _field.reset();
-  _heat = nil;
   _trails = nil;
   _depth = nil;
   _previous = 0;
@@ -453,7 +404,6 @@ static MLNMapView *findMap(UIView *view) {
 @interface MarisWindControl : UIView
 @property BOOL enabled;
 @property float opacity;
-@property float fieldOpacity;
 @property float density;
 @property float animationSpeed;
 @property (nonatomic, copy) RCTDirectEventBlock onDataStatus;
@@ -472,7 +422,6 @@ static MLNMapView *findMap(UIView *view) {
 - (instancetype)init {
   if ((self = [super init])) {
     _opacity = .65;
-    _fieldOpacity = .65;
     _density = .6;
     _animationSpeed = 1;
     self.userInteractionEnabled = NO;
@@ -572,7 +521,6 @@ static MLNMapView *findMap(UIView *view) {
     [_map.style removeLayer:_layer];
     [_map.style addLayer:_layer];
   }
-  _layer.windOpacity = _fieldOpacity;
   _layer.particleOpacity = _opacity;
   _layer.windVisible = YES;
   _layer.density = _density;
@@ -602,7 +550,6 @@ RCT_EXPORT_MODULE(MarisWindControl)
 }
 RCT_EXPORT_VIEW_PROPERTY(enabled, BOOL)
 RCT_EXPORT_VIEW_PROPERTY(opacity, float)
-RCT_EXPORT_VIEW_PROPERTY(fieldOpacity, float)
 RCT_EXPORT_VIEW_PROPERTY(density, float)
 RCT_EXPORT_VIEW_PROPERTY(animationSpeed, float)
 RCT_EXPORT_VIEW_PROPERTY(onDataStatus, RCTDirectEventBlock)

@@ -14,7 +14,7 @@ struct State {
   std::mutex mutex;
   std::shared_ptr<maris::Field> field, staging;
   int generation = 0;
-  float opacity = .65, fieldOpacity = .65, density = .6, speed = 1;
+  float opacity = .65, density = .6, speed = 1;
   bool lowMemory = false;
   float quality = 1;
   bool visible = true, fadedOut = true;
@@ -63,12 +63,10 @@ static GLuint program(const char *fragment) {
 }
 class Host final : public mbgl::style::CustomLayerHost {
   std::shared_ptr<State> s;
-  std::shared_ptr<maris::Field> uploaded;
   std::shared_ptr<maris::Field> oldField;
   std::shared_ptr<maris::Field> transitionTarget;
-  GLuint oldTexture = 0;
   maris::WindFade fieldTransition;
-  GLuint heat = 0, trails = 0, texture = 0, buffer = 0, vao = 0;
+  GLuint trails = 0, buffer = 0, vao = 0;
   maris::Particles particles;
   std::vector<maris::ClipVertex> trailMesh;
   maris::RenderStats stats;
@@ -87,9 +85,7 @@ public:
     GLint previousVao = 0, previousBuffer = 0;
     glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &previousVao);
     glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &previousBuffer);
-    heat = program(maris::glFragment().c_str());
     trails = program(maris::glParticle);
-    glGenTextures(1, &texture);
     glGenBuffers(1, &buffer);
     glGenBuffers(1, &trailBuffer);
     glGenVertexArrays(1, &vao);
@@ -106,35 +102,28 @@ public:
   }
   void render(const mbgl::style::CustomLayerRenderParameters &p) override {
     std::shared_ptr<maris::Field> field;
-    float opacity, fieldOpacity, density, speed;
+    float opacity, density, speed;
     bool visible;
     {
       std::lock_guard<std::mutex> lock(s->mutex);
       field = s->field;
       opacity = s->opacity;
-      fieldOpacity = s->fieldOpacity;
       density = s->density;
       speed = s->speed;
       visible = s->visible;
     }
     if (!field) {
       oldField.reset();
-      if (oldTexture) glDeleteTextures(1, &oldTexture);
-      oldTexture = 0;
+      transitionTarget.reset();
       fade = maris::WindFade();
       { std::lock_guard<std::mutex> lock(s->mutex); s->fadedOut = true; }
-      if (uploaded) {
-        uploaded.reset();
-        if (texture) glDeleteTextures(1, &texture);
-        glGenTextures(1, &texture);
-        if (trailFence) glDeleteSync(trailFence);
-        trailFence = nullptr;
-        if (trailBuffer) glDeleteBuffers(1, &trailBuffer);
-        glGenBuffers(1, &trailBuffer);
-        trailBytes = 0;
-        particles = maris::Particles();
-        std::vector<maris::ClipVertex>().swap(trailMesh);
-      }
+      if (trailFence) glDeleteSync(trailFence);
+      trailFence = nullptr;
+      if (trailBuffer) glDeleteBuffers(1, &trailBuffer);
+      glGenBuffers(1, &trailBuffer);
+      trailBytes = 0;
+      particles = maris::Particles();
+      std::vector<maris::ClipVertex>().swap(trailMesh);
       return;
     }
     const double seconds = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
@@ -147,11 +136,7 @@ public:
     GLint savedProgram = 0;
     glGetIntegerv(GL_CURRENT_PROGRAM, &savedProgram);
     if (transitionTarget != field) {
-      if (oldTexture) {
-        glDeleteTextures(1, &oldTexture);
-        oldTexture = 0;
-      }
-      oldField = uploaded;
+      oldField = transitionTarget;
       transitionTarget = field;
       fieldTransition = maris::WindFade();
     }
@@ -162,53 +147,6 @@ public:
     glDisable(GL_CULL_FACE);
     glEnable(GL_BLEND);
     glBlendEquation(GL_FUNC_ADD);
-    if (fieldOpacity > .001f && heat) {
-      glActiveTexture(GL_TEXTURE0);
-      if (uploaded != field) {
-        oldTexture = uploaded ? texture : 0;
-        if (oldTexture)
-          glGenTextures(1, &texture);
-        else if (!texture)
-          glGenTextures(1, &texture);
-        glBindTexture(GL_TEXTURE_2D, texture);
-        glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, field->plan.width(),
-                     field->plan.height(), 0, GL_RGBA, GL_UNSIGNED_BYTE,
-                     field->rgba.data());
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-        uploaded = field;
-      } else {
-        glBindTexture(GL_TEXTURE_2D, texture);
-      }
-      glActiveTexture(GL_TEXTURE1);
-      glBindTexture(GL_TEXTURE_2D, oldTexture ? oldTexture : texture);
-      glActiveTexture(GL_TEXTURE0);
-      glBlendFuncSeparate(GL_DST_COLOR, GL_ONE_MINUS_SRC_ALPHA, GL_ONE,
-                          GL_ONE_MINUS_SRC_ALPHA);
-      glUseProgram(heat);
-      glUniform1i(glGetUniformLocation(heat, "field"), 0);
-      glUniform1i(glGetUniformLocation(heat, "previousField"), 1);
-      auto uv = oldField ? maris::previousUv(field->plan,oldField->plan) : std::array<float,4>{1,1,0,0};
-      glUniform4fv(glGetUniformLocation(heat, "previousUV"),1,uv.data());
-      glUniform1f(glGetUniformLocation(heat, "progress"), progress);
-      glUniform1f(glGetUniformLocation(heat, "opacity"), fieldOpacity * fade.value);
-      glBindVertexArray(vao);
-      glBindBuffer(GL_ARRAY_BUFFER, buffer);
-      glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, sizeof(maris::ClipVertex), nullptr);
-      glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(maris::ClipVertex), (void *)(4*sizeof(float)));
-      auto vertices = maris::quad(field->plan, p.projectionMatrix.data(), p.zoom);
-      glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices.data(),
-                   GL_STREAM_DRAW);
-      glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-    }
-    if (progress >= 1 && uploaded == field) {
-      oldField.reset();
-      if (oldTexture) glDeleteTextures(1, &oldTexture);
-      oldTexture = 0;
-    }
     auto now = std::chrono::steady_clock::now();
     double delta =
         previous.time_since_epoch().count()
@@ -254,10 +192,9 @@ public:
 #endif
   }
   void contextLost() override {
-    heat = trails = texture = buffer = vao = 0;
+    trails = buffer = vao = 0;
     trailBuffer = 0; trailFence = nullptr; trailBytes = 0;
-    uploaded.reset();
-    oldField.reset(); oldTexture = 0;
+    oldField.reset();
     transitionTarget.reset();
     particles = maris::Particles();
     std::vector<maris::ClipVertex>().swap(trailMesh);
@@ -265,15 +202,10 @@ public:
     fade = maris::WindFade();
   }
   void deinitialize() override {
-    if (oldTexture) glDeleteTextures(1, &oldTexture);
     if (trailFence) glDeleteSync(trailFence);
     if (trailBuffer) glDeleteBuffers(1, &trailBuffer);
-    if (heat)
-      glDeleteProgram(heat);
     if (trails)
       glDeleteProgram(trails);
-    if (texture)
-      glDeleteTextures(1, &texture);
     if (buffer)
       glDeleteBuffers(1, &buffer);
     if (vao)
@@ -388,14 +320,13 @@ JNIEXPORT jboolean JNICALL Java_com_maris_wind_WindControl_publish(JNIEnv *, jcl
   return false;
 }
 JNIEXPORT void JNICALL Java_com_maris_wind_WindControl_configure(
-    JNIEnv *, jclass, jlong id, jfloat opacity, jfloat fieldOpacity,
-    jfloat density, jfloat speed, jboolean visible) {
+    JNIEnv *, jclass, jlong id, jfloat opacity, jfloat density,
+    jfloat speed, jboolean visible) {
   auto s = state(id);
   if (!s)
     return;
   std::lock_guard<std::mutex> lock(s->mutex);
   s->opacity = opacity;
-  s->fieldOpacity = fieldOpacity;
   s->density = density;
   s->speed = speed;
   s->visible = visible;
