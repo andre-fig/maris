@@ -4,7 +4,6 @@ import FontAwesome6 from "@expo/vector-icons/FontAwesome6";
 import { SymbolView } from "expo-symbols";
 import { useState } from "react";
 import {
-  ActivityIndicator,
   Animated,
   Platform,
   Pressable,
@@ -12,6 +11,7 @@ import {
   View,
 } from "react-native";
 import { usePanelTransition } from "./use-panel-transition";
+import { LoadingIcon } from "./LoadingIcon";
 
 import { BLUR_PANEL_GAP, BLUR_PANEL_ICON_SIZE, BlurPanel } from "./BlurPanel";
 
@@ -159,26 +159,22 @@ export function MapControlsPanel({
               pressed && styles.pressed,
             ]}
           >
-            {mapLoading ? (
-              <ActivityIndicator
-                color="#FFFFFF"
-                size="small"
-                style={styles.loadingIcon}
-              />
-            ) : isAndroid ? (
-              <MaterialCommunityIcons
-                color="#FFFFFF"
-                name="map-outline"
-                size={BLUR_PANEL_ICON_SIZE}
-              />
-            ) : (
-              <SymbolView
-                name="map"
-                size={BLUR_PANEL_ICON_SIZE}
-                tintColor="#FFFFFF"
-                type="monochrome"
-              />
-            )}
+            <LoadingIcon loading={mapLoading}>
+              {isAndroid ? (
+                <MaterialCommunityIcons
+                  color="#FFFFFF"
+                  name="map-outline"
+                  size={BLUR_PANEL_ICON_SIZE}
+                />
+              ) : (
+                <SymbolView
+                  name="map"
+                  size={BLUR_PANEL_ICON_SIZE}
+                  tintColor="#FFFFFF"
+                  type="monochrome"
+                />
+              )}
+            </LoadingIcon>
           </Pressable>
         </Animated.View>
       </View>
@@ -201,10 +197,6 @@ const styles = StyleSheet.create({
   mapAction: {
     paddingTop: BLUR_PANEL_GAP,
     height: BLUR_PANEL_ICON_SIZE + BLUR_PANEL_GAP,
-  },
-  loadingIcon: {
-    width: BLUR_PANEL_ICON_SIZE,
-    height: BLUR_PANEL_ICON_SIZE,
   },
   action: {
     alignItems: "center",

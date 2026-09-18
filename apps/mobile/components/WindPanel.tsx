@@ -15,6 +15,7 @@ import {
 } from "./BlurPanel";
 import { BLUR_TEXT_LINE_HEIGHT, BlurText } from "./BlurText";
 import { usePanelTransition } from "./use-panel-transition";
+import { LoadingIcon } from "./LoadingIcon";
 import {
   formatWindLegendLabel,
   METRES_PER_SECOND_TO_KNOTS,
@@ -42,18 +43,21 @@ const EXPANDED_HEIGHT = LEGEND_TOP + WIND_LEGEND.length * LEGEND_ROW_HEIGHT;
 
 export function WindPanel({
   enabled,
+  loading,
   centerWindSpeed,
   currentWindSpeed,
   onToggle,
 }: {
   enabled: boolean;
+  loading: boolean;
   centerWindSpeed?: number | null;
   currentWindSpeed?: number | null;
   onToggle: () => void;
 }) {
   const { width: viewportWidth } = useWindowDimensions();
-  const expansion = usePanelTransition(enabled ? 1 : 0);
-  const selectedBand = enabled ? windLegendBand(centerWindSpeed) : -1;
+  const ready = enabled && !loading;
+  const expansion = usePanelTransition(ready ? 1 : 0);
+  const selectedBand = ready ? windLegendBand(centerWindSpeed) : -1;
   const hasCurrentWind =
     typeof currentWindSpeed === "number" &&
     Number.isFinite(currentWindSpeed) &&
@@ -79,9 +83,9 @@ export function WindPanel({
   );
 
   const panelWidth = usePanelTransition(
-    enabled || hasCurrentWind ? expandedWidth : BLUR_PANEL_ICON_SIZE,
+    ready || hasCurrentWind ? expandedWidth : BLUR_PANEL_ICON_SIZE,
   );
-  const headerOpacity = usePanelTransition(enabled || hasCurrentWind ? 1 : 0);
+  const headerOpacity = usePanelTransition(ready || hasCurrentWind ? 1 : 0);
 
   return (
     <BlurPanel
@@ -167,8 +171,9 @@ export function WindPanel({
       >
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={enabled ? "Disable wind" : "Enable wind"}
-          accessibilityState={{ expanded: enabled, selected: enabled }}
+          accessibilityLabel={loading ? "Loading wind" : enabled ? "Disable wind" : "Enable wind"}
+          accessibilityState={{ busy: loading, disabled: loading, expanded: enabled, selected: enabled }}
+          disabled={loading}
           onPress={onToggle}
           style={({ pressed }) => [
             styles.header,
@@ -176,16 +181,18 @@ export function WindPanel({
             pressed && styles.pressed,
           ]}
         >
-          <SymbolView
-            name={{ ios: "wind", android: "air", web: "air" }}
-            size={enabled ? 22 : BLUR_PANEL_ICON_SIZE}
-            style={{
-              width: BLUR_PANEL_ICON_SIZE,
-              height: BLUR_PANEL_ICON_SIZE,
-            }}
-            tintColor="#FFFFFF"
-            type="monochrome"
-          />
+          <LoadingIcon loading={loading}>
+            <SymbolView
+              name={{ ios: "wind", android: "air", web: "air" }}
+              size={enabled ? 22 : BLUR_PANEL_ICON_SIZE}
+              style={{
+                width: BLUR_PANEL_ICON_SIZE,
+                height: BLUR_PANEL_ICON_SIZE,
+              }}
+              tintColor="#FFFFFF"
+              type="monochrome"
+            />
+          </LoadingIcon>
           <Animated.View
             style={[styles.headerText, { opacity: headerOpacity }]}
           >
@@ -204,7 +211,7 @@ export function WindPanel({
                 kn
               </BlurText>
             </View>
-            {!enabled && hasCurrentWind ? (
+            {!ready && !loading && hasCurrentWind ? (
               <View
                 style={styles.speedReadout}
                 accessible
@@ -234,8 +241,8 @@ export function WindPanel({
         </Pressable>
         <Animated.View
           pointerEvents="none"
-          accessibilityElementsHidden={!enabled}
-          importantForAccessibility={enabled ? "auto" : "no-hide-descendants"}
+          accessibilityElementsHidden={!ready}
+          importantForAccessibility={ready ? "auto" : "no-hide-descendants"}
           style={[
             styles.legend,
             { opacity: expansion, width: legendWidth || undefined },

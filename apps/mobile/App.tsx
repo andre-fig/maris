@@ -106,6 +106,7 @@ export default function App() {
     MapStyleMode | "initial"
   >("initial");
   const [windEnabled, setWindEnabled] = useState(false);
+  const [windLoading, setWindLoading] = useState(false);
   const [mapSheetVisible, setMapSheetVisible] = useState(false);
   const [chartRequested, setChartRequested] = useState(false);
   const chartRequestPending = useRef(false);
@@ -362,6 +363,9 @@ export default function App() {
                 ? previous : nativeEvent.speed);
           }
         }}
+        onDataStatus={({ nativeEvent }) => {
+          setWindLoading(nativeEvent.loading);
+        }}
         style={{ width: 0, height: 0, position: "absolute" }}
       />
       <View pointerEvents="box-none" style={styles.scaleOverlay}>
@@ -440,12 +444,17 @@ export default function App() {
       <View pointerEvents="box-none" style={styles.windOverlay}>
         <WindPanel
           enabled={windEnabled}
+          loading={windLoading}
           centerWindSpeed={centerWindSpeed}
           currentWindSpeed={currentWeather.windSpeed}
           onToggle={() => {
             setCenterWindSpeed(null);
             setWindSampleCoordinate([viewState.longitude, viewState.latitude]);
-            setWindEnabled((enabled) => !enabled);
+            setWindEnabled((enabled) => {
+              const nextEnabled = !enabled;
+              setWindLoading(nextEnabled);
+              return nextEnabled;
+            });
           }}
         />
       </View>

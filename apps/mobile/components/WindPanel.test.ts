@@ -24,7 +24,7 @@ test("wind width and fade use the shared transition when speed arrives, disappea
         builder.onResolve({ filter: /^react(?:\/jsx-runtime)?$/ }, args => ({ path: require.resolve(args.path), external: true }));
         builder.onResolve({ filter: /^(react-native|expo-symbols|\.\/BlurPanel|\.\/BlurText)$/ }, args => ({ path: args.path, namespace: "mock" }));
         builder.onLoad({ filter: /.*/, namespace: "mock" }, ({ path }) => ({ loader: "js", contents:
-          path === "react-native" ? `export const View="View",Pressable="Pressable",StyleSheet={create:x=>x},Easing={cubic:x=>x,inOut:x=>x},useWindowDimensions=()=>({width:400});
+          path === "react-native" ? `export const View="View",Pressable="Pressable",ActivityIndicator="ActivityIndicator",StyleSheet={create:x=>x},Easing={cubic:x=>x,inOut:x=>x},useWindowDimensions=()=>({width:400});
             export const Animated={View:"AnimatedView",Value:class {constructor(value){this.value=value} interpolate(options){return {value:this,options}}},timing:(value,options)=>{const record={...options,stopped:false};globalThis.__panelAnimations.push(record);return {start(){value.value=options.toValue},stop(){record.stopped=true}}}};` :
           path === "expo-symbols" ? 'export const SymbolView="SymbolView";' :
           path === "./BlurPanel" ? 'export const BlurPanel="BlurPanel",BLUR_PANEL_ICON_SIZE=28,BLUR_PANEL_PADDING_VERTICAL=6;' :
@@ -34,7 +34,7 @@ test("wind width and fade use the shared transition when speed arrives, disappea
     });
     const module = { exports: {} as { WindPanel: React.ComponentType<any> } };
     new Function("require", "module", "exports", output.outputFiles[0].text)(require, module, module.exports);
-    const panel = (currentWindSpeed?: number, enabled = false) => React.createElement(module.exports.WindPanel, { currentWindSpeed, enabled, onToggle() {} });
+    const panel = (currentWindSpeed?: number, enabled = false, loading = false) => React.createElement(module.exports.WindPanel, { currentWindSpeed, enabled, loading, onToggle() {} });
     await act(async () => { renderer = create(panel()); });
     const content = () => renderer!.root.findAllByType("AnimatedView" as any).find(node => Array.isArray(node.props.style) && node.props.style[1]?.width)!;
     const header = () => renderer!.root.findByType("Pressable" as any);
@@ -61,6 +61,16 @@ test("wind width and fade use the shared transition when speed arrives, disappea
     assert.equal(animations.length, count, "subpixel layout noise must not retarget the transition");
     await act(async () => renderer!.update(panel(undefined, true)));
     assert.equal(animations.length, count, "unchanged sizes must not restart animations");
+    await act(async () => renderer!.update(panel(undefined, true, true)));
+    assert.equal(header().props.disabled, true);
+    assert.equal(header().props.accessibilityState.busy, true);
+    assert.equal(content().props.style[1].width.value, 28,
+      "panel stays collapsed until MET data finishes loading");
+    assert.equal(content().props.style[1].height.value.value, 0,
+      "legend collapses while the wind icon is loading");
+    assert.equal(renderer!.root.findAllByType("ActivityIndicator" as any).length, 1);
+    assert.equal(renderer!.root.findAllByType("SymbolView" as any).length, 0,
+      "spinner replaces the wind icon while MET data loads");
   } finally {
     if (renderer) await act(async () => renderer!.unmount());
     globals.IS_REACT_ACT_ENVIRONMENT = previousAct;

@@ -7,7 +7,7 @@ export type WindLayerProps = ViewProps & {
   animationSpeed?: number;
   sampleCoordinate?: [number, number] | null;
   onCenterWind?: (event: NativeSyntheticEvent<{ speed: number | null; coordinate: [number, number] }>) => void;
-  onDataStatus?: (event: NativeSyntheticEvent<{ stale: boolean; savedAt: number }>) => void;
+  onDataStatus?: (event: NativeSyntheticEvent<{ stale: boolean; savedAt: number; loading: boolean }>) => void;
 };
 
 // Zero-size control view. All pixels are rendered inside MapLibre, not this view.

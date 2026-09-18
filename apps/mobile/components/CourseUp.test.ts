@@ -76,7 +76,12 @@ test("course up activates before heading is available and follows north without 
     assert.equal(stack.props.pointerEvents, "box-none");
     await act(async () => wind().props.onToggle());
     assert.equal(wind().props.enabled, true);
+    assert.equal(wind().props.loading, true);
     const nativeWind = () => renderer!.root.find(node => node.type === ("NativeWindLayer" as unknown));
+    await act(async () => nativeWind().props.onDataStatus({nativeEvent:{stale:true,savedAt:0,loading:true}}));
+    assert.equal(wind().props.loading, true, "cached data keeps loading while MET refreshes");
+    await act(async () => nativeWind().props.onDataStatus({nativeEvent:{stale:false,savedAt:1,loading:false}}));
+    assert.equal(wind().props.loading, false, "terminal MET status restores the wind icon");
     const map = renderer!.root.find(node => node.type === ("Map" as unknown));
     const center = [-80.15, 25.77];
     await act(async () => {

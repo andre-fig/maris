@@ -15,7 +15,7 @@ static maris::TileCache tileCache;
 @property float density;
 @property float animationSpeed;
 @property BOOL windVisible;
-@property (copy) void (^dataStatus)(BOOL stale, double savedAt);
+@property (copy) void (^dataStatus)(BOOL stale, double savedAt, BOOL loading);
 - (void)load:(maris::Plan)plan;
 - (int)resolutionPenalty;
 - (int)maximumDimension;
@@ -161,6 +161,7 @@ static maris::TileCache tileCache;
     return;
   _key = key;
   _loading = YES;
+  if (self.dataStatus) self.dataStatus(YES, _dataSavedAt, YES);
   [self cancelActiveRequest];
   if (_field && !maris::overlaps(_field->plan, p)) {
     _oldField.reset(); _oldTexture = nil;
@@ -186,7 +187,7 @@ static maris::TileCache tileCache;
         owner->_field = snapshot.field;
         owner->_texture = nil;
         owner->_dataSavedAt = snapshot.savedAt;
-        if (owner.dataStatus) owner.dataStatus(YES, snapshot.savedAt);
+        if (owner.dataStatus) owner.dataStatus(YES, snapshot.savedAt, YES);
         [owner setNeedsDisplay];
       });
       snapshot.field.reset();
@@ -202,7 +203,7 @@ static maris::TileCache tileCache;
     if (!catalog) {
       dispatch_async(dispatch_get_main_queue(), ^{
         if (generation == owner->_generation && owner.dataStatus)
-          owner.dataStatus(YES, owner->_dataSavedAt);
+          owner.dataStatus(YES, owner->_dataSavedAt, NO);
       });
       return;
     }
@@ -210,11 +211,21 @@ static maris::TileCache tileCache;
                                                          options:0
                                                            error:nil];
     NSArray *times = json[@"times"];
-    if (!times.count)
+    if (!times.count) {
+      dispatch_async(dispatch_get_main_queue(), ^{
+        if (generation == owner->_generation && owner.dataStatus)
+          owner.dataStatus(YES, owner->_dataSavedAt, NO);
+      });
       return;
+    }
     NSString *url = times[0][@"tiles"][@"png"];
-    if (!url)
+    if (!url) {
+      dispatch_async(dispatch_get_main_queue(), ^{
+        if (generation == owner->_generation && owner.dataStatus)
+          owner.dataStatus(YES, owner->_dataSavedAt, NO);
+      });
       return;
+    }
     if (!staleCatalog)
       [catalog writeToFile:owner->_catalogPath atomically:YES];
     auto field = std::make_shared<maris::Field>(p);
@@ -276,12 +287,12 @@ static maris::TileCache tileCache;
       if (generation != owner->_generation)
         return;
       if (!maris::canPublish(owner->_field.get(), *field)) {
-        if (owner.dataStatus) owner.dataStatus(YES, owner->_dataSavedAt);
+        if (owner.dataStatus) owner.dataStatus(YES, owner->_dataSavedAt, NO);
         return; // Never replace a visible field with a partial refresh.
       }
       if (owner->_field && owner->_field->plan.key() == field->plan.key() && owner->_field->rgba == field->rgba) {
         owner->_dataSavedAt = savedAt;
-        if (owner.dataStatus) owner.dataStatus(staleCatalog, savedAt);
+        if (owner.dataStatus) owner.dataStatus(staleCatalog, savedAt, NO);
         return;
       }
       owner->_oldField = owner->_texture ? owner->_field : nullptr;
@@ -290,7 +301,7 @@ static maris::TileCache tileCache;
       owner->_field = field;
       owner->_texture = nil;
       owner->_dataSavedAt = savedAt;
-      if (owner.dataStatus) owner.dataStatus(staleCatalog || field->received != (p.right-p.left+1)*(p.bottom-p.top+1), savedAt);
+      if (owner.dataStatus) owner.dataStatus(staleCatalog || field->received != (p.right-p.left+1)*(p.bottom-p.top+1), savedAt, NO);
       NSLog(@"[Wind] atlas %dx%d tiles=%d load=%.2fs", p.width(), p.height(),
             field->received, CACurrentMediaTime() - now);
       [owner setNeedsDisplay];
@@ -549,10 +560,10 @@ static MLNMapView *findMap(UIView *view) {
   _layer.density = _density;
   _layer.animationSpeed = _animationSpeed;
   __weak MarisWindControl *weak = self;
-  _layer.dataStatus = ^(BOOL stale, double savedAt) {
+  _layer.dataStatus = ^(BOOL stale, double savedAt, BOOL loading) {
     MarisWindControl *owner = weak;
     [owner emitSample]; // New/restored atlas: retry the last requested destination.
-    if (owner.onDataStatus) owner.onDataStatus(@{@"stale": @(stale), @"savedAt": @(savedAt * 1000)});
+    if (owner.onDataStatus) owner.onDataStatus(@{@"stale": @(stale), @"savedAt": @(savedAt * 1000), @"loading": @(loading)});
   };
   if (clock.timestamp - _check > .35) {
     _check = clock.timestamp;

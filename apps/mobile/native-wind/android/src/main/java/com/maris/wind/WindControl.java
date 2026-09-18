@@ -206,13 +206,14 @@ public class WindControl extends View
     }
     Choreographer.getInstance().postFrameCallback(this);
   }
-  void dataStatus(boolean stale, long timestamp, int gen) {
+  void dataStatus(boolean stale, long timestamp, boolean loading, int gen) {
     post(() -> {
       if (gen != generation) return;
       emitSample();
       WritableMap event = Arguments.createMap();
       event.putBoolean("stale", stale);
       event.putDouble("savedAt", timestamp * 1000.);
+      event.putBoolean("loading", loading);
       react.getJSModule(com.facebook.react.uimanager.events.RCTEventEmitter.class)
           .receiveEvent(getId(), "topDataStatus", event);
     });
@@ -254,6 +255,7 @@ public class WindControl extends View
   }
   void load(int[] p, long target, int gen) {
     cancelObsolete(gen);
+    dataStatus(true, savedAt, true, gen);
     worker.submit(() -> {
       long start = System.nanoTime();
       boolean complete = false;
@@ -264,7 +266,7 @@ public class WindControl extends View
         long restored = restore(target, gen, snapshotPath);
         if (restored > 0) {
           savedAt = restored;
-          dataStatus(true, restored, gen);
+          dataStatus(true, restored, true, gen);
           post(() -> { if (map != null && gen == generation) map.triggerRepaint(); });
         }
         boolean staleCatalog = false;
@@ -337,7 +339,7 @@ public class WindControl extends View
           boolean accepted = publish(target, gen);
           complete = !staleCatalog && accepted && count == (p[3]-p[1]+1)*(p[4]-p[2]+1);
           if (accepted) savedAt = downloadedAt;
-          dataStatus(staleCatalog || !accepted || count != (p[3]-p[1]+1)*(p[4]-p[2]+1), savedAt, gen);
+          dataStatus(staleCatalog || !accepted || count != (p[3]-p[1]+1)*(p[4]-p[2]+1), savedAt, false, gen);
           post(() -> {
             if (map != null)
               map.triggerRepaint();
@@ -346,7 +348,7 @@ public class WindControl extends View
                                  (System.nanoTime() - start) / 1000000);
         }
       } catch (Exception error) {
-        dataStatus(true, savedAt, gen);
+        dataStatus(true, savedAt, false, gen);
         Log.e("MarisWind", "MET field load failed", error);
       } finally {
         final boolean succeeded = complete;
