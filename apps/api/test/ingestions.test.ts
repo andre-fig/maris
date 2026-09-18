@@ -19,6 +19,10 @@ import { ChartCell } from '../src/ingestions/entities/chart-cell.entity.js';
 import { ChartCoverage } from '../src/ingestions/entities/chart-coverage.entity.js';
 import { ChartSurvey } from '../src/ingestions/entities/chart-survey.entity.js';
 import { ModelEncMetadata2026091800000 } from '../src/database/migrations/2026091800000-model-enc-metadata.js';
+import { CreateEncUploads2026091801000 } from '../src/database/migrations/2026091801000-create-enc-uploads.js';
+import { AddSourceObjectKey2026091802000 } from '../src/database/migrations/2026091802000-add-source-object-key.js';
+import { AddArtifactObjectKeys2026091803000 } from '../src/database/migrations/2026091803000-add-artifact-object-keys.js';
+import { AddSourceUrl2026091804000 } from '../src/database/migrations/2026091804000-add-source-url.js';
 import type {
   ProcessingJob,
   ProcessingResult,
@@ -80,7 +84,7 @@ async function createDatabase(migrateMetadata = true): Promise<DataSource> {
   });
   const dataSource = (await memory.adapters.createTypeormDataSource({
     entities: [ChartDataset, ChartIngestion, ChartVersion, ChartCell, ChartCoverage, ChartSurvey],
-    migrations: [CreateChartCatalog2026091700000, ...(migrateMetadata ? [ModelEncMetadata2026091800000] : [])],
+    migrations: [CreateChartCatalog2026091700000, ...(migrateMetadata ? [ModelEncMetadata2026091800000] : []), CreateEncUploads2026091801000, AddSourceObjectKey2026091802000, AddArtifactObjectKeys2026091803000, AddSourceUrl2026091804000],
     migrationsRun: true,
     synchronize: false,
     type: 'postgres',

@@ -8,6 +8,7 @@ import { IngestionsModule } from './ingestions/ingestions.module.js';
 import { TilesModule } from './tiles/tiles.module.js';
 import { WeatherModule } from './weather/weather.module.js';
 import { ChartsModule } from './charts/charts.module.js';
+import { StorageModule } from './storage/storage.module.js';
 
 @Module({
   imports: [
@@ -21,7 +22,7 @@ import { ChartsModule } from './charts/charts.module.js';
     IngestionsModule,
     TilesModule,
     WeatherModule,
-    ChartsModule,
+    ChartsModule, StorageModule,
   ],
 })
 export class AppModule {}

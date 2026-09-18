@@ -15,9 +15,11 @@ import { IngestionsService } from './services/ingestions.service.js';
 import { IngestionPipelineService } from './services/ingestion-pipeline.service.js';
 import { ProcessingDispatcherService } from './services/processing-dispatcher.service.js';
 import { ProcessingCleanupService } from './services/processing-cleanup.service.js';
+import { EncUploadController } from './enc-upload.controller.js';
+import { StorageModule } from '../storage/storage.module.js';
 
 @Module({
-  imports: [
+  imports: [StorageModule,
     MulterModule.registerAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => {
@@ -44,7 +46,7 @@ import { ProcessingCleanupService } from './services/processing-cleanup.service.
       },
     }),
   ],
-  controllers: [IngestionsController],
+  controllers: [IngestionsController, EncUploadController],
   providers: [
     ChartCatalogService,
     EncArchiveService,

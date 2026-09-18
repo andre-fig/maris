@@ -1,12 +1,15 @@
 import { execFile } from 'node:child_process';
-import { mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
+import { fileURLToPath } from 'node:url';
 
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ProcessingCleanupService } from './processing-cleanup.service.js';
+import { EncArchiveService } from './enc-archive.service.js';
 import { coverageCells } from '../../charts/models/chart-selection.js';
+import { ObjectStorageService } from '../../storage/object-storage.service.js';
 
 import type {
   EncMetadataFeature,
@@ -30,6 +33,12 @@ export class EncProcessingService {
     @Inject(ConfigService) config: ConfigService,
     @Inject(ProcessingCleanupService)
     private readonly cleanup: ProcessingCleanupService = new ProcessingCleanupService(config),
+    @Inject(EncArchiveService)
+    @Optional()
+    protected readonly archiveService: EncArchiveService = new EncArchiveService(config),
+    @Inject(ObjectStorageService)
+    @Optional()
+    private readonly objectStorage?: ObjectStorageService,
   ) {
     this.storageDirectory = path.resolve(
       config.getOrThrow<string>('STORAGE_DIR'),
@@ -46,7 +55,7 @@ export class EncProcessingService {
       '.processing',
       job.ingestionId,
     );
-    const extractedDirectory = path.join(workDirectory, 'source');
+    const extractedDirectory = path.join(workDirectory, 'cell');
     const geopackage = path.join(workDirectory, 'soundings.gpkg');
     const normalizedGeoJson = path.join(workDirectory, 'soundings.json');
 
@@ -54,19 +63,39 @@ export class EncProcessingService {
     await mkdir(extractedDirectory, { recursive: true });
 
     try {
-      await this.run('unzip', ['-q', archivePath, '-d', extractedDirectory]);
-      const baseCells = (await this.findFiles(extractedDirectory)).filter(
-        (file) => /\.000$/i.test(file),
-      );
-      if (baseCells.length === 0) throw new Error('No S-57 base cells extracted');
+      const archive = await this.archiveService.inspect(archivePath);
+      if (archive.cells.length === 0) throw new Error('No S-57 base cells extracted');
 
       const cells: ProcessedCell[] = [];
-      const soundingCells: string[] = [];
-      for (const cell of baseCells.sort()) {
-        const cellName = path.basename(cell, '.000').toUpperCase();
-        const updatesApplied = await this.findUpdates(cell);
+      let soundingCellCount = 0;
+      let geopackageCreated = false;
+      for (const entry of archive.cells.sort((a,b) => a.name.localeCompare(b.name))) {
+        await rm(extractedDirectory, { force: true, recursive: true });
+        await mkdir(extractedDirectory, { recursive: true });
+        const files = await this.archiveService.extractCell(archivePath, entry.name, extractedDirectory);
+        const cell = files.find(file => /\.000$/i.test(file));
+        if (!cell) throw new Error(`Missing extracted base cell ${entry.name}`);
+        const cellName = entry.name;
+        const updatesApplied = entry.updateNumbers;
         const { hasSoundings, ...metadata } = await this.readCellMetadata(cell);
-        if (hasSoundings) soundingCells.push(cell);
+        if (hasSoundings) {
+          const arguments_ = [
+            ...(geopackageCreated ? ['-update', '-append'] : []),
+            ...(!geopackageCreated ? ['-f', 'GPKG'] : []),
+            ...(geopackageCreated ? [geopackage] : [geopackage]),
+            cell,
+            '-oo', 'SPLIT_MULTIPOINT=ON',
+            '-oo', 'ADD_SOUNDG_DEPTH=ON',
+            '-oo', 'UPDATES=APPLY',
+            '-dialect', 'SQLite',
+            '-sql', `SELECT *, '${entry.name}' AS SOURCE_CELL FROM SOUNDG`,
+            '-nln', 'soundings',
+            '-dim', 'XY',
+          ];
+          await this.run('ogr2ogr', arguments_);
+          geopackageCreated = true;
+          soundingCellCount += 1;
+        }
         cells.push({
           ...metadata,
           edition: metadata.edition,
@@ -74,6 +103,9 @@ export class EncProcessingService {
           updateNumber: Math.max(metadata.updateNumber, ...updatesApplied, 0),
           updatesApplied,
         });
+        // Never retain an extracted cell between batches. The source ZIP remains
+        // in object storage and is reopened lazily for the next cell.
+        await rm(extractedDirectory, { force: true, recursive: true });
       }
 
       const storagePath = path.posix.join(
@@ -82,42 +114,34 @@ export class EncProcessingService {
         job.versionKey,
       );
       const manifestPath = path.posix.join(storagePath, 'manifest.json');
-      const existingManifest = await this.readManifestIfPresent(manifestPath);
+      let existingManifest = await this.readManifestIfPresent(manifestPath);
+      const remotePrefix = `datasets/soundg/${job.versionKey}`;
+      if (!existingManifest && this.objectStorage) {
+        const remoteManifest = await this.objectStorage.tryHead(`${remotePrefix}/manifest.json`);
+        const remoteArtifact = await this.objectStorage.tryHead(`${remotePrefix}/tiles.pmtiles`);
+        if (remoteManifest && remoteArtifact) {
+          const localRoot = path.join(this.chartStorageDirectory, storagePath);
+          await mkdir(localRoot, { recursive: true });
+          await this.objectStorage.downloadToFile(`${remotePrefix}/manifest.json`, path.join(localRoot, 'manifest.json'));
+          await this.objectStorage.downloadToFile(`${remotePrefix}/tiles.pmtiles`, path.join(localRoot, 'tiles.pmtiles'));
+          existingManifest = await this.readManifestIfPresent(manifestPath);
+        }
+      }
       if (existingManifest) {
+        const remote = this.objectStorage
+          ? await this.publishArtifacts(job.versionKey, path.join(this.chartStorageDirectory, storagePath))
+          : undefined;
         return {
           bounds: existingManifest.bounds,
           cells,
           manifestPath,
           storagePath,
+          ...(remote ?? {}),
         };
       }
 
-      if (soundingCells.length === 0) {
+      if (soundingCellCount === 0) {
         throw new Error('No SOUNDG layer found in any ENC cell; no sounding tiles can be published');
-      }
-      for (const [index, cell] of soundingCells.entries()) {
-        const cellName = path.basename(cell, '.000').toUpperCase();
-        const arguments_ = [
-          ...(index === 0 ? [] : ['-update', '-append']),
-          ...(index === 0 ? ['-f', 'GPKG'] : []),
-          geopackage,
-          cell,
-          '-oo',
-          'SPLIT_MULTIPOINT=ON',
-          '-oo',
-          'ADD_SOUNDG_DEPTH=ON',
-          '-oo',
-          'UPDATES=APPLY',
-          '-dialect',
-          'SQLite',
-          '-sql',
-          `SELECT *, '${cellName}' AS SOURCE_CELL FROM SOUNDG`,
-          '-nln',
-          'soundings',
-          '-dim',
-          'XY',
-        ];
-        await this.run('ogr2ogr', arguments_);
       }
 
       await this.run('ogr2ogr', [
@@ -136,14 +160,9 @@ export class EncProcessingService {
         'COORDINATE_PRECISION=6',
       ]);
 
-      const scriptPath = path.resolve(
-        process.cwd(),
-        'apps/api/scripts/build-soundg-tiles.ts',
-      );
-      const tsxPath = path.resolve(
-        process.cwd(),
-        'apps/api/node_modules/tsx/dist/cli.mjs',
-      );
+      const apiRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../');
+      const scriptPath = path.join(apiRoot, 'scripts/build-soundg-tiles.ts');
+      const tsxPath = path.join(apiRoot, 'node_modules/tsx/dist/cli.mjs');
       const coveragePath = path.join(workDirectory, 'coverage.json');
       await writeFile(coveragePath, JSON.stringify(coverageCells(cells)));
       await this.run(process.execPath, [
@@ -166,6 +185,12 @@ export class EncProcessingService {
         ),
       ) as GeneratedManifest;
 
+      if (this.objectStorage) {
+        const localRoot = path.join(this.chartStorageDirectory, storagePath);
+        const remote = await this.publishArtifacts(job.versionKey, localRoot);
+        return { bounds: manifest.bounds, cells, manifestPath, storagePath, ...remote };
+      }
+
       return { bounds: manifest.bounds, cells, manifestPath, storagePath };
     } finally {
       await Promise.all([
@@ -187,6 +212,26 @@ export class EncProcessingService {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
       throw error;
     }
+  }
+
+  private async publishArtifacts(versionKey: string, localRoot: string) {
+    if (!this.objectStorage) return undefined;
+    const artifactObjectKey = `datasets/soundg/${versionKey}/tiles.pmtiles`;
+    const manifestObjectKey = `datasets/soundg/${versionKey}/manifest.json`;
+    const localArtifact = path.join(localRoot, 'tiles.pmtiles');
+    const expectedSize = (await stat(localArtifact)).size;
+    const existingArtifact = await this.objectStorage.tryHead(artifactObjectKey);
+    if (!existingArtifact || Number(existingArtifact.ContentLength ?? 0) !== expectedSize) {
+      await this.objectStorage.putFile(artifactObjectKey, localArtifact, 'application/vnd.pmtiles');
+    }
+    if (!await this.objectStorage.tryHead(manifestObjectKey)) {
+      await this.objectStorage.putFile(manifestObjectKey, path.join(localRoot, 'manifest.json'), 'application/json');
+    }
+    const head = await this.objectStorage.head(artifactObjectKey);
+    if (Number(head.ContentLength ?? 0) !== expectedSize) throw new Error('Published PMTiles object failed validation');
+    const manifestHead = await this.objectStorage.head(manifestObjectKey);
+    if (Number(manifestHead.ContentLength ?? 0) <= 0) throw new Error('Published PMTiles manifest is empty');
+    return { artifactObjectKey, manifestObjectKey };
   }
 
   private async findFiles(directory: string): Promise<string[]> {

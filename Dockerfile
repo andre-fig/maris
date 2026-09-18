@@ -19,7 +19,8 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/* \
     && rm -f /etc/nginx/sites-enabled/default
 ENV NODE_ENV=production
-RUN python3 -m venv /opt/pmtiles && /opt/pmtiles/bin/pip install --no-cache-dir pmtiles==3.8.1
+COPY apps/api/scripts/requirements-pmtiles.txt /tmp/requirements-pmtiles.txt
+RUN python3 -m venv /opt/pmtiles && /opt/pmtiles/bin/pip install --no-cache-dir -r /tmp/requirements-pmtiles.txt
 ENV PMTILES_PYTHON=/opt/pmtiles/bin/python
 
 COPY --from=build /app/node_modules node_modules

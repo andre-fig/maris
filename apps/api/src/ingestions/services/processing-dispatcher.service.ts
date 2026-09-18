@@ -67,7 +67,7 @@ export class ProcessingDispatcherService implements OnApplicationBootstrap, OnAp
 
   async dispatch(job: ProcessingJob) {
     try {
-      await this.queue.add('import-enc', job, { jobId: job.ingestionId });
+      await this.queue.add('import-enc', job, { jobId: job.objectKey ? `object-${job.objectKey.replace(/[^a-zA-Z0-9_-]/g, '_')}` : job.ingestionId });
     } catch (error) {
       // Preserve the persisted ingestion and ZIP; PostgreSQL reconciliation retries enqueueing.
       this.logger.error(`Enqueue pending for ${job.ingestionId}: ${error instanceof Error ? error.message : String(error)}`);

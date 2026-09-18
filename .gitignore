@@ -1,5 +1,6 @@
 node_modules/
 .venv-pmtiles/
+apps/api/.venv/
 .expo/
 artifacts/
 dist/
@@ -20,3 +21,4 @@ apps/mobile/native-offline/android/build/
 apps/mobile/native-offline/android/.gradle/
 *.log
 .DS_Store
+apps/api/.venv

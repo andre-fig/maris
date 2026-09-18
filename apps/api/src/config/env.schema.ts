@@ -14,6 +14,11 @@ export const envSchema = Joi.object({
   CHART_ASSET_BASE_URL: Joi.string().uri().allow('').optional(),
   OPENWEATHER_API_KEY: Joi.string().allow('').default(''),
   WEATHERAPI_API_KEY: Joi.string().allow('').default(''),
+  ENC_S3_ENDPOINT: Joi.string().uri().allow('').default(''),
+  ENC_S3_REGION: Joi.string().default('auto'),
+  ENC_S3_BUCKET: Joi.string().allow('').default(''),
+  ENC_S3_ACCESS_KEY_ID: Joi.string().allow('').default(''),
+  ENC_S3_SECRET_ACCESS_KEY: Joi.string().allow('').default(''),
 }).unknown(true);
 
 export function validateEnv(config: Record<string, unknown>) {

@@ -7,6 +7,7 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { ConfigService } from '@nestjs/config';
 import { EncProcessingService } from './enc-processing.service.js';
+import type { EncArchiveService } from './enc-archive.service.js';
 
 const cell = fileURLToPath(new URL('../../../../../data/ENC_ROOT/US5MIABC/US5MIABC.000', import.meta.url));
 
@@ -61,6 +62,26 @@ async function checkArchive(names: string[], failConversion: boolean) {
   const directory = await mkdtemp(path.join(tmpdir(), 'maris-soundg-test-'));
   const commands: string[][] = [];
   class Processor extends EncProcessingService {
+    constructor(configuration: ConfigService) {
+      const archiveService = {
+        inspect: async () => ({
+          catalogPresent: true,
+          cellCount: names.length,
+          cells: names.map((name) => ({ name, updateNumbers: [] })),
+          compressedBytes: 1,
+          entryCount: names.length,
+          fileCount: names.length,
+          uncompressedBytes: names.length,
+        }),
+        extractCell: async (_archive: string, cellName: string, target: string) => {
+          await mkdir(target, { recursive: true });
+          const output = path.join(target, `${cellName}.000`);
+          await writeFile(output, 'fixture');
+          return [output];
+        },
+      } as unknown as EncArchiveService;
+      super(configuration, undefined, archiveService);
+    }
     override async readCellMetadata(filename: string) {
       return {
         hasSoundings: path.basename(filename).startsWith('SOUND'), edition: '1', updateNumber: 0,
@@ -73,10 +94,7 @@ async function checkArchive(names: string[], failConversion: boolean) {
     }
     protected override async run(command: string, args: string[]) {
       commands.push([command, ...args]);
-      if (command === 'unzip') {
-        const target = args[args.indexOf('-d') + 1]!;
-        for (const name of names) await writeFile(path.join(target, `${name}.000`), 'fixture');
-      } else if (command === process.execPath) {
+      if (command === process.execPath) {
         const target = path.join(directory, 'soundg/versions/test');
         await mkdir(target, { recursive: true });
         await writeFile(path.join(target, 'manifest.json'), JSON.stringify({ bounds: [-80, 25, -79, 26] }));
@@ -86,14 +104,14 @@ async function checkArchive(names: string[], failConversion: boolean) {
     }
   }
   try {
-    const processor = new Processor(new ConfigService({ STORAGE_DIR: directory, CHART_STORAGE_DIR: directory }));
+    const processor = new Processor(new ConfigService({ STORAGE_DIR: directory, CHART_STORAGE_DIR: directory, MAX_ARCHIVE_ENTRIES: '100', MAX_UNCOMPRESSED_BYTES: '1000000' }));
     const processing = processor.process({ ingestionId: 'test', versionId: 'test', versionKey: 'test', archivePath: 'test.zip' });
     if (failConversion) {
       await assert.rejects(processing, /conversion failed/);
       assert.ok(!commands.some(([command]) => command === process.execPath));
     } else if (names.every((name) => name === 'EMPTY')) {
       await assert.rejects(processing, /No SOUNDG layer found/);
-      assert.equal(commands.length, 1);
+      assert.equal(commands.length, 0);
     } else {
       const result = await processing;
       assert.deepEqual(result.cells.map((cell) => cell.name), names);

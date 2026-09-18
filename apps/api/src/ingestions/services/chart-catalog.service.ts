@@ -49,6 +49,7 @@ export class ChartCatalogService {
     originalFilename: string;
     sizeBytes: number;
     storagePath: string;
+    objectKey?: string;
   }): Promise<CatalogIngestion> {
     const versionId = randomUUID();
     const datasetKey = 'soundg';
@@ -64,6 +65,7 @@ export class ChartCatalogService {
       await ingestions.save(
         ingestions.create({
           archiveStoragePath: input.storagePath,
+          sourceObjectKey: input.objectKey ?? null,
           checksumSha256: input.checksum,
           datasetId: dataset.id,
           id: input.ingestionId,
@@ -110,7 +112,8 @@ export class ChartCatalogService {
       ],
     });
     return ingestions.map((ingestion) => ({
-      archivePath: this.required(ingestion.archiveStoragePath, 'archive path'),
+      archivePath: ingestion.archiveStoragePath ?? '',
+      ...(ingestion.sourceObjectKey ? { objectKey: ingestion.sourceObjectKey } : {}),
       ingestionId: ingestion.id,
       versionId: ingestion.version.id,
       versionKey: ingestion.version.versionKey,
@@ -191,6 +194,8 @@ export class ChartCatalogService {
           errorMessage: null,
           errorStack: null,
           manifestPath: result.manifestPath,
+          artifactObjectKey: result.artifactObjectKey ?? null,
+          manifestObjectKey: result.manifestObjectKey ?? null,
           processedAt: new Date(),
           status: 'ready',
           storagePath: result.storagePath,

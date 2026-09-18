@@ -47,11 +47,18 @@ export type ProcessingResult = {
   cells: ProcessedCell[];
   manifestPath: string;
   storagePath: string;
+  artifactObjectKey?: string;
+  manifestObjectKey?: string;
 };
 
 export type ProcessingJob = {
   archivePath: string;
+  objectKey?: string;
   ingestionId: string;
   versionId: string;
   versionKey: string;
+  sourceFilename?: string;
+  checksum?: string;
+  sizeBytes?: number;
+  sourceUrl?: string;
 };

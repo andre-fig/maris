@@ -13,6 +13,7 @@ import {
   stat,
   writeFile,
 } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import path from 'node:path';
 
 import geojsonvt from 'geojson-vt';
@@ -280,7 +281,15 @@ async function build(options: Options) {
     );
     await spool.close();
     const archive = path.join(temporaryDestination, 'tiles.pmtiles');
-    await promisify(execFile)(process.env.PMTILES_PYTHON ?? 'python3', [
+    const pmtilesPython = [
+      process.env.PMTILES_PYTHON,
+      '/opt/pmtiles/bin/python',
+      path.resolve(process.cwd(), 'apps/api/.venv/pmtiles/bin/python'),
+      path.resolve(process.cwd(), '.venv/pmtiles/bin/python'),
+      '/tmp/maris-pmtiles-venv/bin/python',
+      'python3',
+    ].find((candidate) => candidate && (candidate === 'python3' || existsSync(candidate))) ?? 'python3';
+    await promisify(execFile)(pmtilesPython, [
       fileURLToPath(new URL('./pack-pmtiles.py', import.meta.url)),
       spoolPath, archive, path.join(temporaryDestination, 'manifest.json'),
     ], { env: { ...process.env, TMPDIR: temporaryDestination }, maxBuffer: 2 * 1024 * 1024 });
