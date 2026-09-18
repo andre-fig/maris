@@ -27,6 +27,7 @@ import { GpsAccuracyPanel } from "./components/GpsAccuracyPanel";
 import { CenterCoordinatesPanel } from "./components/CenterCoordinatesPanel";
 import { NavigationDataPanel } from "./components/NavigationDataPanel";
 import { RouteStatusPanel } from "./components/RouteStatusPanel";
+import { WeatherPanel } from "./components/WeatherPanel";
 import { MapOverlayGrid, MapOverlaySlot } from "./components/MapOverlayGrid";
 import { DrawerCompass } from "./components/DrawerCompass";
 import { windLegendBand } from "./components/wind-legend-band";
@@ -375,14 +376,19 @@ export default function App() {
         style={{ width: 0, height: 0, position: "absolute" }}
       />
       <MapOverlayGrid>
-        <MapOverlaySlot column={1} row={0} columnSpan={3} alignItems="center">
+        <MapOverlaySlot column={2} row={0} columnSpan={2} alignItems="center">
           <ScaleRuler
             latitude={viewState.latitude}
             maxWidth={scaleMaxWidth}
             viewportWidth={width}
             visible={isZooming}
-            weather={currentWeather.weather}
             zoom={viewState.zoom}
+          />
+        </MapOverlaySlot>
+        <MapOverlaySlot column={0} row={0} columnSpan={2} rowSpan={8} alignItems="flex-start">
+          <WeatherPanel
+            visible={isWeatherScaleVisible(viewState.latitude, scaleMaxWidth, viewState.zoom)}
+            weather={currentWeather.weather}
           />
         </MapOverlaySlot>
         <MapOverlaySlot

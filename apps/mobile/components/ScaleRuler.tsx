@@ -1,9 +1,7 @@
 import { useMemo } from "react";
 import { Animated, Platform, StyleSheet, Text, View } from "react-native";
 
-import type { CurrentWeather } from "../weather/current-weather";
 import { scaleDivisionPercentages } from "./scale-ruler-layout";
-import { WeatherPanel } from "./WeatherPanel";
 import { useFadeVisibility } from './use-fade-visibility';
 
 type ScaleDefinition = {
@@ -17,7 +15,6 @@ type ScaleRulerProps = {
   maxWidth: number;
   viewportWidth: number;
   visible: boolean;
-  weather?: CurrentWeather;
   zoom: number;
 };
 
@@ -129,10 +126,9 @@ export function ScaleRuler({
   maxWidth,
   viewportWidth,
   visible,
-  weather,
   zoom,
 }: ScaleRulerProps) {
-  const { hidden, labels, segments, showWeather, width } = useMemo(() => {
+  const { hidden, labels, segments, width } = useMemo(() => {
     const metresPerPoint =
       (METRES_PER_PIXEL_AT_EQUATOR * Math.cos((latitude * Math.PI) / 180)) /
       2 ** zoom;
@@ -154,7 +150,6 @@ export function ScaleRuler({
         return index === values.length - 1 ? `${formatted}${scale.unit === "m" ? "m" : " NM"}` : formatted;
       }),
       segments: scale.segments,
-      showWeather: isWeatherScaleVisible(latitude, maxWidth, zoom),
       width: Math.min(maxWidth, totalMetres / metresPerPoint),
     };
   }, [latitude, maxWidth, zoom]);
@@ -165,11 +160,6 @@ export function ScaleRuler({
 
   return (
     <View pointerEvents="box-none" style={[styles.container, { width: viewportWidth }]}>
-      <WeatherPanel
-        style={styles.weatherBadge}
-        visible={showWeather}
-        weather={weather}
-      />
       <Animated.View
         pointerEvents="none"
         style={[
@@ -233,12 +223,6 @@ const styles = StyleSheet.create({
     top: 0,
     zIndex: 1,
     elevation: 1,
-  },
-  weatherBadge: {
-    top: 0,
-    left: 38,
-    zIndex: 2,
-    elevation: 2,
   },
   ruler: {
     height: 26,
