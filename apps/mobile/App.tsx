@@ -26,6 +26,7 @@ import { WindPanel } from "./components/WindPanel";
 import { GpsAccuracyPanel } from "./components/GpsAccuracyPanel";
 import { CenterCoordinatesPanel } from "./components/CenterCoordinatesPanel";
 import { NavigationDataPanel } from "./components/NavigationDataPanel";
+import { RouteStatusPanel } from "./components/RouteStatusPanel";
 import { MapOverlayGrid, MapOverlaySlot } from "./components/MapOverlayGrid";
 import { DrawerCompass } from "./components/DrawerCompass";
 import { windLegendBand } from "./components/wind-legend-band";
@@ -383,7 +384,7 @@ export default function App() {
             zoom={viewState.zoom}
           />
         </MapOverlaySlot>
-        <MapOverlaySlot column={5} row={4} rowSpan={13} alignItems="flex-end" justifyContent="flex-end">
+        <MapOverlaySlot column={5} row={4} rowSpan={6} alignItems="flex-end" justifyContent="flex-end">
           <View pointerEvents="box-none" style={styles.controlsStack}>
             <CompassPanel
               heading={deviceLocation?.heading ?? null}
@@ -438,7 +439,10 @@ export default function App() {
             />
           </View>
         </MapOverlaySlot>
-        <MapOverlaySlot column={0} row={17} columnSpan={6} rowSpan={6} alignItems="stretch" justifyContent="flex-end">
+        <MapOverlaySlot column={0} row={10} columnSpan={6} rowSpan={10} alignItems="stretch" justifyContent="flex-end">
+          <RouteStatusPanel />
+        </MapOverlaySlot>
+        <MapOverlaySlot column={0} row={20} columnSpan={6} rowSpan={3} alignItems="stretch" justifyContent="flex-end">
           <NavigationDataPanel />
         </MapOverlaySlot>
         <MapOverlaySlot column={0} row={23} columnSpan={2} rowSpan={1} alignItems="flex-start" justifyContent="flex-end">
