@@ -1,6 +1,12 @@
 import { SymbolView } from "expo-symbols";
 import { StyleSheet, View } from "react-native";
 
+import type { CurrentWeather } from "../weather/current-weather";
+import {
+  getAndroidWeatherSymbol,
+  iosWeatherIcons,
+  openWeatherIconMap,
+} from "../weather/weather-icons";
 import { BlurPanel } from "./BlurPanel";
 import { BlurText } from "./BlurText";
 import { LoadingIcon } from "./LoadingIcon";
@@ -25,7 +31,9 @@ const NAVIGATION_DATA: DataPanelItem[] = [
 ];
 
 const WEATHER_CONDITIONS_DATA: DataPanelItem[] = [
-  ...NAVIGATION_DATA.slice(0, -1),
+  { label: "Weather", value: "—", unit: "C", iosIcon: "cloud", androidIcon: "cloud" },
+  { label: "Rain", value: "—", unit: "", iosIcon: "drop", androidIcon: "water_drop" },
+  ...NAVIGATION_DATA.slice(2, -1),
   { label: "Wind", value: "8.4", unit: "kt", iosIcon: "wind", androidIcon: "air" },
 ];
 
@@ -34,20 +42,47 @@ export function NavigationDataPanel() {
 }
 
 export function WeatherConditionsPanel({
+  weather,
   windSpeed,
   windLoading,
 }: {
+  weather?: CurrentWeather;
   windSpeed?: number | null;
   windLoading: boolean;
 }) {
+  const weatherIcon = weather
+    ? openWeatherIconMap[weather.icon_code]
+    : undefined;
+  const weatherItem = {
+    ...WEATHER_CONDITIONS_DATA[0],
+    value: weather ? `${Math.round(weather.temperature_celsius)}°` : "—",
+    loading: !weather,
+    iosIcon: weatherIcon ? iosWeatherIcons[weatherIcon] : "cloud",
+    androidIcon: weatherIcon ? getAndroidWeatherSymbol(weatherIcon) : "cloud",
+  };
+  const precipitationItem = {
+    ...WEATHER_CONDITIONS_DATA[1],
+    value:
+      typeof weather?.rain_probability_percent === "number" &&
+      Number.isFinite(weather.rain_probability_percent)
+        ? `${Math.round(weather.rain_probability_percent)}%`
+        : "—",
+    loading:
+      typeof weather?.rain_probability_percent !== "number" ||
+      !Number.isFinite(weather.rain_probability_percent),
+  };
   const hasWindSpeed =
     typeof windSpeed === "number" && Number.isFinite(windSpeed) && windSpeed >= 0;
   const windValue = hasWindSpeed
     ? (windSpeed * METRES_PER_SECOND_TO_KNOTS).toFixed(1)
     : "—";
-  const items = WEATHER_CONDITIONS_DATA.map((item) =>
-    item.label === "Wind"
-      ? { ...item, value: windValue, loading: windLoading }
+  const items = WEATHER_CONDITIONS_DATA.map((item, index) =>
+    index === 0
+      ? weatherItem
+      : index === 1
+      ? precipitationItem
+      : item.label === "Wind"
+      ? { ...item, value: windValue, loading: windLoading || !hasWindSpeed }
       : item,
   );
 
