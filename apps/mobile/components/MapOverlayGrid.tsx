@@ -2,7 +2,7 @@ import { PropsWithChildren } from "react";
 import { StyleSheet, View, type ViewStyle } from "react-native";
 
 const GRID_COLUMNS = 6;
-const GRID_ROWS = 12;
+const GRID_ROWS = 24;
 
 export type MapOverlaySlotProps = PropsWithChildren<{
   column: number;

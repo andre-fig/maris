@@ -383,7 +383,7 @@ export default function App() {
             zoom={viewState.zoom}
           />
         </MapOverlaySlot>
-        <MapOverlaySlot column={5} row={4} rowSpan={7} alignItems="flex-end" justifyContent="flex-end">
+        <MapOverlaySlot column={5} row={4} rowSpan={13} alignItems="flex-end" justifyContent="flex-end">
           <View pointerEvents="box-none" style={styles.controlsStack}>
             <CompassPanel
               heading={deviceLocation?.heading ?? null}
@@ -438,13 +438,13 @@ export default function App() {
             />
           </View>
         </MapOverlaySlot>
-        <MapOverlaySlot column={0} row={7} columnSpan={6} rowSpan={4} alignItems="stretch" justifyContent="flex-end">
+        <MapOverlaySlot column={0} row={17} columnSpan={6} rowSpan={6} alignItems="stretch" justifyContent="flex-end">
           <NavigationDataPanel />
         </MapOverlaySlot>
-        <MapOverlaySlot column={0} row={11} columnSpan={2} alignItems="flex-start" justifyContent="flex-end">
+        <MapOverlaySlot column={0} row={23} columnSpan={2} rowSpan={1} alignItems="flex-start" justifyContent="flex-end">
           <GpsAccuracyPanel accuracy={deviceLocation?.accuracy ?? null} />
         </MapOverlaySlot>
-        <MapOverlaySlot column={3} row={11} columnSpan={3} alignItems="flex-end" justifyContent="flex-end">
+        <MapOverlaySlot column={3} row={23} columnSpan={3} rowSpan={1} alignItems="flex-end" justifyContent="flex-end">
           <CenterCoordinatesPanel latitude={viewState.latitude} longitude={viewState.longitude} />
         </MapOverlaySlot>
         <MapOverlaySlot column={5} row={0} alignItems="flex-end">
