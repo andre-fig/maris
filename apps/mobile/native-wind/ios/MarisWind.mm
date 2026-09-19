@@ -1120,6 +1120,13 @@ findMap(UIView *view) {
 
   MarisWindLayer *_layer;
 
+  // The React prop is incremental: after the first payload, subsequent
+  // payloads may contain only newly loaded tiles. Keep the complete resident
+  // set so a MapLibre style reload can recreate the layer without losing it.
+  NSMutableDictionary<NSString *, NSDictionary *> *_windFieldTiles;
+  NSString *_windFieldIdentity;
+  NSDictionary *_windFieldMetadata;
+
   CADisplayLink *_clock;
 
   double _check;
@@ -1133,6 +1140,8 @@ findMap(UIView *view) {
     _opacity = .65;
     _density = .6;
     _animationSpeed = 1;
+
+    _windFieldTiles = [NSMutableDictionary dictionary];
 
     self.userInteractionEnabled =
       NO;
@@ -1163,6 +1172,32 @@ findMap(UIView *view) {
   }
 
   return self;
+}
+
+- (NSString *)fieldIdentityForPayload:(NSDictionary *)payload {
+  if (!payload) return nil;
+
+  NSString *explicitKey = payload[@"fieldKey"];
+  if ([explicitKey isKindOfClass:NSString.class] && explicitKey.length > 0) {
+    return explicitKey;
+  }
+
+  return [NSString stringWithFormat:@"%@|%@|%@|%@|%@",
+    payload[@"run"] ?: @"",
+    payload[@"model"] ?: @"",
+    payload[@"forecastTime"] ?: @"",
+    payload[@"sourceZoom"] ?: @"",
+    payload[@"resolution"] ?: @""];
+}
+
+- (NSDictionary *)completeWindFieldPayload {
+  if (!_windFieldMetadata || _windFieldTiles.count == 0) {
+    return _windField;
+  }
+
+  NSMutableDictionary *payload = [_windFieldMetadata mutableCopy];
+  payload[@"tiles"] = _windFieldTiles.allValues;
+  return payload;
 }
 
 #pragma mark - Layer setup
@@ -1203,6 +1238,16 @@ findMap(UIView *view) {
 }
 
 - (void)createLayerIfNeeded {
+  // Changing mapStyle replaces the MapLibre style object. The old custom
+  // layer may still exist as an Objective-C object, but it is no longer part
+  // of the current style and must not be reused.
+  if (_layer && _map.style && _layer.style != _map.style) {
+    if (_layer.style) {
+      [_layer.style removeLayer:_layer];
+    }
+    _layer = nil;
+  }
+
   if (_layer.style) {
     return;
   }
@@ -1244,7 +1289,7 @@ findMap(UIView *view) {
    */
   if (_windField) {
     [_layer
-      setGfsField:_windField];
+      setGfsField:[self completeWindFieldPayload]];
   }
 }
 
@@ -1338,8 +1383,35 @@ findMap(UIView *view) {
    *
    * Do not perform this work from tick:.
    */
-  _windField =
-    [windField copy];
+  if (!windField) {
+    _windField = nil;
+    _windFieldMetadata = nil;
+    _windFieldIdentity = nil;
+    [_windFieldTiles removeAllObjects];
+  } else {
+    NSString *identity = [self fieldIdentityForPayload:windField];
+    if (_windFieldIdentity && ![_windFieldIdentity isEqualToString:identity]) {
+      [_windFieldTiles removeAllObjects];
+    }
+
+    _windFieldIdentity = [identity copy];
+    _windField = [windField copy];
+    NSMutableDictionary *metadata = [windField mutableCopy];
+    [metadata removeObjectForKey:@"tiles"];
+    _windFieldMetadata = [metadata copy];
+
+    NSArray *tiles = windField[@"tiles"];
+    if ([tiles isKindOfClass:NSArray.class]) {
+      for (NSDictionary *tile in tiles) {
+        if (![tile isKindOfClass:NSDictionary.class]) continue;
+        NSString *tileKey = [NSString stringWithFormat:@"%@/%@/%@",
+          tile[@"z"] ?: @0,
+          tile[@"x"] ?: @0,
+          tile[@"y"] ?: @0];
+        _windFieldTiles[tileKey] = [tile copy];
+      }
+    }
+  }
 
   if (_layer) {
     [_layer
