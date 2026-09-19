@@ -36,6 +36,12 @@ type Inventory = {
   files: Set<string>;
 };
 
+type CachedGfsRun = {
+  inventory: Inventory;
+  storedAt: number;
+  expiresAt: number;
+};
+
 type ParsedSubset = {
   metadata: {
     width: number;
@@ -49,10 +55,16 @@ type ParsedSubset = {
 @Injectable()
 export class GfsService {
   private readonly logger = new Logger(GfsService.name);
+  private cachedRun: CachedGfsRun | null = null;
+  private tileRequests = 0;
+  private inventoryLookups = 0;
+  private runCacheHits = 0;
+  private runCacheMisses = 0;
 
   constructor(private readonly config: ConfigService) {}
 
   async getTile(x: number, y: number, forecastHour: number): Promise<GfsGrid> {
+    this.tileRequests += 1;
     const bounds = gfsTileBounds(x, y);
     const normalizedHour = this.normalizeForecastHours([forecastHour])[0];
     if (normalizedHour === undefined) {
@@ -86,6 +98,30 @@ export class GfsService {
   private async findCompleteInventory(
     forecastHours: number[],
   ): Promise<Inventory> {
+    const nowMs = Date.now();
+    const cached = this.cachedRun;
+    if (cached && cached.expiresAt > nowMs) {
+      const supportsRequestedHours = forecastHours.every((hour) =>
+        this.fileForHour(cached.inventory.files, hour),
+      );
+      if (supportsRequestedHours) {
+        this.runCacheHits += 1;
+        this.logger.log(
+          `[GFS] run cache HIT run=${cached.inventory.run.date}/${String(cached.inventory.run.cycle).padStart(2, "0")} age=${Math.floor((nowMs - cached.storedAt) / 1_000)}s tileRequests=${this.tileRequests} inventoryLookups=${this.inventoryLookups} runCacheHits=${this.runCacheHits} runCacheMisses=${this.runCacheMisses}`,
+        );
+        return cached.inventory;
+      }
+    } else if (cached) {
+      this.logger.log(
+        `[GFS] run cache EXPIRED run=${cached.inventory.run.date}/${String(cached.inventory.run.cycle).padStart(2, "0")}`,
+      );
+    }
+
+    this.runCacheMisses += 1;
+    this.inventoryLookups += 1;
+    this.logger.log(
+      `[GFS] run cache MISS tileRequests=${this.tileRequests} inventoryLookups=${this.inventoryLookups} runCacheHits=${this.runCacheHits} runCacheMisses=${this.runCacheMisses}`,
+    );
     const now = new Date();
     for (let dayOffset = 0; dayOffset <= 3; dayOffset += 1) {
       const date = new Date(now);
@@ -101,6 +137,19 @@ export class GfsService {
           inventory &&
           forecastHours.every((hour) => this.fileForHour(inventory.files, hour))
         ) {
+          const storedAt = Date.now();
+          const ttlMs = this.config.get<number>(
+            "GFS_RUN_CACHE_TTL_MS",
+            5 * 60 * 1_000,
+          );
+          this.cachedRun = {
+            inventory,
+            storedAt,
+            expiresAt: storedAt + (Number.isFinite(ttlMs) && ttlMs > 0 ? ttlMs : 5 * 60 * 1_000),
+          };
+          this.logger.log(
+            `[GFS] run cache STORE run=${dateText}/${String(cycle).padStart(2, "0")} ttl=${Math.floor((this.cachedRun.expiresAt - storedAt) / 1_000)}s tileRequests=${this.tileRequests} inventoryLookups=${this.inventoryLookups} runCacheHits=${this.runCacheHits} runCacheMisses=${this.runCacheMisses}`,
+          );
           return inventory;
         }
       }
