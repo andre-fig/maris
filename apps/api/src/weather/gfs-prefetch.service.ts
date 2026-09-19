@@ -67,7 +67,7 @@ export class GfsPrefetchService
       Number.MAX_SAFE_INTEGER,
     );
     this.forecastHours = this.parseForecastHours(
-      config.get<string>("GFS_PREFETCH_FORECAST_HOURS", "0,3,6,9,12,18,24,36,48,72"),
+      config.get<string>("GFS_PREFETCH_FORECAST_HOURS", "0"),
     );
   }
 

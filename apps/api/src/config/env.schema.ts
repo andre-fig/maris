@@ -25,7 +25,7 @@ export const envSchema = Joi.object({
     .default(900_000),
   GFS_PREFETCH_CONCURRENCY: Joi.number().integer().min(1).max(16).default(6),
   GFS_PREFETCH_FORECAST_HOURS: Joi.string()
-    .default("0,3,6,9,12,18,24,36,48,72"),
+    .default("0"),
   GFS_PREFETCH_TILE_TTL_SECONDS: Joi.number()
     .integer()
     .positive()
