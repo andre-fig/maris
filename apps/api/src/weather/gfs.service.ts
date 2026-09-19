@@ -11,6 +11,7 @@ import {
   BadGatewayException,
   BadRequestException,
   Injectable,
+  Logger,
   ServiceUnavailableException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
@@ -47,6 +48,8 @@ type ParsedSubset = {
 
 @Injectable()
 export class GfsService {
+  private readonly logger = new Logger(GfsService.name);
+
   constructor(private readonly config: ConfigService) {}
 
   async getTile(x: number, y: number, forecastHour: number): Promise<GfsGrid> {
@@ -118,7 +121,12 @@ export class GfsService {
       const response = await fetch(url, {
         signal: AbortSignal.timeout(NOMADS_TIMEOUT_MS),
       });
-      if (!response.ok) return null;
+      if (!response.ok) {
+        this.logger.warn(
+          `NOMADS inventory returned HTTP ${response.status} for ${date}/${String(cycle).padStart(2, "0")}`,
+        );
+        return null;
+      }
       const html = await response.text();
       const files = new Set<string>();
       for (const match of html.matchAll(
@@ -126,7 +134,12 @@ export class GfsService {
       )) {
         if (match[1]) files.add(match[1]);
       }
-      if (files.size === 0) return null;
+      if (files.size === 0) {
+        this.logger.warn(
+          `NOMADS inventory had no recognized GFS files for ${date}/${String(cycle).padStart(2, "0")} (responseBytes=${Buffer.byteLength(html)})`,
+        );
+        return null;
+      }
       return {
         files,
         run: {
@@ -136,7 +149,11 @@ export class GfsService {
           runAt: `${date.slice(0, 4)}-${date.slice(4, 6)}-${date.slice(6)}T${String(cycle).padStart(2, "0")}:00:00Z`,
         },
       };
-    } catch {
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.warn(
+        `NOMADS inventory request failed for ${date}/${String(cycle).padStart(2, "0")}: ${message}`,
+      );
       return null;
     }
   }
