@@ -117,3 +117,46 @@ test("a cached valid run remains available and is not replaced by an invalid loo
     globalThis.fetch = originalFetch;
   }
 });
+
+test("concurrent cache misses share one run discovery", async () => {
+  const service = serviceWithTtl();
+  const originalFetch = globalThis.fetch;
+  let calls = 0;
+  globalThis.fetch = async () => {
+    calls += 1;
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    return { ok: true, status: 200, text: async () => inventoryHtml() } as Response;
+  };
+  try {
+    const results = await Promise.all(
+      Array.from({ length: 10 }, () => lookup(service, [0])),
+    );
+    assert.equal(calls, 1);
+    assert.ok(results.every((result) => result === results[0]));
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("a failed single-flight discovery is shared and cleared for a later retry", async () => {
+  const service = serviceWithTtl();
+  const originalFetch = globalThis.fetch;
+  let calls = 0;
+  globalThis.fetch = async () => {
+    calls += 1;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    return { ok: false, status: 500, text: async () => "" } as Response;
+  };
+  try {
+    const firstBatch = await Promise.allSettled(
+      Array.from({ length: 10 }, () => lookup(service, [0])),
+    );
+    assert.ok(firstBatch.every((result) => result.status === "rejected"));
+    const callsAfterFirstBatch = calls;
+
+    await assert.rejects(() => lookup(service, [0]), /No complete GFS run/);
+    assert.ok(calls > callsAfterFirstBatch);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

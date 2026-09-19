@@ -56,10 +56,12 @@ type ParsedSubset = {
 export class GfsService {
   private readonly logger = new Logger(GfsService.name);
   private cachedRun: CachedGfsRun | null = null;
+  private runDiscoveryInFlight: Promise<Inventory> | null = null;
   private tileRequests = 0;
   private inventoryLookups = 0;
   private runCacheHits = 0;
   private runCacheMisses = 0;
+  private singleFlightJoins = 0;
 
   constructor(private readonly config: ConfigService) {}
 
@@ -118,10 +120,62 @@ export class GfsService {
     }
 
     this.runCacheMisses += 1;
-    this.inventoryLookups += 1;
     this.logger.log(
-      `[GFS] run cache MISS tileRequests=${this.tileRequests} inventoryLookups=${this.inventoryLookups} runCacheHits=${this.runCacheHits} runCacheMisses=${this.runCacheMisses}`,
+      `[GFS] run cache MISS tileRequests=${this.tileRequests} inventoryLookups=${this.inventoryLookups} runCacheHits=${this.runCacheHits} runCacheMisses=${this.runCacheMisses} singleFlightJoins=${this.singleFlightJoins}`,
     );
+    if (this.runDiscoveryInFlight) {
+      this.singleFlightJoins += 1;
+      this.logger.log(
+        `[GFS] run discovery JOIN existing in-flight singleFlightJoins=${this.singleFlightJoins}`,
+      );
+      const inventory = await this.runDiscoveryInFlight;
+      if (forecastHours.every((hour) => this.fileForHour(inventory.files, hour))) {
+        return inventory;
+      }
+      // A different forecast-hour request cannot use the joined inventory.
+      // The first discovery has finished and cleared the in-flight slot, so a
+      // new discovery may start without allowing two active discoveries.
+      return this.findCompleteInventory(forecastHours);
+    }
+
+    this.inventoryLookups += 1;
+    this.logger.log("[GFS] run discovery START");
+    const discovery = this.discoverCompleteInventory(forecastHours);
+    this.runDiscoveryInFlight = discovery;
+    try {
+      const inventory = await discovery;
+      const storedAt = Date.now();
+      const ttlMs = this.config.get<number>(
+        "GFS_RUN_CACHE_TTL_MS",
+        5 * 60 * 1_000,
+      );
+      this.cachedRun = {
+        inventory,
+        storedAt,
+        expiresAt: storedAt + (Number.isFinite(ttlMs) && ttlMs > 0 ? ttlMs : 5 * 60 * 1_000),
+      };
+      this.logger.log(
+        `[GFS] run cache STORE run=${inventory.run.date}/${String(inventory.run.cycle).padStart(2, "0")} ttl=${Math.floor((this.cachedRun.expiresAt - storedAt) / 1_000)}s tileRequests=${this.tileRequests} inventoryLookups=${this.inventoryLookups} runCacheHits=${this.runCacheHits} runCacheMisses=${this.runCacheMisses} singleFlightJoins=${this.singleFlightJoins}`,
+      );
+      this.logger.log(
+        `[GFS] run discovery SUCCESS run=${inventory.run.date}/${String(inventory.run.cycle).padStart(2, "0")}`,
+      );
+      return inventory;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.warn(`[GFS] run discovery FAILED ${message}`);
+      throw error;
+    } finally {
+      if (this.runDiscoveryInFlight === discovery) {
+        this.runDiscoveryInFlight = null;
+        this.logger.log("[GFS] run discovery CLEAR");
+      }
+    }
+  }
+
+  private async discoverCompleteInventory(
+    forecastHours: number[],
+  ): Promise<Inventory> {
     const now = new Date();
     for (let dayOffset = 0; dayOffset <= 3; dayOffset += 1) {
       const date = new Date(now);
@@ -137,19 +191,6 @@ export class GfsService {
           inventory &&
           forecastHours.every((hour) => this.fileForHour(inventory.files, hour))
         ) {
-          const storedAt = Date.now();
-          const ttlMs = this.config.get<number>(
-            "GFS_RUN_CACHE_TTL_MS",
-            5 * 60 * 1_000,
-          );
-          this.cachedRun = {
-            inventory,
-            storedAt,
-            expiresAt: storedAt + (Number.isFinite(ttlMs) && ttlMs > 0 ? ttlMs : 5 * 60 * 1_000),
-          };
-          this.logger.log(
-            `[GFS] run cache STORE run=${dateText}/${String(cycle).padStart(2, "0")} ttl=${Math.floor((this.cachedRun.expiresAt - storedAt) / 1_000)}s tileRequests=${this.tileRequests} inventoryLookups=${this.inventoryLookups} runCacheHits=${this.runCacheHits} runCacheMisses=${this.runCacheMisses}`,
-          );
           return inventory;
         }
       }
