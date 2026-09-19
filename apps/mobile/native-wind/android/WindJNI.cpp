@@ -76,6 +76,7 @@ class Host final : public mbgl::style::CustomLayerHost {
   GLuint trailBuffer = 0;
   GLsync trailFence = nullptr;
   size_t trailBytes = 0;
+  size_t gpuVertexCount = 0;
 
 public:
   explicit Host(std::shared_ptr<State> state) : s(std::move(state)), quality(s->lowMemory) {}
@@ -122,6 +123,7 @@ public:
       if (trailBuffer) glDeleteBuffers(1, &trailBuffer);
       glGenBuffers(1, &trailBuffer);
       trailBytes = 0;
+      gpuVertexCount = 0;
       particles = maris::Particles();
       std::vector<maris::ClipVertex>().swap(trailMesh);
       return;
@@ -139,6 +141,7 @@ public:
       oldField = transitionTarget;
       transitionTarget = field;
       fieldTransition = maris::WindFade();
+      particles.invalidateTrails();
     }
     float progress = oldField ? fieldTransition.update(true, seconds) : 1;
     glDisable(GL_DEPTH_TEST);
@@ -158,28 +161,41 @@ public:
     { std::lock_guard<std::mutex> lock(s->mutex); s->quality = quality.density; }
     const auto &lines = particles.update(*field, p.projectionMatrix.data(),
                                          p.zoom, dt, density * quality.density, speed, oldField.get(), progress);
-    if (!lines.empty() && trails) {
+    if (trails && particles.needsMeshRebuild()) {
       GLint viewport[4];
       glGetIntegerv(GL_VIEWPORT, viewport);
       maris::buildTrailMesh(lines, viewport[2], viewport[3], trailMesh);
+      if (trailMesh.empty()) {
+        gpuVertexCount = 0;
+        particles.markMeshUploaded();
+      } else {
+        GLenum ready = trailFence ? glClientWaitSync(trailFence, 0, 0) : GL_ALREADY_SIGNALED;
+        if (ready == GL_ALREADY_SIGNALED || ready == GL_CONDITION_SATISFIED) {
+          if (trailFence) glDeleteSync(trailFence);
+          trailFence = nullptr;
+          glBindBuffer(GL_ARRAY_BUFFER, trailBuffer);
+          glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, sizeof(maris::ClipVertex), nullptr);
+          glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(maris::ClipVertex), (void *)(4*sizeof(float)));
+          size_t bytes = trailMesh.size() * sizeof(maris::ClipVertex);
+          if (trailBytes < bytes) {
+            glBufferData(GL_ARRAY_BUFFER, bytes, nullptr, GL_STREAM_DRAW);
+            trailBytes = bytes;
+          }
+          glBufferSubData(GL_ARRAY_BUFFER, 0, bytes, trailMesh.data());
+          gpuVertexCount = trailMesh.size();
+          particles.markMeshUploaded();
+          trailFence = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+        }
+      }
+    }
+    if (trails && gpuVertexCount > 0) {
       glUseProgram(trails);
       glUniform1f(glGetUniformLocation(trails, "opacity"), opacity * fade.value);
       glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
-      GLenum ready = trailFence ? glClientWaitSync(trailFence, 0, 0) : GL_ALREADY_SIGNALED;
-      if (ready == GL_ALREADY_SIGNALED || ready == GL_CONDITION_SATISFIED) {
-        if (trailFence) glDeleteSync(trailFence);
-        glBindBuffer(GL_ARRAY_BUFFER, trailBuffer);
-        glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, sizeof(maris::ClipVertex), nullptr);
-        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(maris::ClipVertex), (void *)(4*sizeof(float)));
-        size_t bytes = trailMesh.size() * sizeof(maris::ClipVertex);
-        if (trailBytes < bytes) {
-          glBufferData(GL_ARRAY_BUFFER, bytes, nullptr, GL_STREAM_DRAW);
-          trailBytes = bytes;
-        }
-        glBufferSubData(GL_ARRAY_BUFFER, 0, bytes, trailMesh.data());
-        glDrawArrays(GL_TRIANGLES, 0, trailMesh.size());
-        trailFence = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
-      }
+      glBindBuffer(GL_ARRAY_BUFFER, trailBuffer);
+      glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, sizeof(maris::ClipVertex), nullptr);
+      glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(maris::ClipVertex), (void *)(4*sizeof(float)));
+      glDrawArrays(GL_TRIANGLES, 0, gpuVertexCount);
     }
     glBindVertexArray(0);
     glUseProgram(savedProgram);
@@ -203,6 +219,7 @@ public:
   void contextLost() override {
     trails = buffer = vao = 0;
     trailBuffer = 0; trailFence = nullptr; trailBytes = 0;
+    gpuVertexCount = 0;
     oldField.reset();
     transitionTarget.reset();
     particles = maris::Particles();

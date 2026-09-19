@@ -51,11 +51,14 @@ static CFTimeInterval gfsSetGridLastLog;
   NSString *_gfsKey;
   NSURLSessionDataTask *_activeTask;
   id<MTLBuffer> _buffers[3];
+  NSUInteger _gpuVertexCount;
+  int _gpuBufferSlot;
   std::shared_ptr<std::array<std::atomic_bool, 3>> _busy;
 }
 - (instancetype)initWithIdentifier:(NSString *)identifier {
   if ((self = [super initWithIdentifier:identifier])) {
     _generation.store(0);
+    _gpuBufferSlot = -1;
     _measure = [NSProcessInfo.processInfo.environment[@"MARIS_WIND_METRICS"]
         boolValue];
 #if DEBUG
@@ -174,6 +177,7 @@ static CFTimeInterval gfsSetGridLastLog;
   _oldField = _field;
   _fieldTransition = maris::WindFade();
   _field = std::move(next);
+  _particles.invalidateTrails();
   gfsSetGridCalls += 1;
   const CFTimeInterval now = CACurrentMediaTime();
   if (gfsSetGridLastLog == 0) gfsSetGridLastLog = now;
@@ -399,33 +403,53 @@ static CFTimeInterval gfsSetGridLastLog;
   _quality.frame(delta);
   const auto &lines = _particles.update(*f, matrix, context.zoomLevel, dt,
                                         _density * _quality.density, _animationSpeed, _oldField.get(), progress);
-  if (!lines.empty() && _trails) {
+  if (_trails && _particles.needsMeshRebuild()) {
     float particleOpacity = _particleOpacity * fade;
     [encoder setFragmentBytes:&particleOpacity length:sizeof(particleOpacity) atIndex:0];
     CGSize size = map.backendResource.mtkView.drawableSize;
     maris::buildTrailMesh(lines, size.width, size.height, _trailMesh);
-    if (_trailMesh.empty()) return;
-    // Metal setVertexBytes is limited to 4 KiB; stream through a native buffer.
-    int slot = -1;
-    for (int i = 0; i < 3; ++i) {
-      bool available = false;
-      if ((*_busy)[i].compare_exchange_strong(available, true)) { slot = i; break; }
+    if (_trailMesh.empty()) {
+      _gpuVertexCount = 0;
+      _gpuBufferSlot = -1;
+      _particles.markMeshUploaded();
     }
-    // Never block the renderer or allocate an unbounded queue of GPU buffers.
-    if (slot < 0) return;
-    NSUInteger bytes = _trailMesh.size() * sizeof(maris::ClipVertex);
-    if (!_buffers[slot] || _buffers[slot].length < bytes)
-      _buffers[slot] = [_device newBufferWithLength:bytes options:MTLResourceStorageModeShared];
-    id<MTLBuffer> buffer = _buffers[slot];
-    if (!buffer) { (*_busy)[slot].store(false); return; }
-    memcpy(buffer.contents, _trailMesh.data(), bytes);
-    auto busy = _busy;
-    [map.backendResource.commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> command) { (*busy)[slot].store(false); }];
-    [encoder setRenderPipelineState:_trails];
-    [encoder setVertexBuffer:buffer offset:0 atIndex:0];
-    [encoder drawPrimitives:MTLPrimitiveTypeTriangle
-                vertexStart:0
-                vertexCount:_trailMesh.size()];
+    // Metal setVertexBytes is limited to 4 KiB; stream through a native buffer.
+    if (!_trailMesh.empty()) {
+      int slot = -1;
+      for (int i = 0; i < 3; ++i) {
+        bool available = false;
+        if ((*_busy)[i].compare_exchange_strong(available, true)) { slot = i; break; }
+      }
+      // Never block the renderer or allocate an unbounded queue of GPU buffers.
+      if (slot >= 0) {
+        NSUInteger bytes = _trailMesh.size() * sizeof(maris::ClipVertex);
+        if (!_buffers[slot] || _buffers[slot].length < bytes)
+          _buffers[slot] = [_device newBufferWithLength:bytes options:MTLResourceStorageModeShared];
+        id<MTLBuffer> buffer = _buffers[slot];
+        if (buffer) {
+          memcpy(buffer.contents, _trailMesh.data(), bytes);
+          auto busy = _busy;
+          [map.backendResource.commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> command) { (*busy)[slot].store(false); }];
+          _gpuVertexCount = _trailMesh.size();
+          _gpuBufferSlot = slot;
+          _particles.markMeshUploaded();
+        } else {
+          (*_busy)[slot].store(false);
+        }
+      }
+    }
+  }
+  if (_trails && _gpuVertexCount > 0) {
+    id<MTLBuffer> buffer = _gpuBufferSlot >= 0 ? _buffers[_gpuBufferSlot] : nil;
+    if (buffer) {
+      float particleOpacity = _particleOpacity * fade;
+      [encoder setFragmentBytes:&particleOpacity length:sizeof(particleOpacity) atIndex:0];
+      [encoder setRenderPipelineState:_trails];
+      [encoder setVertexBuffer:buffer offset:0 atIndex:0];
+      [encoder drawPrimitives:MTLPrimitiveTypeTriangle
+                  vertexStart:0
+                  vertexCount:_gpuVertexCount];
+    }
   }
   if (_measure && _stats.end()) {
     const auto lookupMetrics = f->consumeLookupMetrics();
@@ -455,6 +479,8 @@ static CFTimeInterval gfsSetGridLastLog;
   _field.reset();
   _trails = nil;
   _depth = nil;
+  _gpuVertexCount = 0;
+  _gpuBufferSlot = -1;
   _previous = 0;
   _fade = maris::WindFade();
   _particles = maris::Particles();

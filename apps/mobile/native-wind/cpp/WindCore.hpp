@@ -432,6 +432,10 @@ class Particles {
   std::vector<Particle> particles;
   std::vector<ClipVertex> lines;
   uint32_t random = 0x12345678;
+  bool meshDirty = true;
+  bool hasProjection = false;
+  double lastProjection[16] = {};
+  double lastZoom = 0;
   double rng() {
     random ^= random << 13;
     random ^= random >> 17;
@@ -440,6 +444,17 @@ class Particles {
   }
 
 public:
+  void invalidateTrails() {
+    for (auto &particle : particles) {
+      particle.head = 0;
+      particle.size = 0;
+      particle.trailAccumulator = 0;
+    }
+    meshDirty = true;
+  }
+  bool needsMeshRebuild() const { return meshDirty; }
+  void markMeshUploaded() { meshDirty = false; }
+
   const std::vector<ClipVertex> &update(const Field &f, const double *m,
                                         double zoom, double dt, float density,
                                         float speed, const Field *old = nullptr, float progress = 1) {
@@ -450,15 +465,31 @@ public:
         0.f, 1.f);
     size_t count = size_t(std::clamp(density, 0.f, 1.f) * zoomFactor *
                           maximumParticleCount);
+    if (count != particles.size()) meshDirty = true;
     if (particles.capacity() < count) {
       particles.reserve(maximumParticleCount);
     }
     particles.resize(count);
-    lines.clear();
     if (lines.capacity() < count * (Particle::trailCapacity - 1) * 2)
       std::vector<ClipVertex>().swap(lines);
     lines.reserve(count * (Particle::trailCapacity - 1) * 2);
+    bool projectionChanged = !hasProjection || lastZoom != zoom;
+    for (int i = 0; i < 16 && !projectionChanged; ++i)
+      projectionChanged = lastProjection[i] != m[i];
+    if (projectionChanged) {
+      std::copy(m, m + 16, lastProjection);
+      lastZoom = zoom;
+      hasProjection = true;
+      meshDirty = true;
+    }
     const auto bounds = viewport(m, zoom);
+    auto clearTrail = [&](Particle &particle) {
+      const bool changed = particle.size != 0 || particle.head != 0;
+      particle.size = 0;
+      particle.head = 0;
+      particle.trailAccumulator = 0;
+      if (changed) meshDirty = true;
+    };
     for (size_t index = 0; index < particles.size(); ++index) {
       auto &p = particles[index];
       float u, v;
@@ -468,9 +499,7 @@ public:
         p.y = bounds[1] + rng() * (bounds[3] - bounds[1]);
         p.age = 0;
         p.lifetime = 2 + float(rng() * 3);
-        p.size = 0;
-        p.head = 0;
-        p.trailAccumulator = 0;
+        clearTrail(p);
         if (!sampleTransition(f, old, progress, p.x, p.y, u, v))
           continue;
       }
@@ -480,6 +509,7 @@ public:
       float midU = u, midV = v;
       if (!sampleTransition(f, old, progress, p.x + u * k * .5, p.y - v * k * .5, midU, midV)) {
         p.age = 100;
+        clearTrail(p);
         continue;
       }
       p.x += midU * k;
@@ -488,9 +518,7 @@ public:
       // Hidden candidates keep their normal lifetime and advection. Do not
       // repeatedly respawn them into stronger wind and defeat the percentages.
       if (int(index % 5) >= windParticleGroups(std::hypot(midU, midV))) {
-        p.size = 0;
-        p.head = 0;
-        p.trailAccumulator = 0;
+        clearTrail(p);
         continue;
       }
       p.trailAccumulator += dt;
@@ -500,17 +528,23 @@ public:
         p.trail[p.head] = {p.x, p.y};
         p.head = (p.head + 1) % Particle::trailCapacity;
         p.size = std::min(Particle::trailCapacity, p.size + 1);
+        meshDirty = true;
       }
-      for (size_t i = 1; i < p.size; i++) {
-        float alpha = float(i) / p.size *
-                      std::clamp((p.lifetime - p.age) * 2, 0.f, 1.f) *
-                      std::min(1.f, p.age * 3);
-        auto &a = p.trail[(p.head + Particle::trailCapacity - p.size + i - 1) %
-                         Particle::trailCapacity];
-        auto &b = p.trail[(p.head + Particle::trailCapacity - p.size + i) %
-                         Particle::trailCapacity];
-        lines.push_back(project(a[0], a[1], alpha, 0, m, zoom));
-        lines.push_back(project(b[0], b[1], alpha, 0, m, zoom));
+    }
+    if (meshDirty) {
+      lines.clear();
+      for (const auto &p : particles) {
+        for (size_t i = 1; i < p.size; i++) {
+          float alpha = float(i) / p.size *
+                        std::clamp((p.lifetime - p.age) * 2, 0.f, 1.f) *
+                        std::min(1.f, p.age * 3);
+          const auto &a = p.trail[(p.head + Particle::trailCapacity - p.size + i - 1) %
+                                  Particle::trailCapacity];
+          const auto &b = p.trail[(p.head + Particle::trailCapacity - p.size + i) %
+                                  Particle::trailCapacity];
+          lines.push_back(project(a[0], a[1], alpha, 0, m, zoom));
+          lines.push_back(project(b[0], b[1], alpha, 0, m, zoom));
+        }
       }
     }
     return lines;
