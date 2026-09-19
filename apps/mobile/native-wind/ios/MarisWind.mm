@@ -9,6 +9,8 @@
 #include <atomic>
 #import <mach/mach.h>
 static maris::TileCache tileCache;
+static NSUInteger gfsSetGridCalls;
+static CFTimeInterval gfsSetGridLastLog;
 
 @interface MarisWindLayer : MLNCustomStyleLayer
 @property float particleOpacity;
@@ -166,6 +168,14 @@ static maris::TileCache tileCache;
   _oldField = _field;
   _fieldTransition = maris::WindFade();
   _field = std::move(next);
+  gfsSetGridCalls += 1;
+  const CFTimeInterval now = CACurrentMediaTime();
+  if (gfsSetGridLastLog == 0) gfsSetGridLastLog = now;
+  if (now - gfsSetGridLastLog >= 1.0) {
+    NSLog(@"[MarisWindPerf] nativeSetGridPerSecond=%lu", (unsigned long)gfsSetGridCalls);
+    gfsSetGridCalls = 0;
+    gfsSetGridLastLog = now;
+  }
   _loading = NO;
   _nextLoadAt = CACurrentMediaTime() + 60;
   if (self.dataStatus) self.dataStatus(NO, NSDate.date.timeIntervalSince1970, NO);

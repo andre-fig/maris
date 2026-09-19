@@ -1,5 +1,6 @@
 package com.maris.wind;
 import android.graphics.*;
+import android.os.SystemClock;
 import android.util.Log;
 import android.view.*;
 import com.facebook.react.bridge.*;
@@ -37,6 +38,8 @@ public class WindControl extends View
   com.facebook.react.bridge.ReadableArray sampleCoordinate;
   ReadableMap windField;
   String appliedWindFieldKey;
+  long perfSetGridCalls;
+  long perfLastLogMs = SystemClock.uptimeMillis();
   void setWindField(ReadableMap value) {
     windField = value;
     appliedWindFieldKey = null;
@@ -73,6 +76,13 @@ public class WindControl extends View
     setGrid(id, bounds.getDouble("west"), bounds.getDouble("south"),
             bounds.getDouble("east"), bounds.getDouble("north"),
             width, height, u, v);
+    perfSetGridCalls++;
+    long nowMs = SystemClock.uptimeMillis();
+    if (nowMs - perfLastLogMs >= 1000) {
+      Log.d("MarisWindPerf", "nativeSetGridPerSecond=" + perfSetGridCalls);
+      perfSetGridCalls = 0;
+      perfLastLogMs = nowMs;
+    }
     appliedWindFieldKey = key;
     emitSample();
   }

@@ -71,6 +71,20 @@ const API_URL =
   "https://api-production-7dc7.up.railway.app";
 const LOCATION_MATCH_THRESHOLD_KM = 0.08;
 const ROUTE_STATUS_ENABLED = false;
+let nativeWindFieldPerfLastLog = Date.now();
+let nativeWindFieldPerfCalls = 0;
+
+function recordNativeWindFieldPerf() {
+  if (!__DEV__) return;
+  nativeWindFieldPerfCalls += 1;
+  const now = Date.now();
+  if (now - nativeWindFieldPerfLastLog < 1_000) return;
+  console.debug("[GFS perf]", {
+    nativeWindFieldPerSecond: nativeWindFieldPerfCalls,
+  });
+  nativeWindFieldPerfCalls = 0;
+  nativeWindFieldPerfLastLog = now;
+}
 type SheetContent = "chart" | "empty";
 
 function distanceKm(a: [number, number], b: [number, number]) {
@@ -190,6 +204,7 @@ export default function App() {
     const windU = grid?.fields.windU;
     const windV = grid?.fields.windV;
     if (!grid || !windU || !windV) return null;
+    recordNativeWindFieldPerf();
     return {
       bounds: grid.bounds,
       width: grid.width,

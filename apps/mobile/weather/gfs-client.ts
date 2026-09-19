@@ -1,5 +1,5 @@
 import { Directory, File, Paths } from 'expo-file-system';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 
 import {
@@ -28,6 +28,27 @@ const TILE_MARGIN = 1;
 const TILE_CACHE_TTL_MS = 30 * 60 * 1_000;
 const CACHE_ROOT = new Directory(Paths.document, 'gfs-weather-tiles');
 
+type GfsPerfCounter = 'mergeTiles' | 'packageFromTiles';
+const gfsPerf = {
+  lastLogAt: Date.now(),
+  mergeTiles: 0,
+  packageFromTiles: 0,
+};
+
+export function recordGfsPerf(counter: GfsPerfCounter) {
+  if (!__DEV__) return;
+  gfsPerf[counter] += 1;
+  const now = Date.now();
+  if (now - gfsPerf.lastLogAt < 1_000) return;
+  console.debug('[GFS perf]', {
+    mergeTilesPerSecond: gfsPerf.mergeTiles,
+    packageFromTilesPerSecond: gfsPerf.packageFromTiles,
+  });
+  gfsPerf.mergeTiles = 0;
+  gfsPerf.packageFromTiles = 0;
+  gfsPerf.lastLogAt = now;
+}
+
 type CachedTile = {
   tile: GfsTileCoordinate;
   forecastHour: number;
@@ -36,6 +57,29 @@ type CachedTile = {
   etag?: string;
   source: 'cache' | 'network';
 };
+
+type ViewportJob = {
+  key: string;
+  tiles: GfsTileCoordinate[];
+  center: GfsTileCoordinate | null;
+};
+
+function prioritizeViewportTiles(
+  tiles: GfsTileCoordinate[],
+  center: MapCenter | null | undefined,
+) {
+  if (!center) return tiles;
+  const centerTile = tileForCoordinate(center[0], center[1]);
+  return [...tiles].sort((left, right) => {
+    // Chebyshev distance creates square/concentric rings around the center:
+    // center tile, immediate neighbors, then progressively farther edges.
+    const leftRing = Math.max(Math.abs(left.x - centerTile.x), Math.abs(left.y - centerTile.y));
+    const rightRing = Math.max(Math.abs(right.x - centerTile.x), Math.abs(right.y - centerTile.y));
+    const leftDistance = Math.abs(left.x - centerTile.x) + Math.abs(left.y - centerTile.y);
+    const rightDistance = Math.abs(right.x - centerTile.x) + Math.abs(right.y - centerTile.y);
+    return leftRing - rightRing || leftDistance - rightDistance || left.y - right.y || left.x - right.x;
+  });
+}
 
 function validBounds(bounds: GfsBounds | null | undefined): bounds is GfsBounds {
   return Boolean(bounds) &&
@@ -171,14 +215,14 @@ function packageRun(run: string) {
   return { date, cycle, run, runAt: run };
 }
 
-function mergeTiles(tiles: CachedTile[], coordinate: MapCenter | null): GfsGrid | null {
+function mergeTiles(tiles: CachedTile[]): GfsGrid | null {
+  recordGfsPerf('mergeTiles');
   if (!tiles.length) return null;
-  const centerTile = coordinate ? tileForCoordinate(coordinate[0], coordinate[1]) : tiles[0]!.tile;
   const xValues = [...new Set(tiles.map((item) => item.tile.x))].sort((a, b) => a - b);
   // A rectangular grid cannot represent the -180/180 seam. Keep the tile
   // containing the point for the native field in that special case.
   if (xValues.length > 1 && xValues[xValues.length - 1]! - xValues[0]! > GFS_TILE_COLUMNS / 2) {
-    return tiles.find((item) => item.tile.x === centerTile.x && item.tile.y === centerTile.y)?.grid ?? tiles[0]!.grid;
+    return tiles[0]!.grid;
   }
   const yValues = [...new Set(tiles.map((item) => item.tile.y))].sort((a, b) => a - b);
   const first = tiles[0]!.grid;
@@ -220,12 +264,13 @@ function mergeTiles(tiles: CachedTile[], coordinate: MapCenter | null): GfsGrid 
   };
 }
 
-function packageFromTiles(tiles: CachedTile[], coordinate: MapCenter | null): GfsPackage | null {
+function packageFromTiles(tiles: CachedTile[]): GfsPackage | null {
+  recordGfsPerf('packageFromTiles');
   if (tiles.length > 1) {
     const newestRun = [...tiles].sort((left, right) => right.savedAt - left.savedAt)[0]!.grid.run;
     tiles = tiles.filter((item) => item.grid.run === newestRun);
   }
-  const grid = mergeTiles(tiles, coordinate);
+  const grid = mergeTiles(tiles);
   if (!grid) return null;
   return {
     model: 'gfs',
@@ -246,7 +291,7 @@ export async function fetchGfsTile(apiUrl: string, tile: GfsTileCoordinate, fore
 export async function fetchGfsPackage(apiUrl: string, bounds: GfsBounds, signal?: AbortSignal) {
   const tiles = tilesForViewport(bounds, 0);
   const fetched = await Promise.all(tiles.map((tile) => fetchGfsTile(apiUrl, tile, 0, signal)));
-  const packageData = packageFromTiles(fetched, null);
+  const packageData = packageFromTiles(fetched);
   if (!packageData) throw new Error('No GFS tiles available');
   return packageData;
 }
@@ -269,80 +314,131 @@ export function useGfsViewport(apiUrl: string, bounds: GfsBounds | null, coordin
   const [offline, setOffline] = useState(false);
   const [error, setError] = useState<string>();
   const [cachedAt, setCachedAt] = useState<number>();
-  const request = useRef<AbortController | null>(null);
-  const requestKey = useRef<string | undefined>(undefined);
+  const activeJob = useRef<ViewportJob | null>(null);
+  const pendingJob = useRef<ViewportJob | null>(null);
+  const completedKey = useRef<string | undefined>(undefined);
+  const queueRunning = useRef(false);
   const debounce = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const foreground = useRef(AppState.currentState === 'active');
+  const mounted = useRef(true);
   const coordinateRef = useRef(coordinate);
   coordinateRef.current = coordinate;
 
+  const runQueue = useCallback(async () => {
+    if (queueRunning.current) return;
+    const job = pendingJob.current;
+    if (!job) return;
+
+    pendingJob.current = null;
+    activeJob.current = job;
+    queueRunning.current = true;
+    if (mounted.current) {
+      setLoading(true);
+      setError(undefined);
+    }
+
+    const loaded: CachedTile[] = [];
+    const failed: GfsTileCoordinate[] = [];
+    try {
+      // Deliberately fetch one tile at a time. The center tile is first so the
+      // HUD can become useful before the rest of a large viewport is loaded.
+      for (const tile of job.tiles) {
+        try {
+          const result = await fetchGfsTile(apiUrl, tile, 0);
+          loaded.push(result);
+          if (mounted.current) {
+            setTilesVersion((version) => version + 1);
+            setCachedAt((previous) => Math.max(previous ?? 0, result.savedAt));
+            setOffline(result.source === 'cache');
+          }
+        } catch {
+          failed.push(tile);
+        }
+      }
+
+      const centerLoaded = job.center
+        ? loaded.some((item) => item.tile.x === job.center!.x && item.tile.y === job.center!.y)
+        : loaded.length > 0;
+      if (!centerLoaded && mounted.current) {
+        setError('GFS coverage unavailable');
+      } else if (failed.length > 0 && mounted.current) {
+        setError('GFS coverage incomplete');
+      }
+      completedKey.current = job.key;
+    } finally {
+      activeJob.current = null;
+      queueRunning.current = false;
+      if (mounted.current) {
+        setLoading(Boolean(pendingJob.current));
+      }
+      if (pendingJob.current) void runQueue();
+    }
+  }, [apiUrl]);
+
+  const enqueueViewport = useCallback((job: ViewportJob) => {
+    if (
+      activeJob.current?.key === job.key ||
+      pendingJob.current?.key === job.key ||
+      completedKey.current === job.key
+    ) return;
+    // Keep only the newest viewport while the current request finishes. This
+    // prevents a rapid pan from building a backlog of obsolete regions.
+    pendingJob.current = job;
+    void runQueue();
+  }, [runQueue]);
+
   useEffect(() => {
     if (!enabled || !validBounds(bounds) || !foreground.current) return;
-    const requestedTiles = tilesForViewport(bounds, TILE_MARGIN);
+    const requestedTiles = prioritizeViewportTiles(
+      tilesForViewport(bounds, TILE_MARGIN),
+      coordinateRef.current,
+    );
     gfsTileStore.setActiveViewport(requestedTiles, 0);
     const key = requestedTiles.map((tile) => tileKey(tile, 0)).join('|');
-    if (requestKey.current === key) return;
     if (debounce.current) clearTimeout(debounce.current);
     debounce.current = setTimeout(() => {
       debounce.current = undefined;
-      void (async () => {
-        request.current?.abort();
-        const controller = new AbortController();
-        request.current = controller;
-        requestKey.current = key;
-        setLoading(true);
-        setError(undefined);
-        try {
-          const result = await Promise.allSettled(requestedTiles.map((tile) => fetchGfsTile(apiUrl, tile, 0, controller.signal)));
-          const loaded = result.flatMap((item) => item.status === 'fulfilled' ? [item.value] : []);
-          const next = packageFromTiles(loaded, coordinateRef.current);
-          const center = coordinateRef.current ? tileForCoordinate(coordinateRef.current[0], coordinateRef.current[1]) : null;
-          const centerLoaded = center ? loaded.some((item) => item.tile.x === center.x && item.tile.y === center.y) : loaded.length > 0;
-          if (!next || !centerLoaded) throw new Error('GFS coverage unavailable');
-          setTilesVersion((version) => version + 1);
-          setOffline(loaded.length > 0 && loaded.every((item) => item.source === 'cache'));
-          setCachedAt(Math.max(...loaded.map((item) => item.savedAt)));
-          if (loaded.length < requestedTiles.length) setError('GFS coverage incomplete');
-        } catch (requestError) {
-          if (!(requestError instanceof Error && requestError.name === 'AbortError')) {
-            // Do not mark a failed viewport as fulfilled. This lets a later
-            // foreground event or camera change retry after a transient API/
-            // GFS availability failure.
-            if (requestKey.current === key) requestKey.current = undefined;
-            setError('GFS unavailable');
-          }
-        } finally {
-          if (request.current === controller) {
-            request.current = null;
-            setLoading(false);
-          }
-        }
-      })();
+      enqueueViewport({
+        key,
+        tiles: requestedTiles,
+        center: coordinateRef.current ? tileForCoordinate(coordinateRef.current[0], coordinateRef.current[1]) : null,
+      });
     }, REQUEST_DEBOUNCE_MS);
     return () => { if (debounce.current) clearTimeout(debounce.current); };
-  }, [apiUrl, bounds, enabled]);
+  }, [apiUrl, bounds?.north, bounds?.south, bounds?.east, bounds?.west, enabled, enqueueViewport]);
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (state) => {
       foreground.current = state === 'active';
-      if (foreground.current) requestKey.current = undefined;
+      if (foreground.current) completedKey.current = undefined;
     });
     return () => {
       subscription.remove();
-      request.current?.abort();
       if (debounce.current) clearTimeout(debounce.current);
       gfsTileStore.setActiveViewport([], 0);
+      mounted.current = false;
     };
   }, []);
 
-  const requestedTiles = useMemo(
+  const computedRequestedTiles = useMemo(
     () => validBounds(bounds) ? tilesForViewport(bounds, TILE_MARGIN) : [],
-    [bounds],
+    [bounds?.north, bounds?.south, bounds?.east, bounds?.west],
   );
+  const computedRequestedKey = computedRequestedTiles
+    .map((tile) => tileKey(tile, 0))
+    .join('|');
+  const stableTiles = useRef<{ key: string; tiles: GfsTileCoordinate[] }>({
+    key: '',
+    tiles: [],
+  });
+  if (stableTiles.current.key !== computedRequestedKey) {
+    stableTiles.current = { key: computedRequestedKey, tiles: computedRequestedTiles };
+  }
+  const requestedTiles = stableTiles.current.tiles;
   const packageData = useMemo(() => {
     void tilesVersion;
-    return packageFromTiles(gfsTileStore.snapshot(requestedTiles, 0), coordinate);
-  }, [requestedTiles, coordinate, tilesVersion]);
+    return packageFromTiles(gfsTileStore.snapshot(requestedTiles, 0));
+  }, [computedRequestedKey, tilesVersion]);
   const samples = useMemo(() => sampleGfsPackageAtCoordinate(packageData, coordinate), [packageData, coordinate?.[0], coordinate?.[1]]);
   return { packageData, samples, current: samples.find((sample) => sample.forecastHour === 0), loading: enabled && loading, offline, error, cachedAt };
 }
