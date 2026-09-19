@@ -11,7 +11,7 @@ import {
   type SampledGfsValues,
 } from './gfs-grid';
 
-export const GFS_FORECAST_HOURS = [0, 3, 6, 9, 12, 18, 24, 36, 48, 72] as const;
+export const GFS_FORECAST_HOURS = [0] as const;
 const REQUEST_DEBOUNCE_MS = 900;
 const REQUEST_TIMEOUT_MS = 15_000;
 const CACHE_ROOT = new Directory(Paths.document, 'gfs-weather');

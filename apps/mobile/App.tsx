@@ -184,7 +184,7 @@ export default function App() {
   const gfs = useGfsViewport(
     API_URL,
     visibleBounds,
-    deviceLocation?.coordinate ?? [viewState.longitude, viewState.latitude],
+    [viewState.longitude, viewState.latitude],
     offlineReady,
   );
 
@@ -394,7 +394,13 @@ export default function App() {
               heading={deviceLocation?.heading ?? null}
               mapBearingValue={compassMapBearing}
               onPress={() => {
-                if (Math.abs(viewState.bearing) < 0.001) {
+                const normalizedBearing =
+                  ((compassMapBearing.value % 360) + 360) % 360;
+                const distanceFromNorth = Math.min(
+                  normalizedBearing,
+                  360 - normalizedBearing,
+                );
+                if (distanceFromNorth < 0.001) {
                   chartRequestPending.current = false;
                   setChartRequested(false);
                   setSheetContent("empty");

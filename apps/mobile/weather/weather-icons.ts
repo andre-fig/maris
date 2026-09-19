@@ -1,5 +1,7 @@
 import type { AndroidSymbol, SFSymbol } from "expo-symbols";
 
+const MIN_RAIN_RATE_MM_H = 0.1;
+
 export type WeatherIcon =
   | "CLEAR_DAY"
   | "CLEAR_NIGHT"
@@ -98,7 +100,9 @@ export function weatherIconFromGfs(
   const hasValidTemperature =
     typeof temperatureKelvin === "number" && Number.isFinite(temperatureKelvin);
 
-  if (hasValidPrecipitation && precipitationRateMmH > 0) {
+  const MIN_RAIN_RATE_MM_H = 0.1;
+
+  if (hasValidPrecipitation && precipitationRateMmH >= MIN_RAIN_RATE_MM_H) {
     if (hasValidTemperature && temperatureKelvin <= 273.15) {
       return "SNOW";
     }
@@ -107,7 +111,7 @@ export function weatherIconFromGfs(
   }
 
   if (!hasValidCloudCover || typeof isDay !== "boolean") {
-    return null; // mantém loading
+    return null;
   }
 
   if (cloudCover <= 10) {

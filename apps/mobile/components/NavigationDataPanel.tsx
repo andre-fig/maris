@@ -178,22 +178,22 @@ export function GfsConditionsPanel({
     unit: "°C",
     iosIcon: iosWeatherIcons[gfsWeatherIcon],
     androidIcon: getAndroidWeatherSymbol(gfsWeatherIcon),
-    loading: loading || temperatureCelsius(sample?.temperature ?? null) === null,
+    loading: temperatureCelsius(sample?.temperature ?? null) === null,
   };
   const rain = {
     ...WEATHER_CONDITIONS_DATA[1],
     value: rainRateMmH?.toFixed(1) ?? "",
     unit: "mm/h",
-    loading: loading || rainRateMmH === null,
+    loading: rainRateMmH === null,
   };
   const items: DataPanelItem[] = [
     weather,
     rain,
     {
       ...WEATHER_CONDITIONS_DATA[2],
-      value: hasWind ? windKt.toFixed(0) : "",
-      unit: hasWind ? `kt · ${cardinal} · ${Math.round(direction)}°` : "",
-      loading: loading || !hasWind,
+      value: hasWind ? `${windKt.toFixed(0)} · ${cardinal}` : "",
+      unit: hasWind ? "kt" : "",
+      loading: !hasWind,
     },
     WEATHER_CONDITIONS_DATA[3],
     WEATHER_CONDITIONS_DATA[4],
@@ -219,7 +219,15 @@ function DataMetricsPanel({ items }: { items: DataPanelItem[] }) {
           />
           <BlurText style={styles.label} numberOfLines={1}>{item.label}</BlurText>
           <LoadingIcon loading={item.loading ?? false} size={22}>
-            <BlurText style={styles.value} numberOfLines={1}>{item.value}</BlurText>
+            <BlurText
+              style={styles.value}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.58}
+              ellipsizeMode="clip"
+            >
+              {item.value}
+            </BlurText>
           </LoadingIcon>
           <BlurText style={styles.unit}>{item.unit || "\u00A0"}</BlurText>
         </View>
@@ -253,9 +261,12 @@ const styles = StyleSheet.create({
     lineHeight: 14,
   },
   value: {
+    width: "100%",
+    flexShrink: 1,
     fontSize: 20,
     fontWeight: "600",
     lineHeight: 22,
+    textAlign: "center",
   },
   unit: {
     fontSize: 11,
