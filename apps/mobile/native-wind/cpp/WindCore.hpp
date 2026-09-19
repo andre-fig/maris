@@ -40,6 +40,9 @@ inline double my(double lat) {
                    pi) /
          2.;
 }
+inline double latitudeFromMy(double y) {
+  return std::atan(std::sinh(pi * (1. - 2. * y))) * 180. / pi;
+}
 struct Plan {
   int z = 0, left = 0, top = 0, right = 0, bottom = 0;
   int width() const { return (right - left + 1) * 256; }
@@ -65,11 +68,23 @@ inline Plan plan(double west, double south, double east, double north,
   }
 }
 struct Field {
+  bool isGfs = false;
   Plan plan;
   std::vector<uint8_t> rgba;
+  double west = 0, south = 0, east = 0, north = 0;
+  int gridWidth = 0, gridHeight = 0;
+  std::vector<float> gridU, gridV;
+  std::vector<uint8_t> gridValid;
   int received = 0;
   explicit Field(Plan p)
       : plan(p), rgba(size_t(p.width()) * p.height() * 4, 0) {}
+  Field(double gridWest, double gridSouth, double gridEast, double gridNorth,
+        int width, int height, std::vector<float> u, std::vector<float> v,
+        std::vector<uint8_t> valid)
+      : isGfs(true), west(gridWest), south(gridSouth), east(gridEast),
+        north(gridNorth), gridWidth(width), gridHeight(height),
+        gridU(std::move(u)), gridV(std::move(v)), gridValid(std::move(valid)),
+        received(width * height) {}
   bool complete() const { return received == (plan.right-plan.left+1)*(plan.bottom-plan.top+1); }
   void put(int x, int y, const uint8_t *bytes, size_t stride) {
     for (int row = 0; row < 256; ++row)
@@ -81,6 +96,42 @@ struct Field {
   }
   // Bilinear across the *whole* atlas, including adjacent tile boundaries.
   bool sample(double x, double y, float &u, float &v) const {
+    if (isGfs) {
+      if (gridWidth <= 0 || gridHeight <= 0 || east == west || north <= south)
+        return false;
+      double longitude = x * 360. - 180.;
+      const double latitude = latitudeFromMy(y);
+      const bool crossesDateline = east < west;
+      if (crossesDateline && longitude < west) longitude += 360.;
+      const double eastForSample = crossesDateline ? east + 360. : east;
+      if (longitude < west || longitude > eastForSample || latitude < south || latitude > north)
+        return false;
+      const double gx = gridWidth == 1 ? 0. :
+          (longitude - west) / (eastForSample - west) * (gridWidth - 1);
+      const double gy = gridHeight == 1 ? 0. :
+          (north - latitude) / (north - south) * (gridHeight - 1);
+      const int x0 = std::clamp(int(std::floor(gx)), 0, gridWidth - 1);
+      const int y0 = std::clamp(int(std::floor(gy)), 0, gridHeight - 1);
+      const int x1 = std::min(gridWidth - 1, x0 + 1);
+      const int y1 = std::min(gridHeight - 1, y0 + 1);
+      const float tx = float(gx - x0), ty = float(gy - y0);
+      auto valid = [&](int ix, int iy) {
+        return gridValid[size_t(iy) * gridWidth + ix] != 0;
+      };
+      if (!valid(x0, y0) || !valid(x1, y0) || !valid(x0, y1) || !valid(x1, y1))
+        return false;
+      auto interpolate = [&](const std::vector<float> &values) {
+        const float q11 = values[size_t(y0) * gridWidth + x0];
+        const float q21 = values[size_t(y0) * gridWidth + x1];
+        const float q12 = values[size_t(y1) * gridWidth + x0];
+        const float q22 = values[size_t(y1) * gridWidth + x1];
+        return q11 * (1 - tx) * (1 - ty) + q21 * tx * (1 - ty) +
+               q12 * (1 - tx) * ty + q22 * tx * ty;
+      };
+      u = interpolate(gridU);
+      v = interpolate(gridV);
+      return std::isfinite(u) && std::isfinite(v);
+    }
     const double n = double(1 << plan.z);
     double px = (x * n - plan.left) * 256 - .5,
            py = (y * n - plan.top) * 256 - .5;

@@ -331,6 +331,44 @@ JNIEXPORT void JNICALL Java_com_maris_wind_WindControl_configure(
   s->speed = speed;
   s->visible = visible;
 }
+JNIEXPORT void JNICALL Java_com_maris_wind_WindControl_setGrid(
+    JNIEnv *env, jclass, jlong id, jdouble west, jdouble south,
+    jdouble east, jdouble north, jint width, jint height,
+    jfloatArray uArray, jfloatArray vArray) {
+  auto s = state(id);
+  if (!s || width <= 0 || height <= 0 || !uArray || !vArray)
+    return;
+  const jsize count = width * height;
+  if (env->GetArrayLength(uArray) != count || env->GetArrayLength(vArray) != count)
+    return;
+  std::vector<jfloat> rawU(size_t(count)), rawV(size_t(count));
+  env->GetFloatArrayRegion(uArray, 0, count, rawU.data());
+  env->GetFloatArrayRegion(vArray, 0, count, rawV.data());
+  std::vector<float> u(size_t(count)), v(size_t(count));
+  std::vector<uint8_t> valid(size_t(count), 1);
+  for (jsize i = 0; i < count; ++i) {
+    if (!std::isfinite(rawU[size_t(i)]) || !std::isfinite(rawV[size_t(i)])) {
+      valid[size_t(i)] = 0;
+      continue;
+    }
+    u[size_t(i)] = rawU[size_t(i)];
+    v[size_t(i)] = rawV[size_t(i)];
+  }
+  auto field = std::make_shared<maris::Field>(
+      west, south, east, north, width, height, std::move(u), std::move(v),
+      std::move(valid));
+  std::lock_guard<std::mutex> lock(s->mutex);
+  s->field = std::move(field);
+  s->staging.reset();
+}
+JNIEXPORT void JNICALL Java_com_maris_wind_WindControl_clearGrid(
+    JNIEnv *, jclass, jlong id) {
+  auto s = state(id);
+  if (!s) return;
+  std::lock_guard<std::mutex> lock(s->mutex);
+  s->field.reset();
+  s->staging.reset();
+}
 JNIEXPORT jboolean JNICALL Java_com_maris_wind_WindControl_fadedOut(JNIEnv *, jclass, jlong id) {
   auto s = state(id);
   if (!s) return true;

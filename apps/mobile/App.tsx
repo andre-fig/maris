@@ -7,7 +7,7 @@ import {
   OfflineManager,
   VectorSource,
 } from "@maplibre/maplibre-react-native";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSharedValue } from "react-native-reanimated";
 import { useCameraEvents } from "./map/use-camera-events";
 import { isWithinChartBounds } from "./map/chart-bounds";
@@ -32,7 +32,7 @@ import { RouteStatusPanel } from "./components/RouteStatusPanel";
 import { MapOverlayGrid, MapOverlaySlot } from "./components/MapOverlayGrid";
 import { DrawerCompass } from "./components/DrawerCompass";
 import { useDeviceLocation } from "./location/use-device-location";
-import { NativeWindLayer } from "@maris/native-wind";
+import { NativeWindLayer, type NativeWindField } from "@maris/native-wind";
 import { MAP_AMBIENT_CACHE_BYTES } from "./offline/offline-areas";
 import { useAutomaticOffline } from "./offline/use-automatic-offline";
 import { DEFAULT_MAP_ZOOM } from "./map-config";
@@ -184,6 +184,22 @@ export default function App() {
     [viewState.longitude, viewState.latitude],
     offlineReady,
   );
+  const nativeWindField = useMemo<NativeWindField | null>(() => {
+    const grid = gfs.packageData?.grids["0"];
+    const windU = grid?.fields.windU;
+    const windV = grid?.fields.windV;
+    if (!grid || !windU || !windV) return null;
+    return {
+      bounds: grid.bounds,
+      width: grid.width,
+      height: grid.height,
+      windU,
+      windV,
+      forecastTime: grid.forecastTime,
+      run: grid.run,
+      model: grid.model,
+    };
+  }, [gfs.packageData]);
 
   const refreshVisibleBounds = () => {
     void mapRef.current?.getBounds().then(([west, south, east, north]) => {
@@ -364,6 +380,7 @@ export default function App() {
         opacity={1.0}
         density={0.5}
         animationSpeed={1}
+        windField={nativeWindField}
         sampleCoordinate={windEnabled
           ? (windSampleCoordinate ?? [viewState.longitude, viewState.latitude])
           : null}

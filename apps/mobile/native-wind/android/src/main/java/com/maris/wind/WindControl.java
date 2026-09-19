@@ -28,9 +28,54 @@ public class WindControl extends View
   static native boolean publish(long id, int gen);
   static native void configure(long id, float opacity, float density,
                                float speed, boolean visible);
+  static native void setGrid(long id, double west, double south, double east,
+                              double north, int width, int height,
+                              float[] u, float[] v);
+  static native void clearGrid(long id);
   static native boolean fadedOut(long id);
   static native double speedAtCenter(long id, double longitude, double latitude);
   com.facebook.react.bridge.ReadableArray sampleCoordinate;
+  ReadableMap windField;
+  String appliedWindFieldKey;
+  void setWindField(ReadableMap value) {
+    windField = value;
+    appliedWindFieldKey = null;
+    applyWindField();
+  }
+  void applyWindField() {
+    if (id == 0) return;
+    if (windField == null) {
+      clearGrid(id);
+      appliedWindFieldKey = "null";
+      return;
+    }
+    ReadableMap keyBounds = windField.getMap("bounds");
+    int width = windField.hasKey("width") ? windField.getInt("width") : 0;
+    int height = windField.hasKey("height") ? windField.getInt("height") : 0;
+    ReadableArray uValues = windField.getArray("windU");
+    ReadableArray vValues = windField.getArray("windV");
+    if (keyBounds == null || width <= 0 || height <= 0 || uValues == null ||
+        vValues == null || uValues.size() != width * height ||
+        vValues.size() != width * height) return;
+    String key = windField.hasKey("run") ? windField.getString("run") : "";
+    key += "|" + (windField.hasKey("model") ? windField.getString("model") : "");
+    key += "|" + (windField.hasKey("forecastTime") ? windField.getString("forecastTime") : "");
+    key += "|" + keyBounds.getDouble("west") + "," + keyBounds.getDouble("south") +
+        "," + keyBounds.getDouble("east") + "," + keyBounds.getDouble("north");
+    key += "|" + width + "x" + height;
+    if (key.equals(appliedWindFieldKey)) return;
+    ReadableMap bounds = windField.getMap("bounds");
+    float[] u = new float[width * height], v = new float[width * height];
+    for (int i = 0; i < width * height; i++) {
+      u[i] = uValues.isNull(i) ? Float.NaN : (float)uValues.getDouble(i);
+      v[i] = vValues.isNull(i) ? Float.NaN : (float)vValues.getDouble(i);
+    }
+    setGrid(id, bounds.getDouble("west"), bounds.getDouble("south"),
+            bounds.getDouble("east"), bounds.getDouble("north"),
+            width, height, u, v);
+    appliedWindFieldKey = key;
+    emitSample();
+  }
   void emitSample() {
     if (sampleCoordinate == null || sampleCoordinate.size() != 2) return;
     double lon = sampleCoordinate.getDouble(0), lat = sampleCoordinate.getDouble(1);
@@ -126,6 +171,7 @@ public class WindControl extends View
     if (id != 0)
       release(id);
     id = 0;
+    appliedWindFieldKey = null;
     lastKey = "";
     loading = false;
     nextLoadAt = 0;
@@ -178,20 +224,11 @@ public class WindControl extends View
           id = handle[0];
           layer = new CustomLayer("maris-native-wind", handle[1]);
           style.addLayer(layer);
+          applyWindField();
         }
         configure(id, opacity, density, speed, true);
-        if (nanos - checked > 350000000L) {
-          checked = nanos;
-          var b = map.getProjection().getVisibleRegion().latLngBounds;
-          int[] p = plan(b.getLonWest(), b.getLatSouth(), b.getLonEast(),
-                         b.getLatNorth(), map.getCameraPosition().zoom, id);
-          String key = Arrays.toString(p);
-          if (!key.equals(lastKey) || (!loading && nanos >= nextLoadAt)) {
-            lastKey = key;
-            loading = true;
-            load(p, id, ++generation);
-          }
-        }
+        // The React Native GFS client owns acquisition and cache coverage.
+        // Native code only retains and samples the field it receives.
         map.triggerRepaint();
       }
     } else if (layer != null) {
@@ -249,6 +286,10 @@ public class WindControl extends View
     if (!tmp.renameTo(new File(catalogPath))) tmp.delete();
   }
   void load(int[] p, long target, int gen) {
+    // Disabled: GFS grids are acquired, cached, and supplied by React Native.
+    // Keep this legacy PNG loader unreachable so native never falls back to MET.
+    return;
+    /*
     cancelObsolete(gen);
     dataStatus(true, savedAt, true, gen);
     worker.submit(() -> {
@@ -354,6 +395,7 @@ public class WindControl extends View
         });
       }
     });
+    */
   }
   public void onHostResume() {
     active = true;

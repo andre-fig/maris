@@ -47,6 +47,23 @@ int main() {
   b[3] = 0;
   field.put(1, 0, b.data(), 1024);
   assert(!field.sample(256.5 / 512., .5 / 512., u, v));
+  maris::Field gfsField(
+      -1, 0, 0, 1, 2, 2,
+      {0, 2, 4, 6}, {10, 20, 30, 40}, {1, 1, 1, 1});
+  const double gfsY = maris::my(.5);
+  assert(gfsField.sample(maris::mx(-.5), gfsY, u, v));
+  assert(std::abs(u - 3) < 1e-6 && std::abs(v - 25) < 1e-6);
+  assert(std::abs(maris::speedAtCoordinate(&gfsField, -.5, .5) - 25.179356) < 1e-5);
+  assert(!gfsField.sample(maris::mx(.5), gfsY, u, v));
+  maris::Field datelineGfs(
+      179, 0, -179, 1, 2, 2,
+      {1, 3, 5, 7}, {2, 4, 6, 8}, {1, 1, 1, 1});
+  assert(datelineGfs.sample(maris::mx(-180), gfsY, u, v));
+  assert(std::abs(u - 4) < 1e-6 && std::abs(v - 5) < 1e-6);
+  maris::Field missingGfs(
+      -1, 0, 0, 1, 2, 2,
+      {0, 2, 4, 6}, {10, 20, 30, 40}, {1, 0, 1, 1});
+  assert(!missingGfs.sample(maris::mx(-.5), gfsY, u, v));
   double matrix[16] = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1};
   auto q = maris::quad({0, 0, 0, 0, 0}, matrix, 0);
   assert(q[3].x == 512 && q[3].y == 512 && q[3].u == 1 && q[3].v == 1);

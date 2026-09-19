@@ -17,6 +17,10 @@ public class WindManager extends SimpleViewManager<WindControl> {
     view.sampleCoordinate = value;
     view.emitSample();
   }
+  @ReactProp(name = "windField")
+  public void windField(WindControl view, com.facebook.react.bridge.ReadableMap value) {
+    view.setWindField(value);
+  }
   @ReactProp(name = "enabled")
   public void enabled(WindControl view, boolean value) {
     if (value && !view.enabled) {

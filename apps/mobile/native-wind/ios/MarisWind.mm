@@ -22,6 +22,7 @@ static maris::TileCache tileCache;
 - (int)maximumDimension;
 - (BOOL)fadeFinished;
 - (double)speedAtCenter:(CLLocationCoordinate2D)center;
+- (void)setGfsField:(NSDictionary *)payload;
 @end
 
 @implementation MarisWindLayer {
@@ -45,6 +46,7 @@ static maris::TileCache tileCache;
   maris::WindFade _fade;
   NSString *_snapshotPath;
   NSString *_catalogPath;
+  NSString *_gfsKey;
   NSURLSessionDataTask *_activeTask;
   id<MTLBuffer> _buffers[3];
   std::shared_ptr<std::array<std::atomic_bool, 3>> _busy;
@@ -122,6 +124,53 @@ static maris::TileCache tileCache;
 - (double)speedAtCenter:(CLLocationCoordinate2D)center {
   return maris::speedAtCoordinate(_field.get(), center.longitude, center.latitude);
 }
+- (void)setGfsField:(NSDictionary *)payload {
+  NSDictionary *bounds = payload[@"bounds"];
+  if (!payload) {
+    if (_gfsKey == nil && !_field) return;
+    _gfsKey = nil;
+    _oldField.reset();
+    _field.reset();
+    _particles = maris::Particles();
+    return;
+  }
+  NSArray *uValues = payload[@"windU"];
+  NSArray *vValues = payload[@"windV"];
+  NSInteger width = [payload[@"width"] integerValue];
+  NSInteger height = [payload[@"height"] integerValue];
+  if (![bounds isKindOfClass:NSDictionary.class] || width <= 0 || height <= 0 ||
+      uValues.count != (NSUInteger)(width * height) ||
+      vValues.count != (NSUInteger)(width * height)) return;
+  NSString *key = [NSString stringWithFormat:@"%@|%@|%@|%@|%@|%@|%@|%@|%@",
+      payload[@"run"] ?: @"", payload[@"model"] ?: @"", payload[@"forecastTime"] ?: @"",
+      bounds[@"west"] ?: @"", bounds[@"south"] ?: @"", bounds[@"east"] ?: @"",
+      bounds[@"north"] ?: @"", payload[@"width"] ?: @"", payload[@"height"] ?: @""];
+  if ([key isEqualToString:_gfsKey]) return;
+  _gfsKey = [key copy];
+  std::vector<float> u(size_t(width * height)), v(size_t(width * height));
+  std::vector<uint8_t> valid(size_t(width * height), 1);
+  for (NSInteger i = 0; i < width * height; ++i) {
+    NSNumber *un = uValues[i], *vn = vValues[i];
+    if (![un isKindOfClass:NSNumber.class] || ![vn isKindOfClass:NSNumber.class] ||
+        !std::isfinite(un.doubleValue) || !std::isfinite(vn.doubleValue)) {
+      valid[size_t(i)] = 0;
+      continue;
+    }
+    u[size_t(i)] = un.floatValue;
+    v[size_t(i)] = vn.floatValue;
+  }
+  auto next = std::make_shared<maris::Field>(
+      [bounds[@"west"] doubleValue], [bounds[@"south"] doubleValue],
+      [bounds[@"east"] doubleValue], [bounds[@"north"] doubleValue],
+      int(width), int(height), std::move(u), std::move(v), std::move(valid));
+  _oldField = _field;
+  _fieldTransition = maris::WindFade();
+  _field = std::move(next);
+  _loading = NO;
+  _nextLoadAt = CACurrentMediaTime() + 60;
+  if (self.dataStatus) self.dataStatus(NO, NSDate.date.timeIntervalSince1970, NO);
+  [self setNeedsDisplay];
+}
 - (NSData *)fetch:(NSString *)url cacheOnly:(BOOL)cacheOnly {
   dispatch_semaphore_t done = dispatch_semaphore_create(0);
   __block NSData *result = nil;
@@ -152,6 +201,10 @@ static maris::TileCache tileCache;
   _nextLoadAt = 0;
 }
 - (void)load:(maris::Plan)p {
+  // Disabled: the React Native GFS client owns acquisition, cache coverage,
+  // and the resident vector field. Native never falls back to MET Norway.
+  return;
+  /*
   NSString *key = @(p.key().c_str());
   double now = CACurrentMediaTime();
   if ([key isEqual:_key] && (_loading || now < _nextLoadAt))
@@ -310,6 +363,7 @@ static maris::TileCache tileCache;
       });
     }
   });
+  */
 }
 - (void)drawInMapView:(MLNMapView *)map
           withContext:(MLNStyleLayerDrawingContext)context {
@@ -409,6 +463,7 @@ static MLNMapView *findMap(UIView *view) {
 @property (nonatomic, copy) RCTDirectEventBlock onDataStatus;
 @property (nonatomic, copy) RCTDirectEventBlock onCenterWind;
 @property (nonatomic, copy) NSArray<NSNumber *> *sampleCoordinate;
+@property (nonatomic, copy) NSDictionary *windField;
 - (void)emitSample;
 @end
 @implementation MarisWindControl {
@@ -458,6 +513,11 @@ static MLNMapView *findMap(UIView *view) {
 }
 - (void)setSampleCoordinate:(NSArray<NSNumber *> *)coordinate {
   _sampleCoordinate = [coordinate copy];
+  [self emitSample];
+}
+- (void)setWindField:(NSDictionary *)windField {
+  _windField = [windField copy];
+  [_layer setGfsField:_windField];
   [self emitSample];
 }
 - (void)setEnabled:(BOOL)enabled {
@@ -523,6 +583,7 @@ static MLNMapView *findMap(UIView *view) {
   }
   _layer.particleOpacity = _opacity;
   _layer.windVisible = YES;
+  [_layer setGfsField:_windField];
   _layer.density = _density;
   _layer.animationSpeed = _animationSpeed;
   __weak MarisWindControl *weak = self;
@@ -531,12 +592,8 @@ static MLNMapView *findMap(UIView *view) {
     [owner emitSample]; // New/restored atlas: retry the last requested destination.
     if (owner.onDataStatus) owner.onDataStatus(@{@"stale": @(stale), @"savedAt": @(savedAt * 1000), @"loading": @(loading)});
   };
-  if (clock.timestamp - _check > .35) {
-    _check = clock.timestamp;
-    auto b = _map.visibleCoordinateBounds;
-    [_layer load:maris::plan(b.sw.longitude, b.sw.latitude, b.ne.longitude,
-                             b.ne.latitude, std::min(6., _map.zoomLevel) - [_layer resolutionPenalty], [_layer maximumDimension])];
-  }
+  // The mobile GFS client supplies the resident field. Native rendering does
+  // not fetch weather data or reload a second wind source.
   // Includes static fields (density=0), which also need fade frames.
   [_layer setNeedsDisplay];
 }
@@ -555,4 +612,5 @@ RCT_EXPORT_VIEW_PROPERTY(animationSpeed, float)
 RCT_EXPORT_VIEW_PROPERTY(onDataStatus, RCTDirectEventBlock)
 RCT_EXPORT_VIEW_PROPERTY(onCenterWind, RCTDirectEventBlock)
 RCT_EXPORT_VIEW_PROPERTY(sampleCoordinate, NSArray)
+RCT_EXPORT_VIEW_PROPERTY(windField, NSDictionary)
 @end
