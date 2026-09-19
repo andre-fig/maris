@@ -14,6 +14,10 @@ export const envSchema = Joi.object({
   CHART_ASSET_BASE_URL: Joi.string().uri().allow('').optional(),
   GFS_CACHE_DIR: Joi.string().default('.storage/gfs'),
   GFS_RUN_CACHE_TTL_MS: Joi.number().integer().positive().default(300_000),
+  GFS_NEGATIVE_RUN_CACHE_TTL_MS: Joi.number()
+    .integer()
+    .positive()
+    .default(180_000),
   GFS_PARSER_PYTHON: Joi.string().default('python3'),
   GFS_PARSER_SCRIPT: Joi.string().default('apps/api/scripts/gfs-grib-parser.py'),
   ENC_S3_ENDPOINT: Joi.string().uri().allow('').default(''),

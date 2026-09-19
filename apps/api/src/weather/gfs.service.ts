@@ -42,6 +42,17 @@ type CachedGfsRun = {
   expiresAt: number;
 };
 
+type NegativeRunEntry = {
+  runKey: string;
+  reason: string;
+  expiresAt: number;
+};
+
+type InventoryReadResult = {
+  inventory: Inventory | null;
+  reason?: string;
+};
+
 type ParsedSubset = {
   metadata: {
     width: number;
@@ -56,12 +67,16 @@ type ParsedSubset = {
 export class GfsService {
   private readonly logger = new Logger(GfsService.name);
   private cachedRun: CachedGfsRun | null = null;
+  private readonly unavailableRuns = new Map<string, NegativeRunEntry>();
   private runDiscoveryInFlight: Promise<Inventory> | null = null;
   private tileRequests = 0;
   private inventoryLookups = 0;
   private runCacheHits = 0;
   private runCacheMisses = 0;
   private singleFlightJoins = 0;
+  private negativeCacheStores = 0;
+  private negativeCacheHits = 0;
+  private skippedRunProbes = 0;
 
   constructor(private readonly config: ConfigService) {}
 
@@ -186,13 +201,24 @@ export class GfsService {
           `${dateText.slice(0, 4)}-${dateText.slice(4, 6)}-${dateText.slice(6)}T${String(cycle).padStart(2, "0")}:00:00Z`,
         );
         if (runDate.getTime() > now.getTime() + 6 * 60 * 60 * 1_000) continue;
-        const inventory = await this.readInventory(dateText, cycle);
+        const runKey = this.runKey(dateText, cycle);
+        if (this.isRunTemporarilyUnavailable(runKey)) continue;
+
+        const result = await this.readInventory(dateText, cycle);
+        const inventory = result.inventory;
         if (
           inventory &&
           forecastHours.every((hour) => this.fileForHour(inventory.files, hour))
         ) {
           return inventory;
         }
+
+        this.storeNegativeRun(
+          runKey,
+          inventory
+            ? "INVENTORY_MISSING_REQUESTED_HOURS"
+            : result.reason ?? "INVENTORY_UNAVAILABLE",
+        );
       }
     }
     throw new ServiceUnavailableException(
@@ -203,7 +229,7 @@ export class GfsService {
   private async readInventory(
     date: string,
     cycle: number,
-  ): Promise<Inventory | null> {
+  ): Promise<InventoryReadResult> {
     const directory = `/gfs.${date}/${String(cycle).padStart(2, "0")}/atmos`;
     const url = new URL(NOMADS_FILTER_URL);
     url.searchParams.set("dir", directory);
@@ -215,7 +241,7 @@ export class GfsService {
         this.logger.warn(
           `NOMADS inventory returned HTTP ${response.status} for ${date}/${String(cycle).padStart(2, "0")}`,
         );
-        return null;
+        return { inventory: null, reason: `NOMADS_HTTP_${response.status}` };
       }
       const html = await response.text();
       const files = new Set<string>();
@@ -228,15 +254,17 @@ export class GfsService {
         this.logger.warn(
           `NOMADS inventory had no recognized GFS files for ${date}/${String(cycle).padStart(2, "0")} (responseBytes=${Buffer.byteLength(html)})`,
         );
-        return null;
+        return { inventory: null, reason: "INVENTORY_EMPTY" };
       }
       return {
-        files,
-        run: {
-          date,
-          cycle,
-          run: `${date}T${String(cycle).padStart(2, "0")}:00:00Z`,
-          runAt: `${date.slice(0, 4)}-${date.slice(4, 6)}-${date.slice(6)}T${String(cycle).padStart(2, "0")}:00:00Z`,
+        inventory: {
+          files,
+          run: {
+            date,
+            cycle,
+            run: `${date}T${String(cycle).padStart(2, "0")}:00:00Z`,
+            runAt: `${date.slice(0, 4)}-${date.slice(4, 6)}-${date.slice(6)}T${String(cycle).padStart(2, "0")}:00:00Z`,
+          },
         },
       };
     } catch (error) {
@@ -244,8 +272,51 @@ export class GfsService {
       this.logger.warn(
         `NOMADS inventory request failed for ${date}/${String(cycle).padStart(2, "0")}: ${message}`,
       );
-      return null;
+      return { inventory: null, reason: "NOMADS_REQUEST_FAILED" };
     }
+  }
+
+  private runKey(date: string, cycle: number) {
+    return `${date}/${String(cycle).padStart(2, "0")}`;
+  }
+
+  private negativeRunTtlMs() {
+    const configured = this.config.get<number>(
+      "GFS_NEGATIVE_RUN_CACHE_TTL_MS",
+      3 * 60 * 1_000,
+    );
+    return Number.isFinite(configured) && configured > 0
+      ? configured
+      : 3 * 60 * 1_000;
+  }
+
+  private isRunTemporarilyUnavailable(runKey: string) {
+    const entry = this.unavailableRuns.get(runKey);
+    if (!entry) return false;
+
+    const remainingMs = entry.expiresAt - Date.now();
+    if (remainingMs <= 0) {
+      this.unavailableRuns.delete(runKey);
+      this.logger.log(`[GFS] negative run cache EXPIRED run=${runKey}`);
+      return false;
+    }
+
+    this.negativeCacheHits += 1;
+    this.skippedRunProbes += 1;
+    this.logger.log(
+      `[GFS] negative run cache HIT run=${runKey} remaining=${Math.ceil(remainingMs / 1_000)}s negativeCacheHits=${this.negativeCacheHits}`,
+    );
+    this.logger.log(`[GFS] skipping temporarily unavailable run=${runKey}`);
+    return true;
+  }
+
+  private storeNegativeRun(runKey: string, reason: string) {
+    const expiresAt = Date.now() + this.negativeRunTtlMs();
+    this.unavailableRuns.set(runKey, { runKey, reason, expiresAt });
+    this.negativeCacheStores += 1;
+    this.logger.warn(
+      `[GFS] negative run cache STORE run=${runKey} reason=${reason} ttl=${Math.floor((expiresAt - Date.now()) / 1_000)}s negativeCacheStores=${this.negativeCacheStores} skippedRunProbes=${this.skippedRunProbes}`,
+    );
   }
 
   private fileForHour(files: Set<string>, hour: number) {
