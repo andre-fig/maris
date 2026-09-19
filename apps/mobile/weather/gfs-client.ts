@@ -178,16 +178,27 @@ class GfsTileStore {
     const promise = (async () => {
       try {
       const query = new URLSearchParams({ forecastHour: String(forecastHour) });
-      const response = await fetch(
-        `${apiUrl.replace(/\/$/, '')}/weather/gfs/tiles/${tile.z}/${tile.x}/${tile.y}?${query}`,
-        {
-          headers: cached?.etag ? { 'If-None-Match': cached.etag } : undefined,
-          signal: signal ?? AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-        },
-      );
+      const url = `${apiUrl.replace(/\/$/, '')}/weather/gfs/tiles/${tile.z}/${tile.x}/${tile.y}?${query}`;
+      const requestSignal = signal ?? AbortSignal.timeout(REQUEST_TIMEOUT_MS);
+      let response = await fetch(url, {
+        headers: cached?.etag ? { 'If-None-Match': cached.etag } : undefined,
+        signal: requestSignal,
+      });
       if (response.status === 304) {
-        if (!cached) throw new Error('GFS tile returned 304 without a cached payload');
-        return this.put(tile, forecastHour, cached.grid, Date.now(), 'cache', cached.etag);
+        if (cached) {
+          return this.put(tile, forecastHour, cached.grid, Date.now(), 'cache', cached.etag);
+        }
+
+        // A CDN/proxy may revalidate upstream and return 304 even though this
+        // process has no local body. Never leave the tile in an endless retry
+        // loop: retry once without a validator and require the payload.
+        response = await fetch(url, {
+          headers: { 'Cache-Control': 'no-cache' },
+          signal: requestSignal,
+        });
+        if (response.status === 304) {
+          throw new Error('GFS tile returned 304 without a cached payload after unconditional retry');
+        }
       }
       if (!response.ok) throw new Error(`GFS tile request failed: ${response.status}`);
       const bytes = new Uint8Array(await response.arrayBuffer());
