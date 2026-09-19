@@ -37,7 +37,7 @@ export const envSchema = Joi.object({
   GFS_PREFETCH_MAX_ESTIMATED_REDIS_BYTES: Joi.number()
     .integer()
     .positive()
-    .default(512 * 1024 * 1024),
+    .default(1024 * 1024 * 1024),
   GFS_PARSER_PYTHON: Joi.string().default('python3'),
   GFS_PARSER_SCRIPT: Joi.string().default('apps/api/scripts/gfs-grib-parser.py'),
   ENC_S3_ENDPOINT: Joi.string().uri().allow('').default(''),

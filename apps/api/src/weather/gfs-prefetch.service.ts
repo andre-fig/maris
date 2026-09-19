@@ -60,9 +60,9 @@ export class GfsPrefetchService
     this.maxEstimatedRedisBytes = this.int(
       config.get<number>(
         "GFS_PREFETCH_MAX_ESTIMATED_REDIS_BYTES",
-        512 * 1024 * 1024,
+        1024 * 1024 * 1024,
       ),
-      512 * 1024 * 1024,
+      1024 * 1024 * 1024,
       1,
       Number.MAX_SAFE_INTEGER,
     );
