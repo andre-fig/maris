@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
 import { gunzipSync } from 'node:zlib';
 import { test } from 'node:test';
-import { BadGatewayException, ServiceUnavailableException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 
@@ -11,21 +10,6 @@ import { decodeGfsTile } from './gfs-tiles.js';
 
 const successCacheControl =
   'public, s-maxage=1800, stale-while-revalidate=300';
-
-const packageResponse = {
-  model: 'gfs' as const,
-  run: {
-    date: '20260918',
-    cycle: 12,
-    run: '20260918T12:00:00Z',
-    runAt: '2026-09-18T12:00:00Z',
-  },
-  resolution: 0.25 as const,
-  bounds: { north: -22, south: -23, east: -43, west: -44 },
-  forecastHours: [0],
-  availableForecastHours: [0],
-  grids: {},
-};
 
 function makeTestTile() {
   return {
@@ -48,7 +32,7 @@ function makeTestTile() {
   };
 }
 
-async function createApp(service: Partial<Pick<GfsService, 'getPackage' | 'getTile'>>) {
+async function createApp(service: Partial<Pick<GfsService, 'getTile'>>) {
   const module = await Test.createTestingModule({
     controllers: [WeatherController],
     providers: [{ provide: GfsService, useValue: service }],
@@ -57,86 +41,6 @@ async function createApp(service: Partial<Pick<GfsService, 'getPackage' | 'getTi
   await app.init();
   return app;
 }
-
-test('GET /weather/gfs makes successful responses publicly cacheable', async () => {
-  const app = await createApp({ getPackage: async () => packageResponse });
-  try {
-    await request(app.getHttpServer())
-      .get('/weather/gfs?north=-22&south=-23&east=-43&west=-44&forecastHours=0')
-      .expect(200)
-      .expect('Cache-Control', successCacheControl)
-      .expect('ETag', /^"[0-9a-f]{64}"$/)
-      .expect(({ body }) => assert.equal(body.model, 'gfs'));
-  } finally {
-    await app.close();
-  }
-});
-
-test('GET /weather/gfs returns 304 for a matching ETag without a body', async () => {
-  const app = await createApp({ getPackage: async () => packageResponse });
-  try {
-    const first = await request(app.getHttpServer())
-      .get('/weather/gfs?north=-22&south=-23&east=-43&west=-44&forecastHours=0')
-      .expect(200);
-    const second = await request(app.getHttpServer())
-      .get('/weather/gfs?north=-22&south=-23&east=-43&west=-44&forecastHours=0')
-      .set('If-None-Match', first.headers.etag)
-      .expect(304);
-    assert.equal(second.headers.etag, first.headers.etag);
-    assert.equal(second.headers['cache-control'], successCacheControl);
-    assert.equal(second.text, '');
-  } finally {
-    await app.close();
-  }
-});
-
-test('GET /weather/gfs changes its ETag when the payload changes', async () => {
-  let current = packageResponse;
-  const app = await createApp({ getPackage: async () => current });
-  try {
-    const first = await request(app.getHttpServer())
-      .get('/weather/gfs?north=-22&south=-23&east=-43&west=-44&forecastHours=0')
-      .expect(200);
-    current = { ...packageResponse, resolution: 0.5 };
-    const second = await request(app.getHttpServer())
-      .get('/weather/gfs?north=-22&south=-23&east=-43&west=-44&forecastHours=0')
-      .set('If-None-Match', first.headers.etag)
-      .expect(200);
-    assert.notEqual(second.headers.etag, first.headers.etag);
-    assert.equal(second.body.resolution, 0.5);
-  } finally {
-    await app.close();
-  }
-});
-
-test('GET /weather/gfs does not publicly cache backend errors', async () => {
-  const app = await createApp({ getPackage: async () => {
-    throw new ServiceUnavailableException('GFS unavailable');
-  } });
-  try {
-    const response = await request(app.getHttpServer())
-      .get('/weather/gfs?north=-22&south=-23&east=-43&west=-44&forecastHours=0')
-      .expect(503);
-    assert.equal(response.headers['cache-control'], 'no-store');
-    assert.notEqual(response.headers['cache-control'], successCacheControl);
-  } finally {
-    await app.close();
-  }
-});
-
-test('GET /weather/gfs does not publicly cache validation errors', async () => {
-  const app = await createApp({ getPackage: async () => {
-    throw new BadGatewayException('invalid GFS response');
-  } });
-  try {
-    const response = await request(app.getHttpServer())
-      .get('/weather/gfs?north=-22&south=-23&east=-43&west=-44&forecastHours=0')
-      .expect(502);
-    assert.equal(response.headers['cache-control'], 'no-store');
-  } finally {
-    await app.close();
-  }
-});
 
 test('GET /weather/gfs/tiles/:x/:y returns a compressed deterministic tile', async () => {
   const tile = makeTestTile();

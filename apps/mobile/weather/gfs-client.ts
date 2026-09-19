@@ -21,7 +21,6 @@ import {
   type GfsTileCoordinate,
 } from './gfs-tiles';
 
-export const GFS_FORECAST_HOURS = [0] as const;
 const REQUEST_DEBOUNCE_MS = 500;
 const REQUEST_TIMEOUT_MS = 15_000;
 const TILE_MARGIN = 1;
@@ -285,15 +284,6 @@ function packageFromTiles(tiles: CachedTile[]): GfsPackage | null {
 
 export async function fetchGfsTile(apiUrl: string, tile: GfsTileCoordinate, forecastHour = 0, signal?: AbortSignal) {
   return gfsTileStore.fetch(apiUrl, tile, forecastHour, signal);
-}
-
-/** Compatibility helper: fetches fixed tiles covering the requested bounds. */
-export async function fetchGfsPackage(apiUrl: string, bounds: GfsBounds, signal?: AbortSignal) {
-  const tiles = tilesForViewport(bounds, 0);
-  const fetched = await Promise.all(tiles.map((tile) => fetchGfsTile(apiUrl, tile, 0, signal)));
-  const packageData = packageFromTiles(fetched);
-  if (!packageData) throw new Error('No GFS tiles available');
-  return packageData;
 }
 
 export type GfsSample = SampledGfsValues & { forecastTime: string; forecastHour: number };

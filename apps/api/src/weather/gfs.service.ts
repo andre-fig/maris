@@ -16,10 +16,8 @@ import {
 import { ConfigService } from "@nestjs/config";
 
 import {
-  GFS_FORECAST_HOURS,
   type GfsBounds,
   type GfsGrid,
-  type GfsPackage,
   type GfsRun,
 } from "./gfs.types.js";
 import { gfsTileBounds } from "./gfs-tiles.js";
@@ -67,41 +65,6 @@ export class GfsService {
     return this.getGrid(inventory.run, file, normalizedHour, bounds);
   }
 
-  async getPackage(
-    bounds: GfsBounds,
-    requestedHours: number[] = [...GFS_FORECAST_HOURS],
-  ): Promise<GfsPackage> {
-    const normalizedBounds = this.normalizeBounds(bounds);
-    const forecastHours = this.normalizeForecastHours(requestedHours);
-    const inventory = await this.findCompleteInventory(forecastHours);
-    const grids: Record<string, GfsGrid> = {};
-
-    for (const forecastHour of forecastHours) {
-      const file = this.fileForHour(inventory.files, forecastHour);
-      if (!file) {
-        throw new ServiceUnavailableException(
-          `GFS forecast hour ${forecastHour} is unavailable`,
-        );
-      }
-      grids[String(forecastHour)] = await this.getGrid(
-        inventory.run,
-        file,
-        forecastHour,
-        normalizedBounds,
-      );
-    }
-
-    return {
-      model: "gfs",
-      run: inventory.run,
-      resolution: RESOLUTION,
-      bounds: normalizedBounds,
-      forecastHours,
-      availableForecastHours: forecastHours,
-      grids,
-    };
-  }
-
   private normalizeForecastHours(hours: number[]) {
     const normalized = [...new Set(hours)]
       .filter((hour) => Number.isInteger(hour) && hour >= 0 && hour <= 384)
@@ -111,33 +74,6 @@ export class GfsService {
         "At least one valid forecast hour is required",
       );
     return normalized;
-  }
-
-  private normalizeBounds(bounds: GfsBounds): GfsBounds {
-    const { north, south, east, west } = bounds;
-    if (![north, south, east, west].every(Number.isFinite)) {
-      throw new BadRequestException("Invalid GFS bounding box");
-    }
-    if (
-      north < -90 ||
-      north > 90 ||
-      south < -90 ||
-      south > 90 ||
-      north <= south
-    ) {
-      throw new BadRequestException("Invalid GFS latitude bounds");
-    }
-    if (
-      west < -180 ||
-      west > 180 ||
-      east < -180 ||
-      east > 180 ||
-      east === west
-    ) {
-      throw new BadRequestException("Invalid GFS longitude bounds");
-    }
-
-    return { north, south, east, west };
   }
 
   private toGfsLongitude(longitude: number) {

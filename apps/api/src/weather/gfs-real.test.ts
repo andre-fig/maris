@@ -17,13 +17,7 @@ test('downloads and parses a real NOAA GFS subset', { skip: !runRealTest }, asyn
     },
   };
 
-  const packageData = await new GfsService(config as never).getPackage(
-    { north: -22, south: -23, west: -44, east: -43 },
-    [0, 3, 6, 9],
-  );
-  const grid = packageData.grids['3'];
-  const analysisGrid = packageData.grids['0'];
-  if (!grid || !analysisGrid) throw new Error('NOAA test grids were not returned');
+  const grid = await new GfsService(config as never).getTile(13, 6, 0);
 
   const expectedFields = [
     'windU', 'windV', 'temperature', 'precipitation',
@@ -31,10 +25,10 @@ test('downloads and parses a real NOAA GFS subset', { skip: !runRealTest }, asyn
   ];
   console.log('GFS field availability:');
   for (const field of expectedFields) {
-    console.log(`${field.padEnd(18)} f000=${field in analysisGrid.fields ? 'yes' : 'no'} f003=${field in grid.fields ? 'yes' : 'no'}`);
+    console.log(`${field.padEnd(18)} f000=${field in grid.fields ? 'yes' : 'no'}`);
   }
   for (const field of ['windU', 'windV', 'temperature']) {
-    if (!(field in analysisGrid.fields)) throw new Error(`Required f000 field ${field} is missing`);
+    if (!(field in grid.fields)) throw new Error(`Required f000 field ${field} is missing`);
   }
 
   for (const [name, values] of Object.entries(grid.fields)) {

@@ -13,7 +13,6 @@ import { createHash } from "node:crypto";
 import { gzipSync } from "node:zlib";
 
 import { GfsService } from "./gfs.service.js";
-import { GFS_FORECAST_HOURS } from "./gfs.types.js";
 import { GFS_TILE_COLUMNS, GFS_TILE_ROWS, encodeGfsTile } from "./gfs-tiles.js";
 
 const GFS_SUCCESS_CACHE_CONTROL =
@@ -31,50 +30,6 @@ function isNotModified(request: Request, etag: string) {
 @Controller("weather")
 export class WeatherController {
   constructor(@Inject(GfsService) private readonly gfsService: GfsService) {}
-
-  @Get("gfs")
-  async getGfs(
-    @Req() request: Request,
-    @Res() response: Response,
-    @Query("north") northValue?: string,
-    @Query("south") southValue?: string,
-    @Query("east") eastValue?: string,
-    @Query("west") westValue?: string,
-    @Query("forecastHours") forecastHoursValue?: string,
-  ) {
-    // Errors must never be retained by a shared CDN. This is set before
-    // validation and remains in place if the service throws an exception.
-    response.set("Cache-Control", "no-store");
-    const north = Number(northValue);
-    const south = Number(southValue);
-    const east = Number(eastValue);
-    const west = Number(westValue);
-    if (
-      northValue === undefined ||
-      southValue === undefined ||
-      eastValue === undefined ||
-      westValue === undefined ||
-      ![north, south, east, west].every(Number.isFinite)
-    ) {
-      throw new BadRequestException("north, south, east and west are required");
-    }
-
-    const forecastHours = forecastHoursValue
-      ? forecastHoursValue.split(",").map(Number)
-      : [...GFS_FORECAST_HOURS];
-    const result = await this.gfsService.getPackage(
-      { north, south, east, west },
-      forecastHours,
-    );
-    const etag = etagFor(JSON.stringify(result));
-    response.set("Cache-Control", GFS_SUCCESS_CACHE_CONTROL);
-    response.set("ETag", etag);
-    if (isNotModified(request, etag)) {
-      response.status(304).end();
-      return;
-    }
-    return response.status(200).json(result);
-  }
 
   @Get("gfs/tiles/:x/:y")
   async getGfsTile(
