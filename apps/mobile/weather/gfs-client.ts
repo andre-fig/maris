@@ -261,7 +261,13 @@ export function useGfsViewport(apiUrl: string, bounds: GfsBounds | null, coordin
           setCachedAt(Math.max(...loaded.map((item) => item.savedAt)));
           if (loaded.length < requestedTiles.length) setError('GFS coverage incomplete');
         } catch (requestError) {
-          if (!(requestError instanceof Error && requestError.name === 'AbortError')) setError('GFS unavailable');
+          if (!(requestError instanceof Error && requestError.name === 'AbortError')) {
+            // Do not mark a failed viewport as fulfilled. This lets a later
+            // foreground event or camera change retry after a transient API/
+            // GFS availability failure.
+            if (requestKey.current === key) requestKey.current = undefined;
+            setError('GFS unavailable');
+          }
         } finally {
           if (request.current === controller) {
             request.current = null;
