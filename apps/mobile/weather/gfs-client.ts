@@ -23,6 +23,7 @@ import {
 
 const REQUEST_DEBOUNCE_MS = 500;
 const REQUEST_TIMEOUT_MS = 15_000;
+const REQUEST_RETRY_DELAY_MS = 2_000;
 const TILE_MARGIN = 1;
 const TILE_CACHE_TTL_MS = 30 * 60 * 1_000;
 const CACHE_ROOT = new Directory(Paths.document, 'gfs-weather-tiles');
@@ -196,7 +197,6 @@ class GfsTileStore {
       await file.write(bytes);
       return this.put(tile, forecastHour, grid, Date.now(), 'network', etag);
       } catch (error) {
-        if (cached) return cached;
         throw error;
       }
     })().finally(() => this.inFlight.delete(key));
@@ -306,6 +306,8 @@ export function useGfsViewport(apiUrl: string, bounds: GfsBounds | null, coordin
   const [cachedAt, setCachedAt] = useState<number>();
   const activeJob = useRef<ViewportJob | null>(null);
   const pendingJob = useRef<ViewportJob | null>(null);
+  const queueRevision = useRef(0);
+  const retryWaiters = useRef(new Set<() => void>());
   const completedKey = useRef<string | undefined>(undefined);
   const queueRunning = useRef(false);
   const debounce = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -314,6 +316,21 @@ export function useGfsViewport(apiUrl: string, bounds: GfsBounds | null, coordin
   const coordinateRef = useRef(coordinate);
   coordinateRef.current = coordinate;
 
+  const waitBeforeRetry = useCallback((revision: number) => {
+    if (revision !== queueRevision.current) return Promise.resolve(false);
+    return new Promise<boolean>((resolve) => {
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const finish = (canRetry: boolean) => {
+        if (timer) clearTimeout(timer);
+        retryWaiters.current.delete(wake);
+        resolve(canRetry && revision === queueRevision.current);
+      };
+      const wake = () => finish(false);
+      retryWaiters.current.add(wake);
+      timer = setTimeout(() => finish(true), REQUEST_RETRY_DELAY_MS);
+    });
+  }, []);
+
   const runQueue = useCallback(async () => {
     if (queueRunning.current) return;
     const job = pendingJob.current;
@@ -321,6 +338,7 @@ export function useGfsViewport(apiUrl: string, bounds: GfsBounds | null, coordin
 
     pendingJob.current = null;
     activeJob.current = job;
+    const jobRevision = queueRevision.current;
     queueRunning.current = true;
     if (mounted.current) {
       setLoading(true);
@@ -328,33 +346,48 @@ export function useGfsViewport(apiUrl: string, bounds: GfsBounds | null, coordin
     }
 
     const loaded: CachedTile[] = [];
-    const failed: GfsTileCoordinate[] = [];
     try {
       // Deliberately fetch one tile at a time. The center tile is first so the
       // HUD can become useful before the rest of a large viewport is loaded.
       for (const tile of job.tiles) {
-        try {
-          const result = await fetchGfsTile(apiUrl, tile, 0);
-          loaded.push(result);
-          if (mounted.current) {
-            setTilesVersion((version) => version + 1);
-            setCachedAt((previous) => Math.max(previous ?? 0, result.savedAt));
-            setOffline(result.source === 'cache');
+        // A viewport change never aborts the request already in progress, but
+        // it clears the remaining old tiles from this job. The pending job
+        // contains only the newest viewport and starts after this request.
+        if (jobRevision !== queueRevision.current) break;
+        let result: CachedTile | undefined;
+        let abandoned = false;
+        while (jobRevision === queueRevision.current) {
+          try {
+            result = await fetchGfsTile(apiUrl, tile, 0);
+            break;
+          } catch {
+            // Retry indefinitely every two seconds while this viewport remains
+            // current. A newer viewport wakes this wait immediately.
+            if (!(await waitBeforeRetry(jobRevision))) {
+              abandoned = true;
+              break;
+            }
           }
-        } catch {
-          failed.push(tile);
+        }
+        if (abandoned || jobRevision !== queueRevision.current) break;
+        if (!result) break;
+        loaded.push(result);
+        if (mounted.current) {
+          setTilesVersion((version) => version + 1);
+          setCachedAt((previous) => Math.max(previous ?? 0, result!.savedAt));
+          setOffline(result.source === 'cache');
         }
       }
 
-      const centerLoaded = job.center
-        ? loaded.some((item) => item.tile.x === job.center!.x && item.tile.y === job.center!.y)
-        : loaded.length > 0;
-      if (!centerLoaded && mounted.current) {
-        setError('GFS coverage unavailable');
-      } else if (failed.length > 0 && mounted.current) {
-        setError('GFS coverage incomplete');
+      if (jobRevision === queueRevision.current) {
+        const centerLoaded = job.center
+          ? loaded.some((item) => item.tile.x === job.center!.x && item.tile.y === job.center!.y)
+          : loaded.length > 0;
+        if (!centerLoaded && mounted.current) {
+          setError('GFS coverage unavailable');
+        }
+        completedKey.current = job.key;
       }
-      completedKey.current = job.key;
     } finally {
       activeJob.current = null;
       queueRunning.current = false;
@@ -372,7 +405,13 @@ export function useGfsViewport(apiUrl: string, bounds: GfsBounds | null, coordin
       completedKey.current === job.key
     ) return;
     // Keep only the newest viewport while the current request finishes. This
-    // prevents a rapid pan from building a backlog of obsolete regions.
+    // prevents a rapid pan from building a backlog of obsolete regions. The
+    // active tile request is deliberately allowed to finish; the revision
+    // makes the remaining tiles of the old job obsolete.
+    if (activeJob.current?.key !== job.key || pendingJob.current?.key !== job.key) {
+      queueRevision.current += 1;
+      for (const wake of retryWaiters.current) wake();
+    }
     pendingJob.current = job;
     void runQueue();
   }, [runQueue]);

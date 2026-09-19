@@ -31,7 +31,7 @@ const NOMADS_FILTER_URL =
 const NOMADS_TIMEOUT_MS = 30_000;
 const RESOLUTION = 0.25;
 
-type Inventory = {
+export type Inventory = {
   run: GfsRun;
   files: Set<string>;
 };
@@ -95,6 +95,29 @@ export class GfsService {
       );
     }
     return this.getGrid(inventory.run, file, normalizedHour, bounds);
+  }
+
+  async getCompleteInventory(forecastHours: number[]): Promise<Inventory> {
+    return this.findCompleteInventory(this.normalizeForecastHours(forecastHours));
+  }
+
+  async getTileFromInventory(
+    inventory: Inventory,
+    x: number,
+    y: number,
+    forecastHour: number,
+  ): Promise<GfsGrid> {
+    const normalizedHour = this.normalizeForecastHours([forecastHour])[0];
+    if (normalizedHour === undefined) {
+      throw new BadRequestException("A valid forecast hour is required");
+    }
+    const file = this.fileForHour(inventory.files, normalizedHour);
+    if (!file) {
+      throw new ServiceUnavailableException(
+        `GFS forecast hour ${normalizedHour} is unavailable`,
+      );
+    }
+    return this.getGrid(inventory.run, file, normalizedHour, gfsTileBounds(x, y));
   }
 
   private normalizeForecastHours(hours: number[]) {

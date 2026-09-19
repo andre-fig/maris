@@ -60,6 +60,42 @@ test('GET /weather/gfs/tiles/:x/:y returns a compressed deterministic tile', asy
   assert.equal(decoded.header.width, 2);
 });
 
+test('GFS tile Redis HIT avoids the origin lookup', async () => {
+  let originCalls = 0;
+  const cachedBody = Buffer.from('cached-gfs-tile');
+  const controller = new WeatherController(
+    {
+      getTile: async () => {
+        originCalls += 1;
+        throw new Error('origin should not be called on a Redis HIT');
+      },
+    } as GfsService,
+    {
+      getActiveRun: async () => ({ run: '20260918T12', status: 'READY' }),
+      getTile: async () => cachedBody,
+      setTile: async () => true,
+    } as never,
+  );
+  const headers = new Map<string, string>();
+  const response = {
+    set: (name: string, value: string) => headers.set(name, value),
+    status: () => response,
+    send: (value: Buffer) => value,
+  } as never;
+
+  const body = await controller.getGfsTile(
+    '13',
+    '6',
+    '0',
+    { header: () => undefined } as never,
+    response,
+  );
+
+  assert.equal(originCalls, 0);
+  assert.equal(body, cachedBody);
+  assert.match(headers.get('ETag') ?? '', /^"[0-9a-f]{64}"$/);
+});
+
 test('GFS tiles return 304 for a matching ETag without a body', async () => {
   const app = await createApp({ getTile: async () => makeTestTile() });
   try {

@@ -4,6 +4,7 @@ import {
   Get,
   Inject,
   Param,
+  Optional,
   Query,
   Req,
   Res,
@@ -14,6 +15,7 @@ import { gzipSync } from "node:zlib";
 
 import { GfsService } from "./gfs.service.js";
 import { GFS_TILE_COLUMNS, GFS_TILE_ROWS, encodeGfsTile } from "./gfs-tiles.js";
+import { GfsRedisCacheService, gfsRunId } from "./gfs-redis-cache.service.js";
 
 const GFS_SUCCESS_CACHE_CONTROL =
   "public, s-maxage=1800, stale-while-revalidate=300";
@@ -29,7 +31,12 @@ function isNotModified(request: Request, etag: string) {
 
 @Controller("weather")
 export class WeatherController {
-  constructor(@Inject(GfsService) private readonly gfsService: GfsService) {}
+  constructor(
+    @Inject(GfsService) private readonly gfsService: GfsService,
+    @Optional()
+    @Inject(GfsRedisCacheService)
+    private readonly redisCache?: GfsRedisCacheService,
+  ) {}
 
   @Get("gfs/tiles/:x/:y")
   async getGfsTile(
@@ -50,8 +57,16 @@ export class WeatherController {
         "Invalid GFS tile coordinate or forecast hour",
       );
     }
-    const grid = await this.gfsService.getTile(x, y, forecastHour);
-    const body = gzipSync(encodeGfsTile(grid));
+    const activeRun = await this.redisCache?.getActiveRun();
+    const cachedBody = activeRun
+      ? await this.redisCache?.getTile(activeRun.run, forecastHour, x, y)
+      : null;
+    let body = cachedBody;
+    if (!body) {
+      const grid = await this.gfsService.getTile(x, y, forecastHour);
+      body = gzipSync(encodeGfsTile(grid));
+      await this.redisCache?.setTile(gfsRunId(grid.run), forecastHour, x, y, body);
+    }
     const etag = etagFor(body);
     response.set("Cache-Control", GFS_SUCCESS_CACHE_CONTROL);
     response.set("ETag", etag);

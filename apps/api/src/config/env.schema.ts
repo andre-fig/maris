@@ -18,6 +18,26 @@ export const envSchema = Joi.object({
     .integer()
     .positive()
     .default(180_000),
+  GFS_PREFETCH_ENABLED: Joi.boolean().default(true),
+  GFS_PREFETCH_REFRESH_INTERVAL_MS: Joi.number()
+    .integer()
+    .positive()
+    .default(900_000),
+  GFS_PREFETCH_CONCURRENCY: Joi.number().integer().min(1).max(16).default(6),
+  GFS_PREFETCH_FORECAST_HOURS: Joi.string()
+    .default("0,3,6,9,12,18,24,36,48,72"),
+  GFS_PREFETCH_TILE_TTL_SECONDS: Joi.number()
+    .integer()
+    .positive()
+    .default(1_800),
+  GFS_PREFETCH_LOCK_TTL_MS: Joi.number()
+    .integer()
+    .positive()
+    .default(120_000),
+  GFS_PREFETCH_MAX_ESTIMATED_REDIS_BYTES: Joi.number()
+    .integer()
+    .positive()
+    .default(512 * 1024 * 1024),
   GFS_PARSER_PYTHON: Joi.string().default('python3'),
   GFS_PARSER_SCRIPT: Joi.string().default('apps/api/scripts/gfs-grib-parser.py'),
   ENC_S3_ENDPOINT: Joi.string().uri().allow('').default(''),
