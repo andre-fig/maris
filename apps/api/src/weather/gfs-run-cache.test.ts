@@ -211,3 +211,27 @@ test("a failed single-flight discovery is shared and cleared for a later retry",
     globalThis.fetch = originalFetch;
   }
 });
+
+test("run candidates never include a future cycle", () => {
+  const service = serviceWithTtl();
+  const candidates = (service as unknown as {
+    candidateRuns: (now: Date) => Array<{ dateText: string; cycle: number }>;
+  }).candidateRuns;
+
+  const keys = (now: string) => candidates(new Date(now))
+    .slice(0, 4)
+    .map(({ dateText, cycle }) => `${dateText}/${String(cycle).padStart(2, "0")}`);
+
+  assert.deepEqual(keys("2026-09-19T07:10:00Z"), [
+    "20260919/06", "20260919/00", "20260918/18", "20260918/12",
+  ]);
+  assert.deepEqual(keys("2026-09-19T12:00:00Z"), [
+    "20260919/12", "20260919/06", "20260919/00", "20260918/18",
+  ]);
+  assert.deepEqual(keys("2026-09-19T05:59:59Z"), [
+    "20260919/00", "20260918/18", "20260918/12", "20260918/06",
+  ]);
+  assert.deepEqual(keys("2026-09-19T00:00:00Z"), [
+    "20260919/00", "20260918/18", "20260918/12", "20260918/06",
+  ]);
+});

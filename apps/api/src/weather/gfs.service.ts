@@ -318,38 +318,51 @@ export class GfsService {
     forecastHours: number[],
   ): Promise<Inventory> {
     const now = new Date();
-    for (let dayOffset = 0; dayOffset <= 3; dayOffset += 1) {
-      const date = new Date(now);
-      date.setUTCDate(date.getUTCDate() - dayOffset);
-      const dateText = date.toISOString().slice(0, 10).replaceAll("-", "");
-      for (const cycle of [18, 12, 6, 0]) {
-        const runDate = new Date(
-          `${dateText.slice(0, 4)}-${dateText.slice(4, 6)}-${dateText.slice(6)}T${String(cycle).padStart(2, "0")}:00:00Z`,
-        );
-        if (runDate.getTime() > now.getTime() + 6 * 60 * 60 * 1_000) continue;
-        const runKey = this.runKey(dateText, cycle);
-        if (this.isRunTemporarilyUnavailable(runKey)) continue;
+    for (const candidate of this.candidateRuns(now)) {
+      const { dateText, cycle } = candidate;
+      const runKey = this.runKey(dateText, cycle);
+      if (this.isRunTemporarilyUnavailable(runKey)) continue;
 
-        const result = await this.readInventory(dateText, cycle);
-        const inventory = result.inventory;
-        if (
-          inventory &&
-          forecastHours.every((hour) => this.fileForHour(inventory.files, hour))
-        ) {
-          return inventory;
-        }
-
-        this.storeNegativeRun(
-          runKey,
-          inventory
-            ? "INVENTORY_MISSING_REQUESTED_HOURS"
-            : result.reason ?? "INVENTORY_UNAVAILABLE",
-        );
+      const result = await this.readInventory(dateText, cycle);
+      const inventory = result.inventory;
+      if (
+        inventory &&
+        forecastHours.every((hour) => this.fileForHour(inventory.files, hour))
+      ) {
+        return inventory;
       }
+
+      this.storeNegativeRun(
+        runKey,
+        inventory
+          ? "INVENTORY_MISSING_REQUESTED_HOURS"
+          : result.reason ?? "INVENTORY_UNAVAILABLE",
+      );
     }
     throw new ServiceUnavailableException(
       "No complete GFS run is currently available",
     );
+  }
+
+  private candidateRuns(now: Date) {
+    const candidates: Array<{ dateText: string; cycle: number }> = [];
+    for (let dayOffset = 0; dayOffset <= 3; dayOffset += 1) {
+      const date = new Date(now);
+      date.setUTCHours(0, 0, 0, 0);
+      date.setUTCDate(date.getUTCDate() - dayOffset);
+      const dateText = date.toISOString().slice(0, 10).replaceAll("-", "");
+      for (const cycle of [18, 12, 6, 0]) {
+        const runTimestamp = Date.UTC(
+          date.getUTCFullYear(),
+          date.getUTCMonth(),
+          date.getUTCDate(),
+          cycle,
+        );
+        if (runTimestamp > now.getTime()) continue;
+        candidates.push({ dateText, cycle });
+      }
+    }
+    return candidates;
   }
 
   private async readInventory(

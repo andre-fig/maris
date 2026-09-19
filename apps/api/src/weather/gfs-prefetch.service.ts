@@ -111,8 +111,9 @@ export class GfsPrefetchService
         );
         return;
       }
-      let cached = 0;
-      let missing = 0;
+      let cacheHits = 0;
+      let cacheMisses = 0;
+      let storedCount = 0;
       let failed = 0;
       let retries = 0;
       let bytes = 0;
@@ -164,20 +165,23 @@ export class GfsPrefetchService
             }
           }
           if (stored) {
-            if (taskCached) cached += 1;
-            else missing += 1;
+            if (taskCached) cacheHits += 1;
+            else {
+              cacheMisses += 1;
+              storedCount += 1;
+            }
             bytes += taskBytes;
           } else failed += 1;
-          if ((cached + missing) % 100 === 0) {
+          if ((cacheHits + cacheMisses) % 100 === 0) {
             this.logger.log(
-              `run=${run} progress=${cached + missing}/${totalKeys} cached=${cached} missing=${missing} failed=${failed} retries=${retries} concurrency=${this.concurrency}`,
+              `run=${run} progress=${cacheHits + cacheMisses}/${totalKeys} cacheHits=${cacheHits} cacheMisses=${cacheMisses} stored=${storedCount} failed=${failed} retries=${retries} concurrency=${this.concurrency}`,
             );
           }
         }
       };
       await Promise.all(Array.from({ length: this.concurrency }, () => processTask()));
 
-      if (!this.stopping && failed === 0 && cached + missing === totalKeys) {
+      if (!this.stopping && failed === 0 && cacheHits + cacheMisses === totalKeys) {
         await this.redis.publishActiveRun(run);
         this.logger.log(`run=${run} READY active-run published`);
       } else {
@@ -185,7 +189,7 @@ export class GfsPrefetchService
       }
       const stats = this.redis.stats();
       this.logger.log(
-        `run=${run} progress=${cached + missing}/${totalKeys} cached=${cached} missing=${missing} failed=${failed} retries=${retries} bytes=${bytes} durationMs=${Date.now() - startedAt} redisHits=${stats.redisHits} redisMisses=${stats.redisMisses}`,
+        `run=${run} progress=${cacheHits + cacheMisses}/${totalKeys} cacheHits=${cacheHits} cacheMisses=${cacheMisses} stored=${storedCount} failed=${failed} retries=${retries} bytes=${bytes} durationMs=${Date.now() - startedAt} redisHits=${stats.redisHits} redisMisses=${stats.redisMisses}`,
       );
     } catch (error) {
       this.logger.warn(`cycle failed: ${this.message(error)}`);
