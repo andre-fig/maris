@@ -241,8 +241,7 @@ static maris::TileCache tileCache;
       });
       snapshot.field.reset();
     }
-    NSData *catalog =
-        [owner fetch:@"https://beta.yr-maps.met.no/api/wind/available.json"];
+    NSData *catalog = nil;
     BOOL staleCatalog = NO;
     if (catalog) {
     } else {

@@ -308,7 +308,7 @@ public class WindControl extends View
         boolean staleCatalog = false;
         String catalog;
         try {
-          catalog = new String(fetch("https://beta.yr-maps.met.no/api/wind/available.json", gen), java.nio.charset.StandardCharsets.UTF_8);
+          catalog = null;
         } catch (Exception unavailable) {
           catalog = savedCatalog();
           staleCatalog = catalog != null;
