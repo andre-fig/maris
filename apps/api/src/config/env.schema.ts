@@ -12,8 +12,6 @@ export const envSchema = Joi.object({
   STORAGE_DIR: Joi.string().default('.storage'),
   CHART_STORAGE_DIR: Joi.string().default('.storage/chart-data'),
   CHART_ASSET_BASE_URL: Joi.string().uri().allow('').optional(),
-  OPENWEATHER_API_KEY: Joi.string().allow('').default(''),
-  WEATHERAPI_API_KEY: Joi.string().allow('').default(''),
   GFS_CACHE_DIR: Joi.string().default('.storage/gfs'),
   GFS_PARSER_PYTHON: Joi.string().default('python3'),
   GFS_PARSER_SCRIPT: Joi.string().default('apps/api/scripts/gfs-grib-parser.py'),

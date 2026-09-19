@@ -5,6 +5,8 @@ export type GfsBounds = {
   west: number;
 };
 
+export type MapCenter = [longitude: number, latitude: number];
+
 export type GfsGrid = {
   model: 'gfs';
   run: string;

@@ -38,11 +38,8 @@ import { useAutomaticOffline } from "./offline/use-automatic-offline";
 import { DEFAULT_MAP_ZOOM } from "./map-config";
 import { useChartInformation, useOnlineChart } from "./charts/current-chart";
 import { chartInformationRows } from "./charts/chart-information";
-import {
-  type MapCenter,
-} from "./weather/current-weather";
 import { useGfsViewport } from "./weather/gfs-client";
-import type { GfsBounds } from "./weather/gfs-grid";
+import type { GfsBounds, MapCenter } from "./weather/gfs-grid";
 
 const BASE_MAP_STYLE = "https://tiles.openfreemap.org/styles/bright";
 const LIBERTY_MAP_STYLE = "https://tiles.openfreemap.org/styles/liberty";

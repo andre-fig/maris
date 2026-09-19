@@ -2,12 +2,12 @@ import { Directory, File, Paths } from 'expo-file-system';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 
-import type { MapCenter } from './current-weather';
 import {
   sampleGridAtCoordinate,
   type GfsBounds,
   type GfsGrid,
   type GfsPackage,
+  type MapCenter,
   type SampledGfsValues,
 } from './gfs-grid';
 
