@@ -27,6 +27,27 @@ const packageResponse = {
   grids: {},
 };
 
+function makeTestTile() {
+  return {
+    model: 'gfs' as const,
+    run: '2026-09-18T12:00:00Z',
+    forecastHour: 0,
+    forecastTime: '2026-09-18T12:00:00Z',
+    resolution: 0.25 as const,
+    bounds: { north: -20, south: -30, east: -40, west: -50 },
+    width: 2,
+    height: 2,
+    gridOrder: 'north-to-south,west-to-east' as const,
+    longitudeConvention: '-180..180' as const,
+    units: {
+      wind: 'm/s' as const, temperature: 'K' as const, precipitation: 'kg/m2' as const,
+      precipitationRate: 'kg/m2/s' as const, cloudCover: '%' as const, pressure: 'Pa' as const,
+      gust: 'm/s' as const, humidity: '%' as const,
+    },
+    fields: { windU: [1, 2, 3, 4], windV: [5, 6, 7, 8] },
+  };
+}
+
 async function createApp(service: Partial<Pick<GfsService, 'getPackage' | 'getTile'>>) {
   const module = await Test.createTestingModule({
     controllers: [WeatherController],
@@ -44,7 +65,45 @@ test('GET /weather/gfs makes successful responses publicly cacheable', async () 
       .get('/weather/gfs?north=-22&south=-23&east=-43&west=-44&forecastHours=0')
       .expect(200)
       .expect('Cache-Control', successCacheControl)
+      .expect('ETag', /^"[0-9a-f]{64}"$/)
       .expect(({ body }) => assert.equal(body.model, 'gfs'));
+  } finally {
+    await app.close();
+  }
+});
+
+test('GET /weather/gfs returns 304 for a matching ETag without a body', async () => {
+  const app = await createApp({ getPackage: async () => packageResponse });
+  try {
+    const first = await request(app.getHttpServer())
+      .get('/weather/gfs?north=-22&south=-23&east=-43&west=-44&forecastHours=0')
+      .expect(200);
+    const second = await request(app.getHttpServer())
+      .get('/weather/gfs?north=-22&south=-23&east=-43&west=-44&forecastHours=0')
+      .set('If-None-Match', first.headers.etag)
+      .expect(304);
+    assert.equal(second.headers.etag, first.headers.etag);
+    assert.equal(second.headers['cache-control'], successCacheControl);
+    assert.equal(second.text, '');
+  } finally {
+    await app.close();
+  }
+});
+
+test('GET /weather/gfs changes its ETag when the payload changes', async () => {
+  let current = packageResponse;
+  const app = await createApp({ getPackage: async () => current });
+  try {
+    const first = await request(app.getHttpServer())
+      .get('/weather/gfs?north=-22&south=-23&east=-43&west=-44&forecastHours=0')
+      .expect(200);
+    current = { ...packageResponse, resolution: 0.5 };
+    const second = await request(app.getHttpServer())
+      .get('/weather/gfs?north=-22&south=-23&east=-43&west=-44&forecastHours=0')
+      .set('If-None-Match', first.headers.etag)
+      .expect(200);
+    assert.notEqual(second.headers.etag, first.headers.etag);
+    assert.equal(second.body.resolution, 0.5);
   } finally {
     await app.close();
   }
@@ -80,24 +139,7 @@ test('GET /weather/gfs does not publicly cache validation errors', async () => {
 });
 
 test('GET /weather/gfs/tiles/:x/:y returns a compressed deterministic tile', async () => {
-  const tile = {
-    model: 'gfs' as const,
-    run: '2026-09-18T12:00:00Z',
-    forecastHour: 0,
-    forecastTime: '2026-09-18T12:00:00Z',
-    resolution: 0.25 as const,
-    bounds: { north: -20, south: -30, east: -40, west: -50 },
-    width: 2,
-    height: 2,
-    gridOrder: 'north-to-south,west-to-east' as const,
-    longitudeConvention: '-180..180' as const,
-    units: {
-      wind: 'm/s' as const, temperature: 'K' as const, precipitation: 'kg/m2' as const,
-      precipitationRate: 'kg/m2/s' as const, cloudCover: '%' as const, pressure: 'Pa' as const,
-      gust: 'm/s' as const, humidity: '%' as const,
-    },
-    fields: { windU: [1, 2, 3, 4], windV: [5, 6, 7, 8] },
-  };
+  const tile = makeTestTile();
   const controller = new WeatherController({ getTile: async () => tile } as GfsService);
   const headers = new Map<string, string>();
   const response = {
@@ -105,12 +147,32 @@ test('GET /weather/gfs/tiles/:x/:y returns a compressed deterministic tile', asy
     status: () => response,
     send: (value: Buffer) => value,
   } as never;
-  const body = await controller.getGfsTile('13', '6', '0', response);
+  const body = await controller.getGfsTile('13', '6', '0', { header: () => undefined } as never, response);
   assert.equal(headers.get('Cache-Control'), successCacheControl);
+  assert.match(headers.get('ETag') ?? '', /^"[0-9a-f]{64}"$/);
   assert.ok(body instanceof Buffer);
   const decoded = decodeGfsTile(gunzipSync(body));
   assert.deepEqual(decoded.fields.windU, [1, 2, 3, 4]);
   assert.equal(decoded.header.width, 2);
+});
+
+test('GFS tiles return 304 for a matching ETag without a body', async () => {
+  const app = await createApp({ getTile: async () => makeTestTile() });
+  try {
+    const first = await request(app.getHttpServer())
+      .get('/weather/gfs/tiles/13/6?forecastHour=0')
+      .expect(200);
+    const second = await request(app.getHttpServer())
+      .get('/weather/gfs/tiles/13/6?forecastHour=0')
+      .set('If-None-Match', first.headers.etag)
+      .expect(304);
+    assert.equal(second.headers.etag, first.headers.etag);
+    assert.equal(second.headers['cache-control'], successCacheControl);
+    assert.equal(second.headers['content-type'], 'application/octet-stream');
+    assert.equal(second.body.length, 0);
+  } finally {
+    await app.close();
+  }
 });
 
 test('invalid GFS tile coordinates are not publicly cacheable', async () => {

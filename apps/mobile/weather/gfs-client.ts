@@ -32,6 +32,7 @@ type CachedTile = {
   forecastHour: number;
   grid: GfsGrid;
   savedAt: number;
+  etag?: string;
   source: 'cache' | 'network';
 };
 
@@ -43,6 +44,11 @@ function validBounds(bounds: GfsBounds | null | undefined): bounds is GfsBounds 
 
 function filePrefix(tile: GfsTileCoordinate, forecastHour: number) {
   return `f${forecastHour}-x${tile.x}-y${tile.y}-`;
+}
+
+function etagFromFileName(name: string) {
+  const match = /-([0-9a-f]{64})\.bin$/i.exec(name);
+  return match?.[1] ? `"${match[1]}"` : undefined;
 }
 
 class GfsTileStore {
@@ -72,6 +78,7 @@ class GfsTileStore {
       const cached = {
         tile, forecastHour, grid,
         savedAt: file.modificationTime ?? Date.now(),
+        etag: etagFromFileName(file.name),
         source: 'cache' as const,
       };
       this.memory.set(key, cached);
@@ -92,8 +99,15 @@ class GfsTileStore {
       const query = new URLSearchParams({ forecastHour: String(forecastHour) });
       const response = await fetch(
         `${apiUrl.replace(/\/$/, '')}/weather/gfs/tiles/${tile.x}/${tile.y}?${query}`,
-        { signal: signal ?? AbortSignal.timeout(REQUEST_TIMEOUT_MS) },
+        {
+          headers: cached?.etag ? { 'If-None-Match': cached.etag } : undefined,
+          signal: signal ?? AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+        },
       );
+      if (response.status === 304) {
+        if (!cached) throw new Error('GFS tile returned 304 without a cached payload');
+        return { ...cached, savedAt: Date.now(), source: 'cache' as const };
+      }
       if (!response.ok) throw new Error(`GFS tile request failed: ${response.status}`);
       const bytes = new Uint8Array(await response.arrayBuffer());
       const grid = decodeGfsTile(bytes);
@@ -101,13 +115,14 @@ class GfsTileStore {
         throw new Error('Invalid GFS tile response');
       }
       await this.initialize();
+      const etag = response.headers.get('etag') ?? undefined;
       const file = new File(
         CACHE_ROOT,
-        `${filePrefix(tile, forecastHour)}${grid.run.replace(/[^0-9A-Za-z]/g, '')}.bin`,
+        `${filePrefix(tile, forecastHour)}${grid.run.replace(/[^0-9A-Za-z]/g, '')}-${etag?.replace(/[^0-9a-f]/gi, '') ?? 'noetag'}.bin`,
       );
       file.create({ overwrite: true, intermediates: true });
       await file.write(bytes);
-      const result = { tile, forecastHour, grid, savedAt: Date.now(), source: 'network' as const };
+      const result = { tile, forecastHour, grid, savedAt: Date.now(), etag, source: 'network' as const };
       this.memory.set(key, result);
       return result;
       } catch (error) {
