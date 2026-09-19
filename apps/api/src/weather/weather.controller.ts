@@ -63,7 +63,7 @@ export class WeatherController {
     @Param("x") xValue: string,
     @Param("y") yValue: string,
     @Query("forecastHour") forecastHourValue = "0",
-    @Res({ passthrough: true }) response: Response,
+    @Res() response: Response,
   ) {
     response.set("Cache-Control", "no-store");
     const x = Number(xValue);
@@ -81,6 +81,6 @@ export class WeatherController {
     response.set("Cache-Control", GFS_SUCCESS_CACHE_CONTROL);
     response.set("Content-Type", "application/octet-stream");
     response.set("Content-Encoding", "gzip");
-    return body;
+    return response.status(200).send(body);
   }
 }

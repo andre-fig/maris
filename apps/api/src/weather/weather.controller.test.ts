@@ -100,7 +100,11 @@ test('GET /weather/gfs/tiles/:x/:y returns a compressed deterministic tile', asy
   };
   const controller = new WeatherController({ getTile: async () => tile } as GfsService);
   const headers = new Map<string, string>();
-  const response = { set: (name: string, value: string) => headers.set(name, value) } as never;
+  const response = {
+    set: (name: string, value: string) => headers.set(name, value),
+    status: () => response,
+    send: (value: Buffer) => value,
+  } as never;
   const body = await controller.getGfsTile('13', '6', '0', response);
   assert.equal(headers.get('Cache-Control'), successCacheControl);
   assert.ok(body instanceof Buffer);
