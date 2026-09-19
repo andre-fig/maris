@@ -39,6 +39,7 @@ import { DEFAULT_MAP_ZOOM } from "./map-config";
 import { useChartInformation, useOnlineChart } from "./charts/current-chart";
 import { chartInformationRows } from "./charts/chart-information";
 import { useGfsViewport } from "./weather/gfs-client";
+import { viewportTileCoverage } from "./map/viewport-tile-coverage";
 import type { GfsBounds, MapCenter } from "./weather/gfs-grid";
 
 const BASE_MAP_STYLE = "https://tiles.openfreemap.org/styles/bright";
@@ -199,6 +200,16 @@ export default function App() {
     [viewState.longitude, viewState.latitude],
     viewState.zoom,
     offlineReady,
+  );
+  const windViewportCoverage = useMemo(
+    () => viewportTileCoverage(visibleBounds, (gfs.activeTileEntries ?? []).map((entry) => entry.tile)),
+    [
+      visibleBounds?.north,
+      visibleBounds?.south,
+      visibleBounds?.east,
+      visibleBounds?.west,
+      gfs.activeTileEntries,
+    ],
   );
   const nativeSentTiles = useRef<{
     identity: string;
@@ -457,7 +468,7 @@ export default function App() {
       <NativeWindLayer
         enabled={windEnabled}
         opacity={1.0}
-        density={1}
+        density={windViewportCoverage}
         animationSpeed={1}
         windField={nativeWindField}
         sampleCoordinate={windEnabled
