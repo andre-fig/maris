@@ -14,6 +14,7 @@ import {
 export const GFS_FORECAST_HOURS = [0] as const;
 const REQUEST_DEBOUNCE_MS = 900;
 const REQUEST_TIMEOUT_MS = 15_000;
+const REQUEST_MARGIN_RATIO = 0.25;
 const CACHE_ROOT = new Directory(Paths.document, 'gfs-weather');
 
 type CachedPackage = {
@@ -32,6 +33,19 @@ function containsBounds(container: GfsBounds, requested: GfsBounds) {
     container.east >= requested.east &&
     container.south <= requested.south &&
     container.north >= requested.north;
+}
+
+function expandBounds(bounds: GfsBounds): GfsBounds {
+  const longitudeSpan = Math.max(0.25, bounds.east - bounds.west);
+  const latitudeSpan = Math.max(0.25, bounds.north - bounds.south);
+  const longitudePadding = longitudeSpan * REQUEST_MARGIN_RATIO;
+  const latitudePadding = latitudeSpan * REQUEST_MARGIN_RATIO;
+  return {
+    west: Math.max(-180, bounds.west - longitudePadding),
+    south: Math.max(-85.05112878, bounds.south - latitudePadding),
+    east: Math.min(180, bounds.east + longitudePadding),
+    north: Math.min(85.05112878, bounds.north + latitudePadding),
+  };
 }
 
 function containsCoordinate(bounds: GfsBounds, coordinate: MapCenter) {
@@ -153,6 +167,7 @@ export function useGfsViewport(
   const [cachedAt, setCachedAt] = useState<number>();
   const request = useRef<AbortController | null>(null);
   const requestKey = useRef<string | undefined>(undefined);
+  const inFlightKey = useRef<string | undefined>(undefined);
   const debounce = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const foreground = useRef(AppState.currentState === 'active');
   const coordinateRef = useRef(coordinate);
@@ -173,9 +188,9 @@ export function useGfsViewport(
 
   useEffect(() => {
     if (!enabled || !validBounds(bounds) || !foreground.current) return;
-    const cacheBounds = quantizeGfsBounds(bounds);
+    const cacheBounds = quantizeGfsBounds(expandBounds(bounds));
     const key = JSON.stringify(cacheBounds);
-    if (requestKey.current === key) return;
+    if (requestKey.current === key || inFlightKey.current === key) return;
     if (debounce.current) clearTimeout(debounce.current);
     debounce.current = setTimeout(() => {
       debounce.current = undefined;
@@ -193,7 +208,7 @@ export function useGfsViewport(
         request.current?.abort();
         const controller = new AbortController();
         request.current = controller;
-        requestKey.current = key;
+        inFlightKey.current = key;
         setLoading(true);
         setOffline(false);
         try {
@@ -202,6 +217,7 @@ export function useGfsViewport(
           setOffline(false);
           setError(undefined);
           setCachedAt(Date.now());
+          requestKey.current = key;
         } catch (requestError) {
           if (!(requestError instanceof Error && requestError.name === 'AbortError')) {
             const stale = await gfsCache.find(null, coordinateRef.current ?? [0, 0], GFS_FORECAST_HOURS);
@@ -213,8 +229,11 @@ export function useGfsViewport(
             setError('GFS unavailable');
           }
         } finally {
-          if (request.current === controller) request.current = null;
-          setLoading(false);
+          if (request.current === controller) {
+            request.current = null;
+            setLoading(false);
+          }
+          if (inFlightKey.current === key) inFlightKey.current = undefined;
         }
       })();
     }, REQUEST_DEBOUNCE_MS);

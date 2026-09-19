@@ -99,15 +99,6 @@ export class GfsService {
       throw new BadRequestException('Invalid GFS longitude bounds');
     }
 
-    const span = east >= west ? east - west : east + 360 - west;
-    const gfsWest = this.toGfsLongitude(west);
-    const gfsEast = gfsWest + span;
-    if (gfsEast > 360) {
-      throw new BadRequestException(
-        'GFS bounding boxes spanning the 0/360 seam are not supported by one subset request',
-      );
-    }
-
     return { north, south, east, west };
   }
 
@@ -177,6 +168,31 @@ export class GfsService {
     forecastHour: number,
     bounds: GfsBounds,
   ): Promise<GfsGrid> {
+    const segments = this.splitAtPrimeMeridian(bounds);
+    if (segments.length > 1) {
+      const mergedCachePath = this.cachePath(run, forecastHour, file, bounds);
+      try {
+        return JSON.parse((await gunzipAsync(await readFile(mergedCachePath))).toString('utf8')) as GfsGrid;
+      } catch {
+        // Fetch both sides of the 0/360 seam and merge them below.
+      }
+      const grids = await Promise.all(
+        segments.map((segment) => this.getGridSubset(run, file, forecastHour, segment)),
+      );
+      const merged = this.mergeGrids(grids as [GfsGrid, GfsGrid], bounds);
+      await mkdir(path.dirname(mergedCachePath), { recursive: true });
+      await writeFile(mergedCachePath, await gzipAsync(JSON.stringify(merged), { level: 6 }));
+      return merged;
+    }
+    return this.getGridSubset(run, file, forecastHour, bounds);
+  }
+
+  private async getGridSubset(
+    run: GfsRun,
+    file: string,
+    forecastHour: number,
+    bounds: GfsBounds,
+  ): Promise<GfsGrid> {
     const cachePath = this.cachePath(run, forecastHour, file, bounds);
     try {
       return JSON.parse((await gunzipAsync(await readFile(cachePath))).toString('utf8')) as GfsGrid;
@@ -190,6 +206,51 @@ export class GfsService {
     await mkdir(path.dirname(cachePath), { recursive: true });
     await writeFile(cachePath, await gzipAsync(JSON.stringify(grid), { level: 6 }));
     return grid;
+  }
+
+  private splitAtPrimeMeridian(bounds: GfsBounds): GfsBounds[] {
+    if (bounds.west < 0 && bounds.east > 0 && bounds.east > bounds.west) {
+      return [
+        { ...bounds, east: 0 },
+        { ...bounds, west: 0 },
+      ];
+    }
+    return [bounds];
+  }
+
+  private mergeGrids(grids: [GfsGrid, GfsGrid], bounds: GfsBounds): GfsGrid {
+    const [westGrid, eastGrid] = grids;
+    if (westGrid.height !== eastGrid.height ||
+        westGrid.forecastTime !== eastGrid.forecastTime) {
+      throw new BadGatewayException('GFS seam subsets are incompatible');
+    }
+
+    // Both subsets include the shared 0° column. Keep it once.
+    const width = westGrid.width + Math.max(0, eastGrid.width - 1);
+    const fields: GfsGrid['fields'] = {};
+    const fieldNames = new Set([
+      ...Object.keys(westGrid.fields),
+      ...Object.keys(eastGrid.fields),
+    ]);
+    for (const name of fieldNames) {
+      const fieldName = name as keyof GfsGrid['fields'];
+      const westValues = westGrid.fields[fieldName] ??
+        new Array<number | null>(westGrid.width * westGrid.height).fill(null);
+      const eastValues = eastGrid.fields[fieldName] ??
+        new Array<number | null>(eastGrid.width * eastGrid.height).fill(null);
+      const merged: Array<number | null> = [];
+      for (let row = 0; row < westGrid.height; row += 1) {
+        const westOffset = row * westGrid.width;
+        const eastOffset = row * eastGrid.width;
+        merged.push(...westValues.slice(westOffset, westOffset + westGrid.width));
+        if (eastGrid.width > 1) {
+          merged.push(...eastValues.slice(eastOffset + 1, eastOffset + eastGrid.width));
+        }
+      }
+      fields[fieldName] = merged;
+    }
+
+    return { ...westGrid, bounds, width, fields };
   }
 
   private async downloadSubset(run: GfsRun, file: string, bounds: GfsBounds) {
@@ -208,8 +269,12 @@ export class GfsService {
       url.searchParams.set(`lev_${level}`, 'on');
     }
     url.searchParams.set('subregion', '');
-    url.searchParams.set('leftlon', String(this.toGfsLongitude(bounds.west)));
-    url.searchParams.set('rightlon', String(this.toGfsLongitude(bounds.east)));
+    const leftLongitude = this.toGfsLongitude(bounds.west);
+    const rightLongitude = bounds.east === 0 && bounds.west < 0
+      ? 360
+      : this.toGfsLongitude(bounds.east);
+    url.searchParams.set('leftlon', String(leftLongitude));
+    url.searchParams.set('rightlon', String(rightLongitude));
     url.searchParams.set('toplat', String(bounds.north));
     url.searchParams.set('bottomlat', String(bounds.south));
     url.searchParams.set('dir', `/gfs.${run.date}/${String(run.cycle).padStart(2, '0')}/atmos`);

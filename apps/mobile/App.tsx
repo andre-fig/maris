@@ -118,6 +118,7 @@ export default function App() {
   const [sheetContent, setSheetContent] = useState<SheetContent>("chart");
   const [mapSheetCloseSignal, setMapSheetCloseSignal] = useState(0);
   const [windSampleCoordinate, setWindSampleCoordinate] = useState<MapCenter | null>(null);
+  const boundsRefreshTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const locationTarget = useRef(false);
   const initialLocationApplied = useRef(false);
   const courseUpTransitionPending = useRef(false);
@@ -201,7 +202,19 @@ export default function App() {
     };
   }, [gfs.packageData]);
 
-  const refreshVisibleBounds = () => {
+  const refreshVisibleBounds = (immediate = false) => {
+    if (!immediate) {
+      if (boundsRefreshTimer.current) return;
+      boundsRefreshTimer.current = setTimeout(() => {
+        boundsRefreshTimer.current = undefined;
+        refreshVisibleBounds(true);
+      }, 250);
+      return;
+    }
+    if (boundsRefreshTimer.current) {
+      clearTimeout(boundsRefreshTimer.current);
+      boundsRefreshTimer.current = undefined;
+    }
     void mapRef.current?.getBounds().then(([west, south, east, north]) => {
       if ([west, south, east, north].every(Number.isFinite)) {
         setVisibleBounds({ north, south, east, west });
@@ -238,9 +251,17 @@ export default function App() {
       previous?.[0] === view.center[0] && previous?.[1] === view.center[1] ? previous : [...view.center]);
     if (settled) {
       void onViewportSettled().catch(() => {});
+      refreshVisibleBounds(true);
+    } else {
+      // Preload the whole visible viewport while zooming/panning, not only
+      // after its center reaches a previously uncovered area.
       refreshVisibleBounds();
     }
   }, (view) => { compassMapBearing.value = view.bearing; });
+
+  useEffect(() => () => {
+    if (boundsRefreshTimer.current) clearTimeout(boundsRefreshTimer.current);
+  }, []);
 
   if (!offlineReady || (!deviceLocation && !offlineArea)) {
     return <View style={styles.container} />;
