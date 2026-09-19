@@ -96,6 +96,29 @@ test('GFS tile Redis HIT avoids the origin lookup', async () => {
   assert.match(headers.get('ETag') ?? '', /^"[0-9a-f]{64}"$/);
 });
 
+test('GFS tile resolution is validated and downsampled in the response', async () => {
+  const controller = new WeatherController({ getTile: async () => makeTestTile() } as GfsService);
+  const headers = new Map<string, string>();
+  const response = {
+    set: (name: string, value: string) => headers.set(name, value),
+    status: () => response,
+    send: (value: Buffer) => value,
+  } as never;
+
+  const body = await controller.getGfsTile(
+    '13',
+    '6',
+    '0',
+    { header: () => undefined } as never,
+    response,
+    '0.5',
+  );
+  const decoded = decodeGfsTile(gunzipSync(body));
+  assert.equal(decoded.header.resolution, 0.5);
+  assert.equal(decoded.header.width, 1);
+  assert.equal(decoded.header.height, 1);
+});
+
 test('GFS tiles return 304 for a matching ETag without a body', async () => {
   const app = await createApp({ getTile: async () => makeTestTile() });
   try {

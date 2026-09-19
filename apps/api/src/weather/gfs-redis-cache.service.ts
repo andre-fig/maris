@@ -1,6 +1,7 @@
 import { Redis } from "ioredis";
 import { Injectable, Logger, OnApplicationShutdown } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import { resolutionCode, type GfsResolution } from "./gfs-resolution.js";
 
 export type ActiveGfsRun = { run: string; status: "READY" };
 
@@ -39,10 +40,18 @@ export class GfsRedisCacheService implements OnApplicationShutdown {
     );
   }
 
-  async getTile(run: string, forecastHour: number, x: number, y: number) {
+  async getTile(
+    run: string,
+    forecastHour: number,
+    x: number,
+    y: number,
+    resolution: GfsResolution = 0.25,
+  ) {
     try {
       await this.ensureConnected();
-      const value = await this.redis.getBuffer(this.tileKey(run, forecastHour, x, y));
+      const value = await this.redis.getBuffer(
+        this.tileKey(run, forecastHour, x, y, resolution),
+      );
       if (value) this.hits += 1;
       else this.misses += 1;
       return value ?? null;
@@ -53,11 +62,18 @@ export class GfsRedisCacheService implements OnApplicationShutdown {
     }
   }
 
-  async setTile(run: string, forecastHour: number, x: number, y: number, body: Buffer) {
+  async setTile(
+    run: string,
+    forecastHour: number,
+    x: number,
+    y: number,
+    body: Buffer,
+    resolution: GfsResolution = 0.25,
+  ) {
     try {
       await this.ensureConnected();
       await this.redis.set(
-        this.tileKey(run, forecastHour, x, y),
+        this.tileKey(run, forecastHour, x, y, resolution),
         body,
         "EX",
         this.tileTtl,
@@ -140,8 +156,14 @@ export class GfsRedisCacheService implements OnApplicationShutdown {
     if (this.redis.status !== "end") await this.redis.quit().catch(() => undefined);
   }
 
-  private tileKey(run: string, forecastHour: number, x: number, y: number) {
-    return `gfs:${run}:f${String(forecastHour).padStart(3, "0")}:x${x}:y${y}:v1`;
+  private tileKey(
+    run: string,
+    forecastHour: number,
+    x: number,
+    y: number,
+    resolution: GfsResolution,
+  ) {
+    return `gfs:${run}:f${String(forecastHour).padStart(3, "0")}:${resolutionCode(resolution)}:x${x}:y${y}:v1`;
   }
 
   private async ensureConnected() {

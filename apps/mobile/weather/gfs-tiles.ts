@@ -84,8 +84,8 @@ export function tilesForViewport(
   return [...result.values()].sort((a, b) => a.y - b.y || a.x - b.x);
 }
 
-export function tileKey(tile: GfsTileCoordinate, forecastHour: number) {
-  return `${forecastHour}/${tile.x}/${tile.y}`;
+export function tileKey(tile: GfsTileCoordinate, forecastHour: number, resolution = 0.25) {
+  return `${forecastHour}/${resolution}/${tile.x}/${tile.y}`;
 }
 
 export function tileContainsCoordinate(grid: GfsGrid, coordinate: MapCenter) {

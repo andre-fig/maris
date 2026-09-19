@@ -197,6 +197,7 @@ export default function App() {
     API_URL,
     visibleBounds,
     [viewState.longitude, viewState.latitude],
+    viewState.zoom,
     offlineReady,
   );
   const nativeWindField = useMemo<NativeWindField | null>(() => {

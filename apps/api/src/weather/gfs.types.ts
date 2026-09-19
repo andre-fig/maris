@@ -30,7 +30,7 @@ export type GfsGrid = {
   run: string;
   forecastTime: string;
   forecastHour: number;
-  resolution: 0.25;
+  resolution: 0.25 | 0.5 | 1.0;
   bounds: GfsBounds;
   width: number;
   height: number;
@@ -52,7 +52,7 @@ export type GfsGrid = {
 export type GfsPackage = {
   model: 'gfs';
   run: GfsRun;
-  resolution: 0.25;
+  resolution: 0.25 | 0.5 | 1.0;
   bounds: GfsBounds;
   forecastHours: number[];
   availableForecastHours: number[];

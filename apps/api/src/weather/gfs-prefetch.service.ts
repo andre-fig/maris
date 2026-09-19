@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { gunzipSync, gzipSync } from "node:zlib";
 import {
   Injectable,
   Logger,
@@ -6,11 +7,15 @@ import {
   OnApplicationShutdown,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { gzipSync } from "node:zlib";
-
 import { GfsService } from "./gfs.service.js";
-import { encodeGfsTile } from "./gfs-tiles.js";
+import { decodeGfsTile, encodeGfsTile } from "./gfs-tiles.js";
 import { GfsRedisCacheService, gfsRunId } from "./gfs-redis-cache.service.js";
+import {
+  downsampleGfsGrid,
+  GFS_RESOLUTIONS,
+  resolutionCode,
+  type GfsResolution,
+} from "./gfs-resolution.js";
 
 type PrefetchTask = { x: number; y: number; forecastHour: number };
 
@@ -115,34 +120,81 @@ export class GfsPrefetchService
       let retries = 0;
       let bytes = 0;
       let next = 0;
+      const totalKeys = tasks.length * GFS_RESOLUTIONS.length;
       const processTask = async () => {
         while (!this.stopping) {
           const index = next++;
           const task = tasks[index];
           if (!task) return;
-          const existing = await this.redis.getTile(run, task.forecastHour, task.x, task.y);
-          if (existing) {
-            cached += 1;
-            bytes += existing.byteLength;
-            continue;
-          }
-          missing += 1;
           let stored = false;
+          let taskCached = 0;
+          let taskMissing = 0;
+          let taskBytes = 0;
           for (let attempt = 0; attempt < RETRY_DELAYS_MS.length && !this.stopping; attempt += 1) {
             try {
-              const grid = await this.gfs.getTileFromInventory(
-                inventory,
-                task.x,
-                task.y,
-                task.forecastHour,
+              const existing = new Map<GfsResolution, Buffer>();
+              for (const resolution of GFS_RESOLUTIONS) {
+                const body = await this.redis.getTile(
+                  run,
+                  task.forecastHour,
+                  task.x,
+                  task.y,
+                  resolution,
+                );
+                if (body) existing.set(resolution, body);
+              }
+              const missingResolutions = GFS_RESOLUTIONS.filter(
+                (resolution) => !existing.has(resolution),
               );
-              const body = gzipSync(encodeGfsTile(grid));
-              if (await this.redis.setTile(run, task.forecastHour, task.x, task.y, body)) {
+              let newBytes = 0;
+              if (missingResolutions.length === 0) {
+                taskCached = existing.size;
+                taskBytes = [...existing.values()].reduce(
+                  (sum, body) => sum + body.byteLength,
+                  0,
+                );
                 stored = true;
-                bytes += body.byteLength;
                 retries += attempt;
                 break;
               }
+
+              const baseBody = existing.get(0.25);
+              const source = baseBody
+                ? (() => {
+                    const decoded = decodeGfsTile(gunzipSync(baseBody));
+                    return { ...decoded.header, fields: decoded.fields };
+                  })()
+                : await this.gfs.getTileFromInventory(
+                    inventory,
+                    task.x,
+                    task.y,
+                    task.forecastHour,
+                  );
+              for (const resolution of missingResolutions) {
+                const grid = downsampleGfsGrid(source, resolution);
+                const body = gzipSync(encodeGfsTile(grid));
+                if (
+                  !(await this.redis.setTile(
+                    run,
+                    task.forecastHour,
+                    task.x,
+                    task.y,
+                    body,
+                    resolution,
+                  ))
+                ) {
+                  throw new Error(`Redis SET failed for ${resolutionCode(resolution)}`);
+                }
+                newBytes += body.byteLength;
+              }
+              taskCached = existing.size;
+              taskMissing = missingResolutions.length;
+              taskBytes =
+                [...existing.values()].reduce((sum, body) => sum + body.byteLength, 0) +
+                newBytes;
+              stored = true;
+              retries += attempt;
+              break;
             } catch (error) {
               retries += 1;
               if (attempt + 1 < RETRY_DELAYS_MS.length) {
@@ -154,17 +206,21 @@ export class GfsPrefetchService
               }
             }
           }
-          if (!stored) failed += 1;
+          if (stored) {
+            cached += taskCached;
+            missing += taskMissing;
+            bytes += taskBytes;
+          } else failed += 1;
           if ((cached + missing) % 100 === 0) {
             this.logger.log(
-              `run=${run} progress=${cached + missing}/${tasks.length} cached=${cached} missing=${missing} failed=${failed} retries=${retries} concurrency=${this.concurrency}`,
+              `run=${run} progress=${cached + missing}/${totalKeys} cached=${cached} missing=${missing} failed=${failed} retries=${retries} concurrency=${this.concurrency}`,
             );
           }
         }
       };
       await Promise.all(Array.from({ length: this.concurrency }, () => processTask()));
 
-      if (!this.stopping && failed === 0 && cached + missing === tasks.length) {
+      if (!this.stopping && failed === 0 && cached + missing === totalKeys) {
         await this.redis.publishActiveRun(run);
         this.logger.log(`run=${run} READY active-run published`);
       } else {
@@ -172,7 +228,7 @@ export class GfsPrefetchService
       }
       const stats = this.redis.stats();
       this.logger.log(
-        `run=${run} progress=${cached + missing}/${tasks.length} cached=${cached} missing=${missing} failed=${failed} retries=${retries} bytes=${bytes} durationMs=${Date.now() - startedAt} redisHits=${stats.redisHits} redisMisses=${stats.redisMisses}`,
+        `run=${run} progress=${cached + missing}/${totalKeys} cached=${cached} missing=${missing} failed=${failed} retries=${retries} bytes=${bytes} durationMs=${Date.now() - startedAt} redisHits=${stats.redisHits} redisMisses=${stats.redisMisses}`,
       );
     } catch (error) {
       this.logger.warn(`cycle failed: ${this.message(error)}`);
@@ -212,7 +268,12 @@ export class GfsPrefetchService
           9,
           forecastHour,
         );
-        samples.push(gzipSync(encodeGfsTile(grid)).byteLength);
+        const totalSampleBytes = GFS_RESOLUTIONS.reduce(
+          (sum, resolution) =>
+            sum + gzipSync(encodeGfsTile(downsampleGfsGrid(grid, resolution))).byteLength,
+          0,
+        );
+        samples.push(totalSampleBytes);
       } catch (error) {
         this.logger.warn(
           `prefetch size sample failed f=${forecastHour}: ${this.message(error)}`,
@@ -227,7 +288,7 @@ export class GfsPrefetchService
     this.estimatedRun = run;
     this.estimatedRunBytes = estimate;
     this.logger.log(
-      `run=${run} estimatedRedisBytes=${estimate} sampleAverageBytes=${Math.ceil(average)}`,
+      `run=${run} estimatedRedisBytes=${estimate} sampleAverageBytesPerTile=${Math.ceil(average)} resolutions=${GFS_RESOLUTIONS.join(",")}`,
     );
     return estimate;
   }
