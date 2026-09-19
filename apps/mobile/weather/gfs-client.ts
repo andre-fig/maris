@@ -13,29 +13,22 @@ import {
 import { decodeGfsTile } from './gfs-tile-codec';
 import { GfsTileMemoryStore } from './gfs-tile-memory';
 import {
-  GFS_TILE_COLUMNS,
-  GFS_TILE_SIZE,
+  tileBounds,
   tileForCoordinate,
   tileKey,
   tilesForViewport,
   type GfsTileCoordinate,
 } from './gfs-tiles';
 import {
-  resolutionForZoom,
-  resolutionWithHysteresis,
-  type GfsResolution,
-} from './gfs-resolution';
+  DEFAULT_MAX_FIELD_DIMENSION,
+  sourceZoomForViewport,
+} from './gfs-zoom';
 
 const REQUEST_DEBOUNCE_MS = 500;
 const REQUEST_TIMEOUT_MS = 15_000;
 const REQUEST_RETRY_DELAY_MS = 2_000;
-const TILE_MARGIN = 1;
 const TILE_CACHE_TTL_MS = 30 * 60 * 1_000;
 const CACHE_ROOT = new Directory(Paths.document, 'gfs-weather-tiles');
-
-function resolutionCode(resolution: GfsResolution) {
-  return resolution === 0.25 ? 'r025' : resolution === 0.5 ? 'r050' : 'r100';
-}
 
 type GfsPerfCounter = 'mergeTiles' | 'packageFromTiles';
 const gfsPerf = {
@@ -71,7 +64,7 @@ type ViewportJob = {
   key: string;
   tiles: GfsTileCoordinate[];
   center: GfsTileCoordinate | null;
-  resolution: GfsResolution;
+  sourceZoom: number;
 };
 
 function prioritizeViewportTiles(
@@ -79,14 +72,19 @@ function prioritizeViewportTiles(
   center: MapCenter | null | undefined,
 ) {
   if (!center) return tiles;
-  const centerTile = tileForCoordinate(center[0], center[1]);
+  const centerTile = tileForCoordinate(center[0], center[1], tiles[0]?.z ?? 0);
+  const tileCount = 2 ** centerTile.z;
+  const wrappedDistance = (a: number, b: number) => {
+    const direct = Math.abs(a - b);
+    return Math.min(direct, tileCount - direct);
+  };
   return [...tiles].sort((left, right) => {
     // Chebyshev distance creates square/concentric rings around the center:
     // center tile, immediate neighbors, then progressively farther edges.
-    const leftRing = Math.max(Math.abs(left.x - centerTile.x), Math.abs(left.y - centerTile.y));
-    const rightRing = Math.max(Math.abs(right.x - centerTile.x), Math.abs(right.y - centerTile.y));
-    const leftDistance = Math.abs(left.x - centerTile.x) + Math.abs(left.y - centerTile.y);
-    const rightDistance = Math.abs(right.x - centerTile.x) + Math.abs(right.y - centerTile.y);
+    const leftRing = Math.max(wrappedDistance(left.x, centerTile.x), Math.abs(left.y - centerTile.y));
+    const rightRing = Math.max(wrappedDistance(right.x, centerTile.x), Math.abs(right.y - centerTile.y));
+    const leftDistance = wrappedDistance(left.x, centerTile.x) + Math.abs(left.y - centerTile.y);
+    const rightDistance = wrappedDistance(right.x, centerTile.x) + Math.abs(right.y - centerTile.y);
     return leftRing - rightRing || leftDistance - rightDistance || left.y - right.y || left.x - right.x;
   });
 }
@@ -97,8 +95,8 @@ function validBounds(bounds: GfsBounds | null | undefined): bounds is GfsBounds 
     bounds!.north > bounds!.south;
 }
 
-function filePrefix(tile: GfsTileCoordinate, forecastHour: number, resolution: GfsResolution) {
-  return `f${forecastHour}-${resolutionCode(resolution)}-x${tile.x}-y${tile.y}-`;
+function filePrefix(tile: GfsTileCoordinate, forecastHour: number) {
+  return `f${forecastHour}-z${tile.z}-x${tile.x}-y${tile.y}-`;
 }
 
 function etagFromFileName(name: string) {
@@ -111,31 +109,31 @@ class GfsTileStore {
   private memory = new GfsTileMemoryStore<CachedTile>();
   private inFlight = new Map<string, Promise<CachedTile>>();
 
-  private addressKey(tile: GfsTileCoordinate, forecastHour: number, resolution: GfsResolution) {
-    return tileKey(tile, forecastHour, resolution);
+  private addressKey(tile: GfsTileCoordinate, forecastHour: number) {
+    return tileKey(tile, forecastHour);
   }
 
-  private recordKey(tile: GfsTileCoordinate, forecastHour: number, resolution: GfsResolution, run: string) {
-    return `${run}|${tileKey(tile, forecastHour, resolution)}`;
+  private recordKey(tile: GfsTileCoordinate, forecastHour: number, run: string) {
+    return `${run}|${tileKey(tile, forecastHour)}`;
   }
 
   private put(tile: GfsTileCoordinate, forecastHour: number, grid: GfsGrid,
     savedAt: number, source: CachedTile['source'], etag?: string) {
     const value = { tile, forecastHour, grid, savedAt, etag, source };
     return this.memory.upsert(
-      this.addressKey(tile, forecastHour, grid.resolution as GfsResolution),
-      this.recordKey(tile, forecastHour, grid.resolution as GfsResolution, grid.run),
+      this.addressKey(tile, forecastHour),
+      this.recordKey(tile, forecastHour, grid.run),
       value,
     );
   }
 
-  setActiveViewport(tiles: GfsTileCoordinate[], forecastHour: number, resolution: GfsResolution) {
-    this.memory.setActiveAddresses(tiles.map((tile) => this.addressKey(tile, forecastHour, resolution)));
+  setActiveViewport(tiles: GfsTileCoordinate[], forecastHour: number) {
+    this.memory.setActiveAddresses(tiles.map((tile) => this.addressKey(tile, forecastHour)));
   }
 
-  snapshot(tiles: GfsTileCoordinate[], forecastHour: number, resolution: GfsResolution) {
+  snapshot(tiles: GfsTileCoordinate[], forecastHour: number) {
     return tiles
-      .map((tile) => this.memory.getLatest(this.addressKey(tile, forecastHour, resolution)))
+      .map((tile) => this.memory.getLatest(this.addressKey(tile, forecastHour)))
       .filter((tile): tile is CachedTile => tile !== undefined);
   }
 
@@ -145,12 +143,12 @@ class GfsTileStore {
     this.initialized = true;
   }
 
-  async read(tile: GfsTileCoordinate, forecastHour: number, resolution: GfsResolution): Promise<CachedTile | null> {
+  async read(tile: GfsTileCoordinate, forecastHour: number): Promise<CachedTile | null> {
     await this.initialize();
-    const key = this.addressKey(tile, forecastHour, resolution);
+    const key = this.addressKey(tile, forecastHour);
     const memory = this.memory.getLatest(key);
     if (memory) return memory;
-    const prefix = filePrefix(tile, forecastHour, resolution);
+    const prefix = filePrefix(tile, forecastHour);
     const file = CACHE_ROOT.list()
       .filter((entry): entry is File =>
         entry instanceof File && entry.name.startsWith(prefix) && entry.name.endsWith('.bin'))
@@ -171,17 +169,17 @@ class GfsTileStore {
     }
   }
 
-  async fetch(apiUrl: string, tile: GfsTileCoordinate, forecastHour: number, resolution: GfsResolution, signal?: AbortSignal) {
-    const key = this.addressKey(tile, forecastHour, resolution);
-    const cached = await this.read(tile, forecastHour, resolution);
+  async fetch(apiUrl: string, tile: GfsTileCoordinate, forecastHour: number, signal?: AbortSignal) {
+    const key = this.addressKey(tile, forecastHour);
+    const cached = await this.read(tile, forecastHour);
     if (cached && Date.now() - cached.savedAt < TILE_CACHE_TTL_MS) return cached;
     const existing = this.inFlight.get(key);
     if (existing) return existing;
     const promise = (async () => {
       try {
-      const query = new URLSearchParams({ forecastHour: String(forecastHour), resolution: String(resolution) });
+      const query = new URLSearchParams({ forecastHour: String(forecastHour) });
       const response = await fetch(
-        `${apiUrl.replace(/\/$/, '')}/weather/gfs/tiles/${tile.x}/${tile.y}?${query}`,
+        `${apiUrl.replace(/\/$/, '')}/weather/gfs/tiles/${tile.z}/${tile.x}/${tile.y}?${query}`,
         {
           headers: cached?.etag ? { 'If-None-Match': cached.etag } : undefined,
           signal: signal ?? AbortSignal.timeout(REQUEST_TIMEOUT_MS),
@@ -201,7 +199,7 @@ class GfsTileStore {
       const etag = response.headers.get('etag') ?? undefined;
       const file = new File(
         CACHE_ROOT,
-        `${filePrefix(tile, forecastHour, resolution)}${grid.run.replace(/[^0-9A-Za-z]/g, '')}-${etag?.replace(/[^0-9a-f]/gi, '') ?? 'noetag'}.bin`,
+        `${filePrefix(tile, forecastHour)}${grid.run.replace(/[^0-9A-Za-z]/g, '')}-${etag?.replace(/[^0-9a-f]/gi, '') ?? 'noetag'}.bin`,
       );
       file.create({ overwrite: true, intermediates: true });
       await file.write(bytes);
@@ -230,7 +228,9 @@ function mergeTiles(tiles: CachedTile[]): GfsGrid | null {
   const xValues = [...new Set(tiles.map((item) => item.tile.x))].sort((a, b) => a - b);
   // A rectangular grid cannot represent the -180/180 seam. Keep the tile
   // containing the point for the native field in that special case.
-  if (xValues.length > 1 && xValues[xValues.length - 1]! - xValues[0]! > GFS_TILE_COLUMNS / 2) {
+  const tileZoom = tiles[0]!.tile.z;
+  const tileCount = 2 ** tileZoom;
+  if (xValues.length > 1 && xValues[xValues.length - 1]! - xValues[0]! > tileCount / 2) {
     return tiles[0]!.grid;
   }
   const yValues = [...new Set(tiles.map((item) => item.tile.y))].sort((a, b) => a - b);
@@ -262,10 +262,9 @@ function mergeTiles(tiles: CachedTile[]): GfsGrid | null {
   return {
     ...first,
     bounds: {
-      west: -180 + minX * GFS_TILE_SIZE,
-      east: -180 + (maxX + 1) * GFS_TILE_SIZE,
-      south: -90 + minY * GFS_TILE_SIZE,
-      north: -90 + (maxY + 1) * GFS_TILE_SIZE,
+      ...tileBounds({ z: tileZoom, x: minX, y: minY }),
+      east: tileBounds({ z: tileZoom, x: maxX, y: minY }).east,
+      south: tileBounds({ z: tileZoom, x: minX, y: maxY }).south,
     },
     width,
     height,
@@ -292,8 +291,8 @@ function packageFromTiles(tiles: CachedTile[]): GfsPackage | null {
   };
 }
 
-export async function fetchGfsTile(apiUrl: string, tile: GfsTileCoordinate, forecastHour = 0, resolution: GfsResolution = 0.25, signal?: AbortSignal) {
-  return gfsTileStore.fetch(apiUrl, tile, forecastHour, resolution, signal);
+export async function fetchGfsTile(apiUrl: string, tile: GfsTileCoordinate, forecastHour = 0, signal?: AbortSignal) {
+  return gfsTileStore.fetch(apiUrl, tile, forecastHour, signal);
 }
 
 export type GfsSample = SampledGfsValues & { forecastTime: string; forecastHour: number };
@@ -308,13 +307,25 @@ export function sampleGfsPackageAtCoordinate(packageData: GfsPackage | null | un
   }).filter((sample): sample is GfsSample => sample !== null);
 }
 
-export function useGfsViewport(apiUrl: string, bounds: GfsBounds | null, coordinate: MapCenter | null, zoom = 10, enabled = true) {
+export function useGfsViewport(
+  apiUrl: string,
+  bounds: GfsBounds | null,
+  coordinate: MapCenter | null,
+  zoom = 10,
+  enabled = true,
+  qualityPenalty = 0,
+  maxFieldDimension = DEFAULT_MAX_FIELD_DIMENSION,
+) {
   const [tilesVersion, setTilesVersion] = useState(0);
   const [loading, setLoading] = useState(enabled);
   const [offline, setOffline] = useState(false);
   const [error, setError] = useState<string>();
   const [cachedAt, setCachedAt] = useState<number>();
-  const [resolution, setResolution] = useState<GfsResolution>(() => resolutionForZoom(zoom));
+  const selectedSource = useMemo(
+    () => sourceZoomForViewport(bounds, zoom, qualityPenalty, maxFieldDimension),
+    [bounds?.north, bounds?.south, bounds?.east, bounds?.west, maxFieldDimension, qualityPenalty, zoom],
+  );
+  const sourceZoom = selectedSource.sourceZoom;
   const activeJob = useRef<ViewportJob | null>(null);
   const pendingJob = useRef<ViewportJob | null>(null);
   const queueRevision = useRef(0);
@@ -369,7 +380,7 @@ export function useGfsViewport(apiUrl: string, bounds: GfsBounds | null, coordin
         let abandoned = false;
         while (jobRevision === queueRevision.current) {
           try {
-            result = await fetchGfsTile(apiUrl, tile, 0, job.resolution);
+            result = await fetchGfsTile(apiUrl, tile, 0);
             break;
           } catch {
             // Retry indefinitely every two seconds while this viewport remains
@@ -409,10 +420,6 @@ export function useGfsViewport(apiUrl: string, bounds: GfsBounds | null, coordin
     }
   }, [apiUrl]);
 
-  useEffect(() => {
-    setResolution((current) => resolutionWithHysteresis(current, zoom));
-  }, [zoom]);
-
   const enqueueViewport = useCallback((job: ViewportJob) => {
     if (
       activeJob.current?.key === job.key ||
@@ -433,24 +440,21 @@ export function useGfsViewport(apiUrl: string, bounds: GfsBounds | null, coordin
 
   useEffect(() => {
     if (!enabled || !validBounds(bounds) || !foreground.current) return;
-    const requestedTiles = prioritizeViewportTiles(
-      tilesForViewport(bounds, TILE_MARGIN),
-      coordinateRef.current,
-    );
-    gfsTileStore.setActiveViewport(requestedTiles, 0, resolution);
-    const key = requestedTiles.map((tile) => tileKey(tile, 0, resolution)).join('|');
+    const requestedTiles = prioritizeViewportTiles(selectedSource.tiles, coordinateRef.current);
+    gfsTileStore.setActiveViewport(requestedTiles, 0);
+    const key = requestedTiles.map((tile) => tileKey(tile, 0)).join('|');
     if (debounce.current) clearTimeout(debounce.current);
     debounce.current = setTimeout(() => {
       debounce.current = undefined;
       enqueueViewport({
         key,
         tiles: requestedTiles,
-        center: coordinateRef.current ? tileForCoordinate(coordinateRef.current[0], coordinateRef.current[1]) : null,
-        resolution,
+        center: coordinateRef.current ? tileForCoordinate(coordinateRef.current[0], coordinateRef.current[1], sourceZoom) : null,
+        sourceZoom,
       });
     }, REQUEST_DEBOUNCE_MS);
     return () => { if (debounce.current) clearTimeout(debounce.current); };
-  }, [apiUrl, bounds?.north, bounds?.south, bounds?.east, bounds?.west, enabled, enqueueViewport, resolution]);
+  }, [apiUrl, bounds?.north, bounds?.south, bounds?.east, bounds?.west, enabled, enqueueViewport, selectedSource, sourceZoom]);
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (state) => {
@@ -460,17 +464,14 @@ export function useGfsViewport(apiUrl: string, bounds: GfsBounds | null, coordin
     return () => {
       subscription.remove();
       if (debounce.current) clearTimeout(debounce.current);
-      gfsTileStore.setActiveViewport([], 0, resolutionForZoom(zoom));
+      gfsTileStore.setActiveViewport([], 0);
       mounted.current = false;
     };
   }, []);
 
-  const computedRequestedTiles = useMemo(
-    () => validBounds(bounds) ? tilesForViewport(bounds, TILE_MARGIN) : [],
-    [bounds?.north, bounds?.south, bounds?.east, bounds?.west],
-  );
+  const computedRequestedTiles = selectedSource.tiles;
   const computedRequestedKey = computedRequestedTiles
-    .map((tile) => tileKey(tile, 0, resolution))
+    .map((tile) => tileKey(tile, 0))
     .join('|');
   const stableTiles = useRef<{ key: string; tiles: GfsTileCoordinate[] }>({
     key: '',
@@ -482,8 +483,8 @@ export function useGfsViewport(apiUrl: string, bounds: GfsBounds | null, coordin
   const requestedTiles = stableTiles.current.tiles;
   const composedPackage = useMemo(() => {
     void tilesVersion;
-    return packageFromTiles(gfsTileStore.snapshot(requestedTiles, 0, resolution));
-  }, [computedRequestedKey, tilesVersion, resolution]);
+    return packageFromTiles(gfsTileStore.snapshot(requestedTiles, 0));
+  }, [computedRequestedKey, tilesVersion]);
   const displayedPackage = useRef<GfsPackage | null>(null);
   if (composedPackage) displayedPackage.current = composedPackage;
   const packageData = composedPackage ?? displayedPackage.current;

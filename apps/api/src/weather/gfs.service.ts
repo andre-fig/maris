@@ -21,7 +21,13 @@ import {
   type GfsGrid,
   type GfsRun,
 } from "./gfs.types.js";
-import { gfsTileBounds } from "./gfs-tiles.js";
+import { gfsTileBounds, gfsTileFromCoordinate } from "./gfs-tiles.js";
+import {
+  GFS_MAX_WEATHER_ZOOM,
+  GFS_XYZ_GRID_SIZE,
+  webMercatorTileBounds,
+  xyzTileCount,
+} from "./gfs-xyz.js";
 
 const execFileAsync = promisify(execFile);
 const gzipAsync = promisify(gzip);
@@ -62,6 +68,31 @@ type ParsedSubset = {
   };
   fields: Record<string, Array<number | null>>;
 };
+
+function sampleGridField(
+  grid: GfsGrid,
+  field: keyof GfsGrid["fields"],
+  latitude: number,
+  longitude: number,
+) {
+  const values = grid.fields[field];
+  if (!values || values.length !== grid.width * grid.height) return null;
+  const { west, east, north, south } = grid.bounds;
+  if (latitude < south || latitude > north || longitude < west || longitude > east) return null;
+  const x = Math.max(0, Math.min(grid.width - 1, ((longitude - west) / (east - west)) * (grid.width - 1)));
+  const y = Math.max(0, Math.min(grid.height - 1, ((north - latitude) / (north - south)) * (grid.height - 1)));
+  const x0 = Math.floor(x);
+  const y0 = Math.floor(y);
+  const x1 = Math.min(grid.width - 1, x0 + 1);
+  const y1 = Math.min(grid.height - 1, y0 + 1);
+  const tx = x - x0;
+  const ty = y - y0;
+  const valuesAt = (row: number, column: number) => values[row * grid.width + column];
+  const corners = [valuesAt(y0, x0), valuesAt(y0, x1), valuesAt(y1, x0), valuesAt(y1, x1)];
+  const valid = corners.filter((value): value is number => typeof value === "number" && Number.isFinite(value));
+  if (valid.length !== corners.length) return valid.length ? valid.reduce((sum, value) => sum + value, 0) / valid.length : null;
+  return corners[0]! * (1 - tx) * (1 - ty) + corners[1]! * tx * (1 - ty) + corners[2]! * (1 - tx) * ty + corners[3]! * tx * ty;
+}
 
 @Injectable()
 export class GfsService {
@@ -118,6 +149,78 @@ export class GfsService {
       );
     }
     return this.getGrid(inventory.run, file, normalizedHour, gfsTileBounds(x, y));
+  }
+
+  async getXyzTileFromInventory(
+    inventory: Inventory,
+    z: number,
+    x: number,
+    y: number,
+    forecastHour: number,
+    sourceCache = new Map<string, GfsGrid>(),
+  ): Promise<GfsGrid> {
+    if (!Number.isInteger(z) || z < 0 || z > GFS_MAX_WEATHER_ZOOM) {
+      throw new BadRequestException("Invalid GFS weather zoom");
+    }
+    const n = xyzTileCount(z);
+    if (!Number.isInteger(x) || !Number.isInteger(y) || x < 0 || x >= n || y < 0 || y >= n) {
+      throw new BadRequestException("Invalid GFS XYZ tile coordinate");
+    }
+    const bounds = webMercatorTileBounds(z, x, y);
+    const width = GFS_XYZ_GRID_SIZE;
+    const height = GFS_XYZ_GRID_SIZE;
+    const fields: GfsGrid["fields"] = {};
+    const fieldNames = [
+      "windU", "windV", "temperature", "precipitation", "precipitationRate", "cloudCover",
+      "pressure", "gust", "humidity",
+    ] as const;
+    for (const field of fieldNames) fields[field] = new Array<number | null>(width * height).fill(null);
+
+    for (let row = 0; row < height; row += 1) {
+      const latitude = bounds.north + (bounds.south - bounds.north) * (row / (height - 1));
+      for (let column = 0; column < width; column += 1) {
+        const longitude = bounds.west + (bounds.east - bounds.west) * (column / (width - 1));
+        const normalizedLongitude = longitude === 180 ? -180 : longitude;
+        const geographic = gfsTileFromCoordinate(normalizedLongitude, latitude);
+        const sourceKey = `${forecastHour}:${geographic.x}:${geographic.y}`;
+        let source = sourceCache.get(sourceKey);
+        if (!source) {
+          source = await this.getTileFromInventory(
+            inventory,
+            geographic.x,
+            geographic.y,
+            forecastHour,
+          );
+          sourceCache.set(sourceKey, source);
+          if (sourceCache.size > 720) {
+            const first = sourceCache.keys().next().value;
+            if (first) sourceCache.delete(first);
+          }
+        }
+        const targetIndex = row * width + column;
+        for (const field of fieldNames) {
+          const value = sampleGridField(source, field, latitude, normalizedLongitude);
+          fields[field]![targetIndex] = value;
+        }
+      }
+    }
+    return {
+      model: "gfs",
+      run: inventory.run.runAt,
+      forecastTime: new Date(Date.parse(inventory.run.runAt) + forecastHour * 3_600_000).toISOString(),
+      forecastHour,
+      resolution: 0.25,
+      bounds,
+      width,
+      height,
+      gridOrder: "north-to-south,west-to-east",
+      longitudeConvention: "-180..180",
+      units: {
+        wind: "m/s", temperature: "K", precipitation: "kg/m2", precipitationRate: "kg/m2/s",
+        cloudCover: "%", pressure: "Pa", gust: "m/s", humidity: "%",
+      },
+      fields,
+    };
   }
 
   private normalizeForecastHours(hours: number[]) {

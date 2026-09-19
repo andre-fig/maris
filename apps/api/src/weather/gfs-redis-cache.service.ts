@@ -1,7 +1,7 @@
 import { Redis } from "ioredis";
 import { Injectable, Logger, OnApplicationShutdown } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { resolutionCode, type GfsResolution } from "./gfs-resolution.js";
+import { GFS_MAX_WEATHER_ZOOM, normalizeX } from "./gfs-xyz.js";
 
 export type ActiveGfsRun = { run: string; status: "READY" };
 
@@ -45,12 +45,12 @@ export class GfsRedisCacheService implements OnApplicationShutdown {
     forecastHour: number,
     x: number,
     y: number,
-    resolution: GfsResolution = 0.25,
+    z = 0,
   ) {
     try {
       await this.ensureConnected();
       const value = await this.redis.getBuffer(
-        this.tileKey(run, forecastHour, x, y, resolution),
+        this.tileKey(run, forecastHour, z, x, y),
       );
       if (value) this.hits += 1;
       else this.misses += 1;
@@ -68,12 +68,12 @@ export class GfsRedisCacheService implements OnApplicationShutdown {
     x: number,
     y: number,
     body: Buffer,
-    resolution: GfsResolution = 0.25,
+    z = 0,
   ) {
     try {
       await this.ensureConnected();
       await this.redis.set(
-        this.tileKey(run, forecastHour, x, y, resolution),
+        this.tileKey(run, forecastHour, z, x, y),
         body,
         "EX",
         this.tileTtl,
@@ -159,11 +159,14 @@ export class GfsRedisCacheService implements OnApplicationShutdown {
   private tileKey(
     run: string,
     forecastHour: number,
+    z: number,
     x: number,
     y: number,
-    resolution: GfsResolution,
   ) {
-    return `gfs:${run}:f${String(forecastHour).padStart(3, "0")}:${resolutionCode(resolution)}:x${x}:y${y}:v1`;
+    if (!Number.isInteger(z) || z < 0 || z > GFS_MAX_WEATHER_ZOOM) {
+      throw new RangeError("Invalid GFS weather zoom");
+    }
+    return `gfs:${run}:f${String(forecastHour).padStart(3, "0")}:z${z}:x${normalizeX(x, z)}:y${y}:v1`;
   }
 
   private async ensureConnected() {

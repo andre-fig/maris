@@ -54,6 +54,7 @@ const TILE_FIELDS: readonly GfsFieldName[] = [
   "windU",
   "windV",
   "temperature",
+  "precipitation",
   "precipitationRate",
   "cloudCover",
   "pressure",

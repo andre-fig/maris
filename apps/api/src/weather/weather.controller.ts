@@ -14,13 +14,9 @@ import { createHash } from "node:crypto";
 import { gzipSync } from "node:zlib";
 
 import { GfsService } from "./gfs.service.js";
-import { GFS_TILE_COLUMNS, GFS_TILE_ROWS, encodeGfsTile } from "./gfs-tiles.js";
+import { encodeGfsTile } from "./gfs-tiles.js";
 import { GfsRedisCacheService, gfsRunId } from "./gfs-redis-cache.service.js";
-import {
-  downsampleGfsGrid,
-  isGfsResolution,
-  type GfsResolution,
-} from "./gfs-resolution.js";
+import { GFS_MAX_WEATHER_ZOOM, xyzTileCount } from "./gfs-xyz.js";
 
 const GFS_SUCCESS_CACHE_CONTROL =
   "public, s-maxage=1800, stale-while-revalidate=300";
@@ -43,23 +39,24 @@ export class WeatherController {
     private readonly redisCache?: GfsRedisCacheService,
   ) {}
 
-  @Get("gfs/tiles/:x/:y")
+  @Get("gfs/tiles/:z/:x/:y")
   async getGfsTile(
+    @Param("z") zValue: string,
     @Param("x") xValue: string,
     @Param("y") yValue: string,
     @Query("forecastHour") forecastHourValue = "0",
     @Req() request: Request,
     @Res() response: Response,
-    @Query("resolution") resolutionValue = "0.25",
   ) {
     response.set("Cache-Control", "no-store");
+    const z = Number(zValue);
     const x = Number(xValue);
     const y = Number(yValue);
     const forecastHour = Number(forecastHourValue);
-    const resolution = Number(resolutionValue);
-    if (![x, y, forecastHour].every(Number.isInteger) ||
-        x < 0 || x >= GFS_TILE_COLUMNS || y < 0 || y >= GFS_TILE_ROWS ||
-        forecastHour < 0 || forecastHour > 384 || !isGfsResolution(resolution)) {
+    const tileCount = Number.isInteger(z) && z >= 0 && z <= GFS_MAX_WEATHER_ZOOM ? xyzTileCount(z) : 0;
+    if (![z, x, y, forecastHour].every(Number.isInteger) ||
+        z < 0 || z > GFS_MAX_WEATHER_ZOOM || x < 0 || x >= tileCount || y < 0 || y >= tileCount ||
+        forecastHour < 0 || forecastHour > 384) {
       throw new BadRequestException(
         "Invalid GFS tile coordinate or forecast hour",
       );
@@ -71,14 +68,18 @@ export class WeatherController {
           forecastHour,
           x,
           y,
-          resolution,
+          z,
         )
       : null;
     let body = cachedBody;
     if (!body) {
-      const grid = downsampleGfsGrid(
-        await this.gfsService.getTile(x, y, forecastHour),
-        resolution as GfsResolution,
+      const inventory = await this.gfsService.getCompleteInventory([forecastHour]);
+      const grid = await this.gfsService.getXyzTileFromInventory(
+        inventory,
+        z,
+        x,
+        y,
+        forecastHour,
       );
       body = gzipSync(encodeGfsTile(grid));
       await this.redisCache?.setTile(
@@ -87,7 +88,7 @@ export class WeatherController {
         x,
         y,
         body,
-        resolution as GfsResolution,
+        z,
       );
     }
     const etag = etagFor(body);

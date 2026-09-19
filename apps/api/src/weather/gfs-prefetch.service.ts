@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { gunzipSync, gzipSync } from "node:zlib";
+import { gzipSync } from "node:zlib";
 import {
   Injectable,
   Logger,
@@ -8,16 +8,15 @@ import {
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { GfsService } from "./gfs.service.js";
-import { decodeGfsTile, encodeGfsTile } from "./gfs-tiles.js";
+import { encodeGfsTile } from "./gfs-tiles.js";
 import { GfsRedisCacheService, gfsRunId } from "./gfs-redis-cache.service.js";
 import {
-  downsampleGfsGrid,
-  GFS_RESOLUTIONS,
-  resolutionCode,
-  type GfsResolution,
-} from "./gfs-resolution.js";
+  GFS_MAX_WEATHER_ZOOM,
+  xyzTileCount,
+} from "./gfs-xyz.js";
 
-type PrefetchTask = { x: number; y: number; forecastHour: number };
+type PrefetchTask = { z: number; x: number; y: number; forecastHour: number };
+const GFS_ZOOMS = Array.from({ length: GFS_MAX_WEATHER_ZOOM + 1 }, (_, z) => z);
 
 const RETRY_DELAYS_MS = [2_000, 5_000, 10_000, 20_000, 40_000];
 
@@ -104,10 +103,8 @@ export class GfsPrefetchService
       const inventory = await this.gfs.getCompleteInventory(this.forecastHours);
       const run = gfsRunId(inventory.run.runAt);
       const tasks = this.tasks();
-      const estimatedRedisBytes = await this.estimateRedisBytes(
-        inventory,
-        tasks.length,
-      );
+      const sourceCache = new Map<string, Awaited<ReturnType<GfsService["getTileFromInventory"]>>>();
+      const estimatedRedisBytes = await this.estimateRedisBytes(inventory, tasks.length, sourceCache);
       if (estimatedRedisBytes > this.maxEstimatedRedisBytes) {
         this.logger.warn(
           `run=${run} prefetch aborted: estimatedRedisBytes=${estimatedRedisBytes} exceeds max=${this.maxEstimatedRedisBytes}`,
@@ -120,78 +117,38 @@ export class GfsPrefetchService
       let retries = 0;
       let bytes = 0;
       let next = 0;
-      const totalKeys = tasks.length * GFS_RESOLUTIONS.length;
+      const totalKeys = tasks.length;
       const processTask = async () => {
         while (!this.stopping) {
           const index = next++;
           const task = tasks[index];
           if (!task) return;
           let stored = false;
-          let taskCached = 0;
-          let taskMissing = 0;
+          let taskCached = false;
           let taskBytes = 0;
           for (let attempt = 0; attempt < RETRY_DELAYS_MS.length && !this.stopping; attempt += 1) {
             try {
-              const existing = new Map<GfsResolution, Buffer>();
-              for (const resolution of GFS_RESOLUTIONS) {
-                const body = await this.redis.getTile(
-                  run,
-                  task.forecastHour,
-                  task.x,
-                  task.y,
-                  resolution,
-                );
-                if (body) existing.set(resolution, body);
-              }
-              const missingResolutions = GFS_RESOLUTIONS.filter(
-                (resolution) => !existing.has(resolution),
-              );
-              let newBytes = 0;
-              if (missingResolutions.length === 0) {
-                taskCached = existing.size;
-                taskBytes = [...existing.values()].reduce(
-                  (sum, body) => sum + body.byteLength,
-                  0,
-                );
+              const existing = await this.redis.getTile(run, task.forecastHour, task.x, task.y, task.z);
+              if (existing) {
+                taskCached = true;
+                taskBytes = existing.byteLength;
                 stored = true;
                 retries += attempt;
                 break;
               }
-
-              const baseBody = existing.get(0.25);
-              const source = baseBody
-                ? (() => {
-                    const decoded = decodeGfsTile(gunzipSync(baseBody));
-                    return { ...decoded.header, fields: decoded.fields };
-                  })()
-                : await this.gfs.getTileFromInventory(
-                    inventory,
-                    task.x,
-                    task.y,
-                    task.forecastHour,
-                  );
-              for (const resolution of missingResolutions) {
-                const grid = downsampleGfsGrid(source, resolution);
-                const body = gzipSync(encodeGfsTile(grid));
-                if (
-                  !(await this.redis.setTile(
-                    run,
-                    task.forecastHour,
-                    task.x,
-                    task.y,
-                    body,
-                    resolution,
-                  ))
-                ) {
-                  throw new Error(`Redis SET failed for ${resolutionCode(resolution)}`);
-                }
-                newBytes += body.byteLength;
+              const grid = await this.gfs.getXyzTileFromInventory(
+                inventory,
+                task.z,
+                task.x,
+                task.y,
+                task.forecastHour,
+                sourceCache,
+              );
+              const body = gzipSync(encodeGfsTile(grid));
+              if (!(await this.redis.setTile(run, task.forecastHour, task.x, task.y, body, task.z))) {
+                throw new Error("Redis SET failed");
               }
-              taskCached = existing.size;
-              taskMissing = missingResolutions.length;
-              taskBytes =
-                [...existing.values()].reduce((sum, body) => sum + body.byteLength, 0) +
-                newBytes;
+              taskBytes = body.byteLength;
               stored = true;
               retries += attempt;
               break;
@@ -207,8 +164,8 @@ export class GfsPrefetchService
             }
           }
           if (stored) {
-            cached += taskCached;
-            missing += taskMissing;
+            if (taskCached) cached += 1;
+            else missing += 1;
             bytes += taskBytes;
           } else failed += 1;
           if ((cached + missing) % 100 === 0) {
@@ -243,8 +200,11 @@ export class GfsPrefetchService
   private tasks(): PrefetchTask[] {
     const tasks: PrefetchTask[] = [];
     for (const forecastHour of this.forecastHours) {
-      for (let y = 0; y < 18; y += 1) {
-        for (let x = 0; x < 36; x += 1) tasks.push({ x, y, forecastHour });
+      for (const z of GFS_ZOOMS) {
+        const count = xyzTileCount(z);
+        for (let y = 0; y < count; y += 1) {
+          for (let x = 0; x < count; x += 1) tasks.push({ z, x, y, forecastHour });
+        }
       }
     }
     return tasks;
@@ -253,6 +213,7 @@ export class GfsPrefetchService
   private async estimateRedisBytes(
     inventory: Awaited<ReturnType<GfsService["getCompleteInventory"]>>,
     taskCount: number,
+    sourceCache: Map<string, Awaited<ReturnType<GfsService["getTileFromInventory"]>>>,
   ) {
     if (taskCount === 0) return 0;
     const run = gfsRunId(inventory.run.runAt);
@@ -262,17 +223,13 @@ export class GfsPrefetchService
     const samples: number[] = [];
     for (const forecastHour of this.forecastHours) {
       try {
-        const grid = await this.gfs.getTileFromInventory(
-          inventory,
-          18,
-          9,
-          forecastHour,
-        );
-        const totalSampleBytes = GFS_RESOLUTIONS.reduce(
-          (sum, resolution) =>
-            sum + gzipSync(encodeGfsTile(downsampleGfsGrid(grid, resolution))).byteLength,
-          0,
-        );
+        let totalSampleBytes = 0;
+        for (const z of GFS_ZOOMS) {
+          const grid = await this.gfs.getXyzTileFromInventory(
+            inventory, z, 0, 0, forecastHour, sourceCache,
+          );
+          totalSampleBytes += gzipSync(encodeGfsTile(grid)).byteLength;
+        }
         samples.push(totalSampleBytes);
       } catch (error) {
         this.logger.warn(
@@ -281,14 +238,13 @@ export class GfsPrefetchService
       }
     }
     if (samples.length === 0) return Number.POSITIVE_INFINITY;
-    const average =
-      samples.reduce((sum, value) => sum + value, 0) / samples.length;
+    const average = samples.reduce((sum, value) => sum + value, 0) / samples.length / GFS_ZOOMS.length;
     // Include a conservative allowance for Redis key/value/object overhead.
     const estimate = Math.ceil(average * taskCount * 1.25);
     this.estimatedRun = run;
     this.estimatedRunBytes = estimate;
     this.logger.log(
-      `run=${run} estimatedRedisBytes=${estimate} sampleAverageBytesPerTile=${Math.ceil(average)} resolutions=${GFS_RESOLUTIONS.join(",")}`,
+      `run=${run} estimatedRedisBytes=${estimate} sampleAverageBytesPerTile=${Math.ceil(average)} zooms=0-${GFS_MAX_WEATHER_ZOOM}`,
     );
     return estimate;
   }

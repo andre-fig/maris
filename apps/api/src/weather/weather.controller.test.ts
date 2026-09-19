@@ -32,7 +32,7 @@ function makeTestTile() {
   };
 }
 
-async function createApp(service: Partial<Pick<GfsService, 'getTile'>>) {
+async function createApp(service: Partial<GfsService>) {
   const module = await Test.createTestingModule({
     controllers: [WeatherController],
     providers: [{ provide: GfsService, useValue: service }],
@@ -42,16 +42,19 @@ async function createApp(service: Partial<Pick<GfsService, 'getTile'>>) {
   return app;
 }
 
-test('GET /weather/gfs/tiles/:x/:y returns a compressed deterministic tile', async () => {
+test('GET /weather/gfs/tiles/:z/:x/:y returns a compressed deterministic tile', async () => {
   const tile = makeTestTile();
-  const controller = new WeatherController({ getTile: async () => tile } as GfsService);
+  const controller = new WeatherController({
+    getCompleteInventory: async () => ({ run: { runAt: tile.run }, tiles: [] }),
+    getXyzTileFromInventory: async () => tile,
+  } as unknown as GfsService);
   const headers = new Map<string, string>();
   const response = {
     set: (name: string, value: string) => headers.set(name, value),
     status: () => response,
     send: (value: Buffer) => value,
   } as never;
-  const body = await controller.getGfsTile('13', '6', '0', { header: () => undefined } as never, response);
+  const body = await controller.getGfsTile('6', '13', '6', '0', { header: () => undefined } as never, response);
   assert.equal(headers.get('Cache-Control'), successCacheControl);
   assert.match(headers.get('ETag') ?? '', /^"[0-9a-f]{64}"$/);
   assert.ok(body instanceof Buffer);
@@ -65,10 +68,11 @@ test('GFS tile Redis HIT avoids the origin lookup', async () => {
   const cachedBody = Buffer.from('cached-gfs-tile');
   const controller = new WeatherController(
     {
-      getTile: async () => {
+      getCompleteInventory: async () => {
         originCalls += 1;
         throw new Error('origin should not be called on a Redis HIT');
       },
+      getXyzTileFromInventory: async () => { throw new Error('origin should not be called on a Redis HIT'); },
     } as GfsService,
     {
       getActiveRun: async () => ({ run: '20260918T12', status: 'READY' }),
@@ -84,6 +88,7 @@ test('GFS tile Redis HIT avoids the origin lookup', async () => {
   } as never;
 
   const body = await controller.getGfsTile(
+    '6',
     '13',
     '6',
     '0',
@@ -96,37 +101,17 @@ test('GFS tile Redis HIT avoids the origin lookup', async () => {
   assert.match(headers.get('ETag') ?? '', /^"[0-9a-f]{64}"$/);
 });
 
-test('GFS tile resolution is validated and downsampled in the response', async () => {
-  const controller = new WeatherController({ getTile: async () => makeTestTile() } as GfsService);
-  const headers = new Map<string, string>();
-  const response = {
-    set: (name: string, value: string) => headers.set(name, value),
-    status: () => response,
-    send: (value: Buffer) => value,
-  } as never;
-
-  const body = await controller.getGfsTile(
-    '13',
-    '6',
-    '0',
-    { header: () => undefined } as never,
-    response,
-    '0.5',
-  );
-  const decoded = decodeGfsTile(gunzipSync(body));
-  assert.equal(decoded.header.resolution, 0.5);
-  assert.equal(decoded.header.width, 1);
-  assert.equal(decoded.header.height, 1);
-});
-
 test('GFS tiles return 304 for a matching ETag without a body', async () => {
-  const app = await createApp({ getTile: async () => makeTestTile() });
+  const app = await createApp({
+    getCompleteInventory: async () => ({ run: { runAt: makeTestTile().run }, tiles: [] }),
+    getXyzTileFromInventory: async () => makeTestTile(),
+  } as never);
   try {
     const first = await request(app.getHttpServer())
-      .get('/weather/gfs/tiles/13/6?forecastHour=0')
+      .get('/weather/gfs/tiles/6/13/6?forecastHour=0')
       .expect(200);
     const second = await request(app.getHttpServer())
-      .get('/weather/gfs/tiles/13/6?forecastHour=0')
+      .get('/weather/gfs/tiles/6/13/6?forecastHour=0')
       .set('If-None-Match', first.headers.etag)
       .expect(304);
     assert.equal(second.headers.etag, first.headers.etag);
@@ -139,10 +124,10 @@ test('GFS tiles return 304 for a matching ETag without a body', async () => {
 });
 
 test('invalid GFS tile coordinates are not publicly cacheable', async () => {
-  const app = await createApp({ getTile: async () => { throw new Error('not reached'); } });
+  const app = await createApp({ getCompleteInventory: async () => { throw new Error('not reached'); } });
   try {
     const response = await request(app.getHttpServer())
-      .get('/weather/gfs/tiles/nope/6?forecastHour=0')
+      .get('/weather/gfs/tiles/6/nope/6?forecastHour=0')
       .expect(400);
     assert.equal(response.headers['cache-control'], 'no-store');
   } finally {
