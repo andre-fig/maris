@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 
 import { validateEnv } from './config/env.schema.js';
@@ -9,6 +9,7 @@ import { TilesModule } from './tiles/tiles.module.js';
 import { WeatherModule } from './weather/weather.module.js';
 import { ChartsModule } from './charts/charts.module.js';
 import { StorageModule } from './storage/storage.module.js';
+import { RequestTimingMiddleware } from './request-timing.middleware.js';
 
 @Module({
   imports: [
@@ -25,4 +26,8 @@ import { StorageModule } from './storage/storage.module.js';
     ChartsModule, StorageModule,
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(RequestTimingMiddleware).forRoutes('*');
+  }
+}
