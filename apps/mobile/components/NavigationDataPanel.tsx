@@ -1,4 +1,5 @@
 import { SymbolView } from "expo-symbols";
+import { useState } from "react";
 import { StyleSheet, View } from "react-native";
 
 import {
@@ -152,11 +153,20 @@ export function GfsConditionsPanel({
 }
 
 function DataMetricsPanel({ items }: { items: DataPanelItem[] }) {
+  const [itemWidths, setItemWidths] = useState<Record<string, number>>({});
+
+  const updateItemWidth = (label: string, width: number) => {
+    setItemWidths((previous) =>
+      previous[label] === width ? previous : { ...previous, [label]: width },
+    );
+  };
+
   return (
     <BlurPanel flexDirection="row" alignSelf="stretch" style={styles.panel}>
       {items.map((item, index) => (
         <View
           key={item.label}
+          onLayout={({ nativeEvent }) => updateItemWidth(item.label, nativeEvent.layout.width)}
           style={[styles.item, index < items.length - 1 && styles.divider]}
         >
           <SymbolView
@@ -168,11 +178,14 @@ function DataMetricsPanel({ items }: { items: DataPanelItem[] }) {
           <BlurText style={styles.label} numberOfLines={1}>{item.label}</BlurText>
           <LoadingIcon loading={item.loading ?? false} size={22}>
             <BlurText
-              style={styles.value}
               numberOfLines={1}
               adjustsFontSizeToFit
-              minimumFontScale={0.58}
+              minimumFontScale={0.35}
               ellipsizeMode="clip"
+              style={[
+                styles.value,
+                { fontSize: valueFontSize(item.value, itemWidths[item.label]) },
+              ]}
             >
               {item.value}
             </BlurText>
@@ -182,6 +195,17 @@ function DataMetricsPanel({ items }: { items: DataPanelItem[] }) {
       ))}
     </BlurPanel>
   );
+}
+
+function valueFontSize(value: string, itemWidth?: number) {
+  const baseSize = 20;
+  if (!itemWidth || value.length === 0) return baseSize;
+
+  // Conservative average glyph width. This leaves room for separators and
+  // platform font differences before Text's final fit-to-width adjustment.
+  const availableWidth = Math.max(1, itemWidth - 4);
+  const estimatedSize = availableWidth / (value.length * 0.62);
+  return Math.max(9, Math.min(baseSize, estimatedSize));
 }
 
 const styles = StyleSheet.create({
