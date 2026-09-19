@@ -136,6 +136,11 @@ struct GridTile {
   int x = 0;
   int y = 0;
 };
+struct FieldTileSnapshot {
+  int tileZoom = 0;
+  std::vector<std::shared_ptr<const GridTile>> tiles;
+  std::unordered_map<uint64_t, size_t> tileLookup;
+};
 
 struct LookupMetrics {
   uint64_t samples = 0;
@@ -236,14 +241,10 @@ struct Field {
   std::vector<float> gridV;
   std::vector<uint8_t> gridValid;
 
+  // Legacy arbitrary-grid storage. Indexed XYZ fields use immutable snapshots
+  // published atomically through indexedTilesSnapshot.
   std::vector<GridTile> gridTiles;
-
-  int tileZoom = 0;
-
-  std::unordered_map<
-      uint64_t,
-      size_t
-  > tileLookup;
+  std::shared_ptr<const FieldTileSnapshot> indexedTilesSnapshot;
 
   bool indexedTiles = false;
 
@@ -299,19 +300,15 @@ struct Field {
 
   explicit Field(
       std::vector<GridTile> tiles
-  )
-      : isGfs(true),
-        gridTiles(
-            std::move(tiles)
-        ) {
+  ) : isGfs(true) {
     indexedTiles = true;
     received = 0;
 
-    if (gridTiles.empty())
+    if (tiles.empty())
       return;
 
-    const auto &first =
-        gridTiles.front();
+    auto snapshot = std::make_shared<FieldTileSnapshot>();
+    const auto &first = tiles.front();
 
     const double span =
         first.east >= first.west
@@ -321,7 +318,7 @@ struct Field {
                   360. -
                   first.west;
 
-    tileZoom =
+    snapshot->tileZoom =
         std::clamp(
             int(
                 std::llround(
@@ -334,20 +331,12 @@ struct Field {
             30
         );
 
-    const int n =
-        1 << tileZoom;
+    const int n = 1 << snapshot->tileZoom;
 
-    tileLookup.reserve(
-        gridTiles.size()
-    );
+    snapshot->tiles.reserve(tiles.size());
+    snapshot->tileLookup.reserve(tiles.size());
 
-    for (
-        size_t i = 0;
-        i < gridTiles.size();
-        ++i
-    ) {
-      auto &tile =
-          gridTiles[i];
+    for (auto &tile : tiles) {
 
       double wrappedWest =
           std::fmod(
@@ -360,7 +349,7 @@ struct Field {
       if (wrappedWest < 0)
         wrappedWest += 360.;
 
-      tile.z = tileZoom;
+      tile.z = snapshot->tileZoom;
 
       tile.x =
           std::clamp(
@@ -391,18 +380,53 @@ struct Field {
               n - 1
           );
 
-      tileLookup[
+      const size_t index = snapshot->tiles.size();
+      snapshot->tiles.push_back(
+          std::make_shared<const GridTile>(std::move(tile)));
+      snapshot->tileLookup[
           tileKey(
               tile.z,
               tile.x,
               tile.y
           )
-      ] = i;
+      ] = index;
 
       received +=
           tile.width *
           tile.height;
     }
+
+    std::atomic_store_explicit(
+        &indexedTilesSnapshot,
+        std::shared_ptr<const FieldTileSnapshot>(std::move(snapshot)),
+        std::memory_order_release);
+  }
+
+  bool upsertGridTile(GridTile tile) {
+    if (!indexedTiles) return false;
+
+    auto current = std::atomic_load_explicit(
+        &indexedTilesSnapshot,
+        std::memory_order_acquire);
+    if (!current || tile.z != current->tileZoom) return false;
+
+    auto next = std::make_shared<FieldTileSnapshot>(*current);
+    const uint64_t key = tileKey(tile.z, tile.x, tile.y);
+    auto it = next->tileLookup.find(key);
+    if (it == next->tileLookup.end()) {
+      next->tileLookup.emplace(key, next->tiles.size());
+      next->tiles.push_back(
+          std::make_shared<const GridTile>(std::move(tile)));
+    } else {
+      next->tiles[it->second] =
+          std::make_shared<const GridTile>(std::move(tile));
+    }
+
+    std::atomic_store_explicit(
+        &indexedTilesSnapshot,
+        std::shared_ptr<const FieldTileSnapshot>(std::move(next)),
+        std::memory_order_release);
+    return true;
   }
 
   static uint64_t tileKey(
@@ -768,6 +792,13 @@ struct Field {
        *
        * Tile Y can be derived directly from y.
        */
+      auto tileSnapshot = std::atomic_load_explicit(
+          &indexedTilesSnapshot,
+          std::memory_order_acquire);
+      if (!tileSnapshot || tileSnapshot->tiles.empty())
+        return finishLookup(false);
+
+      const int tileZoom = tileSnapshot->tileZoom;
       const int n =
           1 << tileZoom;
 
@@ -806,7 +837,7 @@ struct Field {
           );
 
       const auto tileIt =
-          tileLookup.find(
+          tileSnapshot->tileLookup.find(
               tileKey(
                   tileZoom,
                   tileX,
@@ -816,7 +847,7 @@ struct Field {
 
       if (
           tileIt ==
-          tileLookup.end()
+          tileSnapshot->tileLookup.end()
       ) {
         return finishLookup(false);
       }
@@ -825,7 +856,7 @@ struct Field {
           .directLookups++;
 
       const GridTile &tile =
-          gridTiles[
+          *tileSnapshot->tiles[
               tileIt->second
           ];
 

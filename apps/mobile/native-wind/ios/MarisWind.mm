@@ -136,6 +136,7 @@ static NSString *MarisGfsFieldKey(NSDictionary *payload) {
   std::shared_ptr<maris::Field> _oldField;
   maris::WindFade _fieldTransition;
   std::shared_ptr<maris::Field> _field;
+  std::mutex _fieldMutex;
 
   maris::Particles _particles;
 
@@ -368,6 +369,7 @@ static NSString *MarisGfsFieldKey(NSDictionary *payload) {
 
 - (double)speedAtCenter:
     (CLLocationCoordinate2D)center {
+  std::lock_guard<std::mutex> lock(_fieldMutex);
   return maris::speedAtCoordinate(
     _field.get(),
     center.longitude,
@@ -379,6 +381,7 @@ static NSString *MarisGfsFieldKey(NSDictionary *payload) {
 
 - (void)setGfsField:(NSDictionary *)payload {
   if (!payload) {
+    std::lock_guard<std::mutex> lock(_fieldMutex);
     if (_gfsKey == nil && !_field) {
       return;
     }
@@ -415,9 +418,12 @@ static NSString *MarisGfsFieldKey(NSDictionary *payload) {
   NSString *key =
     MarisGfsFieldKey(payload);
 
-  if (key &&
-      [key isEqualToString:_gfsKey]) {
-    return;
+  BOOL sameField = NO;
+  {
+    std::lock_guard<std::mutex> lock(_fieldMutex);
+    sameField = key &&
+      [key isEqualToString:_gfsKey] &&
+      _field;
   }
 
   std::vector<maris::GridTile>
@@ -506,8 +512,7 @@ static NSString *MarisGfsFieldKey(NSDictionary *payload) {
         vn.floatValue;
     }
 
-    nativeTiles.push_back(
-      maris::GridTile{
+    maris::GridTile nativeTile{
         [bounds[@"west"]
           doubleValue],
 
@@ -526,11 +531,25 @@ static NSString *MarisGfsFieldKey(NSDictionary *payload) {
         std::move(u),
         std::move(v),
         std::move(valid)
-      }
-    );
+    };
+    nativeTile.z = [tile[@"z"] intValue];
+    nativeTile.x = [tile[@"x"] intValue];
+    nativeTile.y = [tile[@"y"] intValue];
+    nativeTiles.push_back(std::move(nativeTile));
   }
 
   if (nativeTiles.empty()) {
+    return;
+  }
+
+  if (sameField) {
+    std::lock_guard<std::mutex> lock(_fieldMutex);
+    if (!_field || !key || ![key isEqualToString:_gfsKey]) return;
+    for (auto &tile : nativeTiles) {
+      _field->upsertGridTile(std::move(tile));
+    }
+    _loading = NO;
+    [self setNeedsDisplay];
     return;
   }
 
@@ -543,17 +562,13 @@ static NSString *MarisGfsFieldKey(NSDictionary *payload) {
    * Only commit the key once we know that the
    * payload produced a valid native field.
    */
-  _gfsKey =
-    [key copy];
-
-  _oldField =
-    _field;
-
-  _fieldTransition =
-    maris::WindFade();
-
-  _field =
-    std::move(next);
+  {
+    std::lock_guard<std::mutex> lock(_fieldMutex);
+    _gfsKey = [key copy];
+    _oldField = _field;
+    _fieldTransition = maris::WindFade();
+    _field = std::move(next);
+  }
 
   _particles.invalidateTrails();
 
@@ -695,27 +710,25 @@ static NSString *MarisGfsFieldKey(NSDictionary *payload) {
     (MLNMapView *)map
           withContext:
     (MLNStyleLayerDrawingContext)context {
-  if (!_field ||
-      !self.renderEncoder) {
+  if (!self.renderEncoder) {
     return;
   }
 
   _stats.begin();
 
-  auto f =
-    _field;
-
-  float progress =
-    _oldField
-      ? _fieldTransition.update(
-          true,
-          CACurrentMediaTime()
-        )
-      : 1;
-
-  if (progress >= 1) {
-    _oldField.reset();
+  std::shared_ptr<maris::Field> f;
+  std::shared_ptr<maris::Field> oldField;
+  float progress = 1;
+  {
+    std::lock_guard<std::mutex> lock(_fieldMutex);
+    f = _field;
+    if (_oldField) {
+      progress = _fieldTransition.update(true, CACurrentMediaTime());
+      if (progress >= 1) _oldField.reset();
+      oldField = _oldField;
+    }
   }
+  if (!f) return;
 
   const double *matrix =
     &context.projectionMatrix.m00;
@@ -765,7 +778,7 @@ static NSString *MarisGfsFieldKey(NSDictionary *payload) {
       _density *
         _quality.density,
       _animationSpeed,
-      _oldField.get(),
+      oldField.get(),
       progress
     );
 

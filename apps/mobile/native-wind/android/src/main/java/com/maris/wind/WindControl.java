@@ -31,17 +31,26 @@ public class WindControl extends View
                                float speed, boolean visible);
   static native void setGrid(long id, double[] tileBounds, int[] tileDimensions,
                              float[] u, float[] v);
+  static native boolean upsertTile(long id, int z, int x, int y,
+                                   double[] bounds, int width, int height,
+                                   float[] u, float[] v);
   static native void clearGrid(long id);
   static native boolean fadedOut(long id);
   static native double speedAtCenter(long id, double longitude, double latitude);
   com.facebook.react.bridge.ReadableArray sampleCoordinate;
   ReadableMap windField;
   String appliedWindFieldKey;
+  String appliedFieldIdentity;
+  java.util.HashMap<String, String> appliedTileVersions = new java.util.HashMap<>();
   long perfSetGridCalls;
   long perfLastLogMs = SystemClock.uptimeMillis();
   void setWindField(ReadableMap value) {
     windField = value;
-    appliedWindFieldKey = null;
+    if (value == null) {
+      appliedWindFieldKey = null;
+      appliedFieldIdentity = null;
+      appliedTileVersions.clear();
+    }
     applyWindField();
   }
   void applyWindField() {
@@ -49,32 +58,32 @@ public class WindControl extends View
     if (windField == null) {
       clearGrid(id);
       appliedWindFieldKey = "null";
+      appliedFieldIdentity = null;
+      appliedTileVersions.clear();
       return;
     }
     ReadableArray tileValues = windField.getArray("tiles");
     if (tileValues == null || tileValues.size() == 0) return;
-    String key = windField.hasKey("run") ? windField.getString("run") : "";
-    key += "|" + (windField.hasKey("model") ? windField.getString("model") : "");
-    key += "|" + (windField.hasKey("forecastTime") ? windField.getString("forecastTime") : "");
-    // ReadableArray.toString() is not a content identity on all React Native
-    // implementations. Build a stable key from the field metadata so camera
-    // updates do not trigger another bridge transfer for the same tiles.
-    for (int tileIndex = 0; tileIndex < tileValues.size(); tileIndex++) {
-      ReadableMap tile = tileValues.getMap(tileIndex);
-      ReadableMap bounds = tile.getMap("bounds");
-      if (bounds == null) return;
-      key += "|" + tileIndex + ":" + bounds.getDouble("west") + "," +
-          bounds.getDouble("south") + "," + bounds.getDouble("east") + "," +
-          bounds.getDouble("north") + ":" +
-          tile.getInt("width") + "x" + tile.getInt("height");
+    String identity = windField.hasKey("fieldKey") ? windField.getString("fieldKey") : "";
+    if (identity.length() == 0) {
+      identity = (windField.hasKey("run") ? windField.getString("run") : "") +
+          "|" + (windField.hasKey("model") ? windField.getString("model") : "") +
+          "|" + (windField.hasKey("forecastTime") ? windField.getString("forecastTime") : "") +
+          "|" + (windField.hasKey("sourceZoom") ? windField.getInt("sourceZoom") : -1) +
+          "|" + (windField.hasKey("resolution") ? windField.getDouble("resolution") : -1);
     }
-    if (key.equals(appliedWindFieldKey)) return;
-    double[] tileBounds = new double[tileValues.size() * 4];
-    int[] tileDimensions = new int[tileValues.size() * 2];
-    int totalValues = 0;
+    if (!identity.equals(appliedFieldIdentity)) {
+      clearGrid(id);
+      appliedFieldIdentity = identity;
+      appliedTileVersions.clear();
+    }
+    boolean sentAny = false;
     for (int tileIndex = 0; tileIndex < tileValues.size(); tileIndex++) {
       ReadableMap tile = tileValues.getMap(tileIndex);
       ReadableMap bounds = tile.getMap("bounds");
+      int z = tile.hasKey("z") ? tile.getInt("z") : 0;
+      int x = tile.hasKey("x") ? tile.getInt("x") : 0;
+      int y = tile.hasKey("y") ? tile.getInt("y") : 0;
       int width = tile.hasKey("width") ? tile.getInt("width") : 0;
       int height = tile.hasKey("height") ? tile.getInt("height") : 0;
       ReadableArray uValues = tile.getArray("windU");
@@ -82,31 +91,26 @@ public class WindControl extends View
       if (bounds == null || width <= 0 || height <= 0 || uValues == null ||
           vValues == null || uValues.size() != width * height ||
           vValues.size() != width * height) return;
-      int boundOffset = tileIndex * 4;
-      tileBounds[boundOffset] = bounds.getDouble("west");
-      tileBounds[boundOffset + 1] = bounds.getDouble("south");
-      tileBounds[boundOffset + 2] = bounds.getDouble("east");
-      tileBounds[boundOffset + 3] = bounds.getDouble("north");
-      int dimensionOffset = tileIndex * 2;
-      tileDimensions[dimensionOffset] = width;
-      tileDimensions[dimensionOffset + 1] = height;
-      totalValues += width * height;
-    }
-    float[] u = new float[totalValues], v = new float[totalValues];
-    int valueOffset = 0;
-    for (int tileIndex = 0; tileIndex < tileValues.size(); tileIndex++) {
-      ReadableMap tile = tileValues.getMap(tileIndex);
-      ReadableArray uValues = tile.getArray("windU");
-      ReadableArray vValues = tile.getArray("windV");
-      int width = tileDimensions[tileIndex * 2];
-      int height = tileDimensions[tileIndex * 2 + 1];
+      String tileKey = z + "/" + x + "/" + y;
+      String version = (tile.hasKey("version") ? tile.getString("version") : tileKey) + ":" +
+          width + "x" + height + ":" +
+          bounds.getDouble("west") + "," + bounds.getDouble("south") + "," +
+          bounds.getDouble("east") + "," + bounds.getDouble("north");
+      if (version.equals(appliedTileVersions.get(tileKey))) continue;
+      float[] u = new float[width * height], v = new float[width * height];
       for (int i = 0; i < width * height; i++) {
-        u[valueOffset + i] = uValues.isNull(i) ? Float.NaN : (float)uValues.getDouble(i);
-        v[valueOffset + i] = vValues.isNull(i) ? Float.NaN : (float)vValues.getDouble(i);
+        u[i] = uValues.isNull(i) ? Float.NaN : (float)uValues.getDouble(i);
+        v[i] = vValues.isNull(i) ? Float.NaN : (float)vValues.getDouble(i);
       }
-      valueOffset += width * height;
+      if (upsertTile(id, z, x, y, new double[] {
+          bounds.getDouble("west"), bounds.getDouble("south"),
+          bounds.getDouble("east"), bounds.getDouble("north")
+      }, width, height, u, v)) {
+        appliedTileVersions.put(tileKey, version);
+        sentAny = true;
+      }
     }
-    setGrid(id, tileBounds, tileDimensions, u, v);
+    if (!sentAny) return;
     perfSetGridCalls++;
     long nowMs = SystemClock.uptimeMillis();
     if (nowMs - perfLastLogMs >= 1000) {
@@ -114,7 +118,7 @@ public class WindControl extends View
       perfSetGridCalls = 0;
       perfLastLogMs = nowMs;
     }
-    appliedWindFieldKey = key;
+    appliedWindFieldKey = identity;
     emitSample();
   }
   void emitSample() {

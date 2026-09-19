@@ -494,6 +494,12 @@ export function useGfsViewport(
       .filter((item) => item.grid.run === newestRun)
       .map((item) => item.grid);
   }, [activeCachedTiles]);
+  const activeTileEntries = useMemo(() => {
+    if (activeCachedTiles.length <= 1) return activeCachedTiles;
+    const newestRun = [...activeCachedTiles]
+      .sort((left, right) => right.savedAt - left.savedAt)[0]!.grid.run;
+    return activeCachedTiles.filter((item) => item.grid.run === newestRun);
+  }, [activeCachedTiles]);
   const displayedPackage = useRef<GfsPackage | null>(null);
   if (composedPackage) displayedPackage.current = composedPackage;
   const packageData = composedPackage ?? displayedPackage.current;
@@ -501,6 +507,7 @@ export function useGfsViewport(
   return {
     packageData,
     activeTiles,
+    activeTileEntries,
     samples,
     current: samples.find((sample) => sample.forecastHour === 0),
     loading: enabled && loading && !packageData,

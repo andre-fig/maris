@@ -1576,6 +1576,67 @@ Java_com_maris_wind_WindControl_setGrid(
   s->staging.reset();
 }
 
+JNIEXPORT jboolean JNICALL
+Java_com_maris_wind_WindControl_upsertTile(
+    JNIEnv *env,
+    jclass,
+    jlong id,
+    jint z,
+    jint x,
+    jint y,
+    jdoubleArray boundsArray,
+    jint width,
+    jint height,
+    jfloatArray uArray,
+    jfloatArray vArray
+) {
+  auto s = state(id);
+  if (!s || !boundsArray || !uArray || !vArray ||
+      width <= 0 || height <= 0 ||
+      env->GetArrayLength(boundsArray) != 4 ||
+      env->GetArrayLength(uArray) != width * height ||
+      env->GetArrayLength(vArray) != width * height) {
+    return false;
+  }
+
+  std::array<jdouble, 4> bounds{};
+  env->GetDoubleArrayRegion(boundsArray, 0, 4, bounds.data());
+
+  std::vector<jfloat> rawU(size_t(width * height));
+  std::vector<jfloat> rawV(size_t(width * height));
+  env->GetFloatArrayRegion(uArray, 0, width * height, rawU.data());
+  env->GetFloatArrayRegion(vArray, 0, width * height, rawV.data());
+
+  std::vector<float> u(size_t(width * height), 0.f);
+  std::vector<float> v(size_t(width * height), 0.f);
+  std::vector<uint8_t> valid(size_t(width * height), 1);
+  for (int i = 0; i < width * height; ++i) {
+    if (!std::isfinite(rawU[size_t(i)]) || !std::isfinite(rawV[size_t(i)])) {
+      valid[size_t(i)] = 0;
+      continue;
+    }
+    u[size_t(i)] = rawU[size_t(i)];
+    v[size_t(i)] = rawV[size_t(i)];
+  }
+
+  maris::GridTile tile{
+      bounds[0], bounds[1], bounds[2], bounds[3],
+      width, height, std::move(u), std::move(v), std::move(valid)};
+  tile.z = z;
+  tile.x = x;
+  tile.y = y;
+
+  std::lock_guard<std::mutex> lock(s->mutex);
+  if (!s->field) {
+    std::vector<maris::GridTile> initial;
+    initial.push_back(std::move(tile));
+    s->field = std::make_shared<maris::Field>(std::move(initial));
+    s->staging.reset();
+    return true;
+  }
+  return s->field->upsertGridTile(std::move(tile));
+}
+
 JNIEXPORT void JNICALL
 Java_com_maris_wind_WindControl_clearGrid(
     JNIEnv *,

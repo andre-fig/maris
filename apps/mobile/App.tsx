@@ -200,14 +200,46 @@ export default function App() {
     viewState.zoom,
     offlineReady,
   );
+  const nativeSentTiles = useRef<{
+    identity: string;
+    versions: globalThis.Map<string, string>;
+  }>({ identity: '', versions: new globalThis.Map() });
   const nativeWindField = useMemo<NativeWindField | null>(() => {
-    const activeGfsTiles = gfs.activeTiles ?? [];
-    const tiles = activeGfsTiles
-      .map((grid) => {
+    const activeEntries = gfs.activeTileEntries ?? [];
+    const first = activeEntries[0]?.grid;
+    if (!first || !activeEntries.length) {
+      nativeSentTiles.current = { identity: '', versions: new globalThis.Map() };
+      return null;
+    }
+    const sourceZoom = activeEntries[0]!.tile.z;
+    const identity = [
+      first.run,
+      first.model,
+      first.forecastTime,
+      sourceZoom,
+      first.resolution,
+    ].join('|');
+    if (nativeSentTiles.current.identity !== identity) {
+      nativeSentTiles.current = { identity, versions: new globalThis.Map() };
+    }
+    const tiles = activeEntries
+      .filter((entry) => {
+        const tileKey = `${entry.tile.z}/${entry.tile.x}/${entry.tile.y}`;
+        const version = `${entry.savedAt}|${entry.etag ?? ''}`;
+        if (nativeSentTiles.current.versions.get(tileKey) === version) return false;
+        nativeSentTiles.current.versions.set(tileKey, version);
+        return true;
+      })
+      .map((entry) => {
+        const grid = entry.grid;
         const windU = grid.fields.windU;
         const windV = grid.fields.windV;
         if (!windU || !windV) return null;
         return {
+          z: entry.tile.z,
+          x: entry.tile.x,
+          y: entry.tile.y,
+          version: `${entry.savedAt}|${entry.etag ?? ''}`,
           bounds: grid.bounds,
           width: grid.width,
           height: grid.height,
@@ -216,16 +248,17 @@ export default function App() {
         };
       })
       .filter((tile): tile is NonNullable<typeof tile> => tile !== null);
-    const first = activeGfsTiles[0];
-    if (!first || !tiles.length) return null;
     recordNativeWindFieldPerf();
     return {
       tiles,
       forecastTime: first.forecastTime,
       run: first.run,
       model: first.model,
+      sourceZoom,
+      resolution: first.resolution,
+      fieldKey: identity,
     };
-  }, [gfs.activeTiles]);
+  }, [gfs.activeTileEntries]);
 
   const refreshVisibleBounds = (immediate = false) => {
     if (!immediate) {

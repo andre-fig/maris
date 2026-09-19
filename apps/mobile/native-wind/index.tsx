@@ -1,6 +1,10 @@
 import { requireNativeComponent, type ViewProps, type NativeSyntheticEvent } from 'react-native';
 
 export type NativeWindTile = {
+  z: number;
+  x: number;
+  y: number;
+  version?: string;
   bounds: { north: number; south: number; east: number; west: number };
   width: number;
   height: number;
@@ -11,6 +15,9 @@ export type NativeWindTile = {
 export type NativeWindField = {
   tiles: NativeWindTile[];
   forecastTime: string;
+  sourceZoom: number;
+  resolution: number;
+  fieldKey?: string;
   run?: string;
   model?: string;
 };
