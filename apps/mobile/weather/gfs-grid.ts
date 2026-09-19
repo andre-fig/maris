@@ -28,8 +28,19 @@ export type GfsGrid = {
     gust: 'm/s';
     humidity: '%';
   };
-  fields: Partial<Record<string, Array<number | null>>>;
+  fields: Partial<Record<GfsFieldName, Array<number | null>>>;
 };
+
+export type GfsFieldName =
+  | 'windU'
+  | 'windV'
+  | 'temperature'
+  | 'precipitation'
+  | 'precipitationRate'
+  | 'cloudCover'
+  | 'pressure'
+  | 'gust'
+  | 'humidity';
 
 export type GfsPackage = {
   model: 'gfs';
@@ -57,7 +68,7 @@ function normalizeLongitude(longitude: number) {
 }
 
 function sampleField(grid: GfsGrid, field: string, latitude: number, longitude: number) {
-  const values = grid.fields[field];
+  const values = grid.fields[field as GfsFieldName];
   if (!values || values.length !== grid.width * grid.height) return null;
 
   const normalizedLongitude = normalizeLongitude(longitude);
