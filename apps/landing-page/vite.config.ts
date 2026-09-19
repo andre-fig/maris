@@ -7,9 +7,14 @@
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
 export default defineConfig({
-  // Railway runs a regular Node container, so emit a Node server instead of
-  // the Cloudflare worker preset used by the Lovable preview environment.
-  nitro: { preset: "node-server" },
+  // Railway uses the Node preset by default. Cloudflare deployments can opt
+  // into Nitro's Workers preset with NITRO_PRESET=cloudflare-module.
+  nitro: {
+    preset: process.env.NITRO_PRESET ?? "node-server",
+    cloudflare: {
+      wrangler: { name: "maris-landing" },
+    },
+  },
   tanstackStart: {
     // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
     // nitro/vite builds from this
