@@ -46,3 +46,7 @@ dinamarca: https://data.europa.eu/data/datasets/sdfe-dk-enc-01?locale=en&utm_sou
 - [ ] Depth
 - [ ] Draft
 - [ ] UKC
+
+- [ ] Sentry
+
+bug no wind
