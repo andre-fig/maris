@@ -481,16 +481,26 @@ export function useGfsViewport(
     stableTiles.current = { key: computedRequestedKey, tiles: computedRequestedTiles };
   }
   const requestedTiles = stableTiles.current.tiles;
-  const composedPackage = useMemo(() => {
+  const activeCachedTiles = useMemo(() => {
     void tilesVersion;
-    return packageFromTiles(gfsTileStore.snapshot(requestedTiles, 0));
+    return gfsTileStore.snapshot(requestedTiles, 0);
   }, [computedRequestedKey, tilesVersion]);
+  const composedPackage = useMemo(() => packageFromTiles(activeCachedTiles), [activeCachedTiles]);
+  const activeTiles = useMemo(() => {
+    if (activeCachedTiles.length <= 1) return activeCachedTiles.map((item) => item.grid);
+    const newestRun = [...activeCachedTiles]
+      .sort((left, right) => right.savedAt - left.savedAt)[0]!.grid.run;
+    return activeCachedTiles
+      .filter((item) => item.grid.run === newestRun)
+      .map((item) => item.grid);
+  }, [activeCachedTiles]);
   const displayedPackage = useRef<GfsPackage | null>(null);
   if (composedPackage) displayedPackage.current = composedPackage;
   const packageData = composedPackage ?? displayedPackage.current;
   const samples = useMemo(() => sampleGfsPackageAtCoordinate(packageData, coordinate), [packageData, coordinate?.[0], coordinate?.[1]]);
   return {
     packageData,
+    activeTiles,
     samples,
     current: samples.find((sample) => sample.forecastHour === 0),
     loading: enabled && loading && !packageData,

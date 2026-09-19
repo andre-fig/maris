@@ -55,6 +55,22 @@ int main() {
   assert(std::abs(u - 3) < 1e-6 && std::abs(v - 25) < 1e-6);
   assert(std::abs(maris::speedAtCoordinate(&gfsField, -.5, .5) - 25.179356) < 1e-5);
   assert(!gfsField.sample(maris::mx(.5), gfsY, u, v));
+  maris::Field tiledGfs(std::vector<maris::GridTile>{
+      {-180, 0, 0, 85.05112878, 2, 2, {10, 10, 10, 10}, {0, 0, 0, 0}, {1, 1, 1, 1}},
+      {0, 0, 180, 85.05112878, 2, 2, {-10, -10, -10, -10}, {0, 0, 0, 0}, {1, 1, 1, 1}},
+  });
+  assert(tiledGfs.sample(maris::mx(-90), maris::my(45), u, v));
+  assert(u == 10 && v == 0); // +u moves east.
+  assert(tiledGfs.sample(maris::mx(90), maris::my(45), u, v));
+  assert(u == -10 && v == 0); // -u moves west.
+  maris::Field verticalGfs(std::vector<maris::GridTile>{
+      {-180, 0, 0, 85.05112878, 2, 2, {0, 0, 0, 0}, {10, 10, 10, 10}, {1, 1, 1, 1}},
+      {-180, -85.05112878, 0, 0, 2, 2, {0, 0, 0, 0}, {-10, -10, -10, -10}, {1, 1, 1, 1}},
+  });
+  assert(verticalGfs.sample(maris::mx(-90), maris::my(45), u, v));
+  assert(v == 10); // +v moves north.
+  assert(verticalGfs.sample(maris::mx(-90), maris::my(-45), u, v));
+  assert(v == -10); // -v moves south.
   maris::Field datelineGfs(
       179, 0, -179, 1, 2, 2,
       {1, 3, 5, 7}, {2, 4, 6, 8}, {1, 1, 1, 1});

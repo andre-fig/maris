@@ -185,10 +185,19 @@ public:
     glUseProgram(savedProgram);
 #ifndef NDEBUG
     if (stats.end())
+    {
+      const auto lookupMetrics = field->consumeLookupMetrics();
       __android_log_print(
           ANDROID_LOG_INFO, "MarisWind",
-          "render callbacks=%.1f/s cpu=%.3fms atlasBytes=%zu vertices=%zu",
-          stats.fps, stats.averageCpuMs, field->rgba.size(), lines.size());
+          "render callbacks=%.1f/s cpu=%.3fms atlasBytes=%zu vertices=%zu "
+          "samples/frame=%.1f directLookups=%llu avgTileLookupMs=%.4f",
+          stats.fps, stats.averageCpuMs, field->rgba.size(), lines.size(),
+          lookupMetrics.samples / std::max(1., stats.fps * 5.),
+          (unsigned long long)lookupMetrics.directLookups,
+          lookupMetrics.timedLookups
+              ? (double(lookupMetrics.lookupNanos) / lookupMetrics.timedLookups) / 1e6
+              : 0.0);
+    }
 #endif
   }
   void contextLost() override {
@@ -332,31 +341,65 @@ JNIEXPORT void JNICALL Java_com_maris_wind_WindControl_configure(
   s->visible = visible;
 }
 JNIEXPORT void JNICALL Java_com_maris_wind_WindControl_setGrid(
-    JNIEnv *env, jclass, jlong id, jdouble west, jdouble south,
-    jdouble east, jdouble north, jint width, jint height,
+    JNIEnv *env, jclass, jlong id, jdoubleArray boundsArray,
+    jintArray dimensionsArray,
     jfloatArray uArray, jfloatArray vArray) {
   auto s = state(id);
-  if (!s || width <= 0 || height <= 0 || !uArray || !vArray)
+  if (!s || !boundsArray || !dimensionsArray || !uArray || !vArray)
     return;
-  const jsize count = width * height;
-  if (env->GetArrayLength(uArray) != count || env->GetArrayLength(vArray) != count)
+  const jsize boundsLength = env->GetArrayLength(boundsArray);
+  const jsize dimensionsLength = env->GetArrayLength(dimensionsArray);
+  if (boundsLength <= 0 || boundsLength % 4 != 0 ||
+      dimensionsLength != boundsLength / 2)
     return;
-  std::vector<jfloat> rawU(size_t(count)), rawV(size_t(count));
-  env->GetFloatArrayRegion(uArray, 0, count, rawU.data());
-  env->GetFloatArrayRegion(vArray, 0, count, rawV.data());
-  std::vector<float> u(size_t(count)), v(size_t(count));
-  std::vector<uint8_t> valid(size_t(count), 1);
-  for (jsize i = 0; i < count; ++i) {
-    if (!std::isfinite(rawU[size_t(i)]) || !std::isfinite(rawV[size_t(i)])) {
-      valid[size_t(i)] = 0;
-      continue;
-    }
-    u[size_t(i)] = rawU[size_t(i)];
-    v[size_t(i)] = rawV[size_t(i)];
+  std::vector<jdouble> rawBounds(size_t(boundsLength));
+  std::vector<jint> rawDimensions(size_t(dimensionsLength));
+  env->GetDoubleArrayRegion(boundsArray, 0, boundsLength, rawBounds.data());
+  env->GetIntArrayRegion(dimensionsArray, 0, dimensionsLength, rawDimensions.data());
+  std::vector<maris::GridTile> tiles;
+  jsize totalCount = 0;
+  for (jsize tileIndex = 0; tileIndex < boundsLength / 4; ++tileIndex) {
+    const int width = rawDimensions[size_t(tileIndex * 2)];
+    const int height = rawDimensions[size_t(tileIndex * 2 + 1)];
+    if (width <= 0 || height <= 0 ||
+        !std::isfinite(rawBounds[size_t(tileIndex * 4)]) ||
+        !std::isfinite(rawBounds[size_t(tileIndex * 4 + 1)]) ||
+        !std::isfinite(rawBounds[size_t(tileIndex * 4 + 2)]) ||
+        !std::isfinite(rawBounds[size_t(tileIndex * 4 + 3)]))
+      return;
+    totalCount += width * height;
   }
-  auto field = std::make_shared<maris::Field>(
-      west, south, east, north, width, height, std::move(u), std::move(v),
-      std::move(valid));
+  if (env->GetArrayLength(uArray) != totalCount ||
+      env->GetArrayLength(vArray) != totalCount)
+    return;
+  std::vector<jfloat> rawU(size_t(totalCount)), rawV(size_t(totalCount));
+  env->GetFloatArrayRegion(uArray, 0, totalCount, rawU.data());
+  env->GetFloatArrayRegion(vArray, 0, totalCount, rawV.data());
+  jsize offset = 0;
+  for (jsize tileIndex = 0; tileIndex < boundsLength / 4; ++tileIndex) {
+    const int width = rawDimensions[size_t(tileIndex * 2)];
+    const int height = rawDimensions[size_t(tileIndex * 2 + 1)];
+    const jsize count = width * height;
+    std::vector<float> u(size_t(count)), v(size_t(count));
+    std::vector<uint8_t> valid(size_t(count), 1);
+    for (jsize i = 0; i < count; ++i) {
+      if (!std::isfinite(rawU[size_t(offset + i)]) ||
+          !std::isfinite(rawV[size_t(offset + i)])) {
+        valid[size_t(i)] = 0;
+        continue;
+      }
+      u[size_t(i)] = rawU[size_t(offset + i)];
+      v[size_t(i)] = rawV[size_t(offset + i)];
+    }
+    tiles.push_back(maris::GridTile{
+        rawBounds[size_t(tileIndex * 4)],
+        rawBounds[size_t(tileIndex * 4 + 1)],
+        rawBounds[size_t(tileIndex * 4 + 2)],
+        rawBounds[size_t(tileIndex * 4 + 3)],
+        width, height, std::move(u), std::move(v), std::move(valid)});
+    offset += count;
+  }
+  auto field = std::make_shared<maris::Field>(std::move(tiles));
   std::lock_guard<std::mutex> lock(s->mutex);
   s->field = std::move(field);
   s->staging.reset();

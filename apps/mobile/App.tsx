@@ -201,22 +201,31 @@ export default function App() {
     offlineReady,
   );
   const nativeWindField = useMemo<NativeWindField | null>(() => {
-    const grid = gfs.packageData?.grids["0"];
-    const windU = grid?.fields.windU;
-    const windV = grid?.fields.windV;
-    if (!grid || !windU || !windV) return null;
+    const activeGfsTiles = gfs.activeTiles ?? [];
+    const tiles = activeGfsTiles
+      .map((grid) => {
+        const windU = grid.fields.windU;
+        const windV = grid.fields.windV;
+        if (!windU || !windV) return null;
+        return {
+          bounds: grid.bounds,
+          width: grid.width,
+          height: grid.height,
+          windU,
+          windV,
+        };
+      })
+      .filter((tile): tile is NonNullable<typeof tile> => tile !== null);
+    const first = activeGfsTiles[0];
+    if (!first || !tiles.length) return null;
     recordNativeWindFieldPerf();
     return {
-      bounds: grid.bounds,
-      width: grid.width,
-      height: grid.height,
-      windU,
-      windV,
-      forecastTime: grid.forecastTime,
-      run: grid.run,
-      model: grid.model,
+      tiles,
+      forecastTime: first.forecastTime,
+      run: first.run,
+      model: first.model,
     };
-  }, [gfs.packageData]);
+  }, [gfs.activeTiles]);
 
   const refreshVisibleBounds = (immediate = false) => {
     if (!immediate) {
@@ -415,7 +424,7 @@ export default function App() {
       <NativeWindLayer
         enabled={windEnabled}
         opacity={1.0}
-        density={0.5}
+        density={1}
         animationSpeed={1}
         windField={nativeWindField}
         sampleCoordinate={windEnabled

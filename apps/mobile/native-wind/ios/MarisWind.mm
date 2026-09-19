@@ -127,7 +127,6 @@ static CFTimeInterval gfsSetGridLastLog;
   return maris::speedAtCoordinate(_field.get(), center.longitude, center.latitude);
 }
 - (void)setGfsField:(NSDictionary *)payload {
-  NSDictionary *bounds = payload[@"bounds"];
   if (!payload) {
     if (_gfsKey == nil && !_field) return;
     _gfsKey = nil;
@@ -136,35 +135,42 @@ static CFTimeInterval gfsSetGridLastLog;
     _particles = maris::Particles();
     return;
   }
-  NSArray *uValues = payload[@"windU"];
-  NSArray *vValues = payload[@"windV"];
-  NSInteger width = [payload[@"width"] integerValue];
-  NSInteger height = [payload[@"height"] integerValue];
-  if (![bounds isKindOfClass:NSDictionary.class] || width <= 0 || height <= 0 ||
-      uValues.count != (NSUInteger)(width * height) ||
-      vValues.count != (NSUInteger)(width * height)) return;
-  NSString *key = [NSString stringWithFormat:@"%@|%@|%@|%@|%@|%@|%@|%@|%@",
-      payload[@"run"] ?: @"", payload[@"model"] ?: @"", payload[@"forecastTime"] ?: @"",
-      bounds[@"west"] ?: @"", bounds[@"south"] ?: @"", bounds[@"east"] ?: @"",
-      bounds[@"north"] ?: @"", payload[@"width"] ?: @"", payload[@"height"] ?: @""];
+  NSArray *tiles = payload[@"tiles"];
+  if (![tiles isKindOfClass:NSArray.class] || tiles.count == 0) return;
+  NSString *key = [NSString stringWithFormat:@"%@|%@|%@|%@",
+      payload[@"run"] ?: @"", payload[@"model"] ?: @"", payload[@"forecastTime"] ?: @"", tiles];
   if ([key isEqualToString:_gfsKey]) return;
   _gfsKey = [key copy];
-  std::vector<float> u(size_t(width * height)), v(size_t(width * height));
-  std::vector<uint8_t> valid(size_t(width * height), 1);
-  for (NSInteger i = 0; i < width * height; ++i) {
-    NSNumber *un = uValues[i], *vn = vValues[i];
-    if (![un isKindOfClass:NSNumber.class] || ![vn isKindOfClass:NSNumber.class] ||
-        !std::isfinite(un.doubleValue) || !std::isfinite(vn.doubleValue)) {
-      valid[size_t(i)] = 0;
-      continue;
+  std::vector<maris::GridTile> nativeTiles;
+  for (NSDictionary *tile in tiles) {
+    if (![tile isKindOfClass:NSDictionary.class]) continue;
+    NSDictionary *bounds = tile[@"bounds"];
+    NSArray *uValues = tile[@"windU"];
+    NSArray *vValues = tile[@"windV"];
+    NSInteger width = [tile[@"width"] integerValue];
+    NSInteger height = [tile[@"height"] integerValue];
+    if (![bounds isKindOfClass:NSDictionary.class] || width <= 0 || height <= 0 ||
+        uValues.count != (NSUInteger)(width * height) ||
+        vValues.count != (NSUInteger)(width * height)) continue;
+    std::vector<float> u(size_t(width * height)), v(size_t(width * height));
+    std::vector<uint8_t> valid(size_t(width * height), 1);
+    for (NSInteger i = 0; i < width * height; ++i) {
+      NSNumber *un = uValues[i], *vn = vValues[i];
+      if (![un isKindOfClass:NSNumber.class] || ![vn isKindOfClass:NSNumber.class] ||
+          !std::isfinite(un.doubleValue) || !std::isfinite(vn.doubleValue)) {
+        valid[size_t(i)] = 0;
+        continue;
+      }
+      u[size_t(i)] = un.floatValue;
+      v[size_t(i)] = vn.floatValue;
     }
-    u[size_t(i)] = un.floatValue;
-    v[size_t(i)] = vn.floatValue;
+    nativeTiles.push_back(maris::GridTile{
+        [bounds[@"west"] doubleValue], [bounds[@"south"] doubleValue],
+        [bounds[@"east"] doubleValue], [bounds[@"north"] doubleValue],
+        int(width), int(height), std::move(u), std::move(v), std::move(valid)});
   }
-  auto next = std::make_shared<maris::Field>(
-      [bounds[@"west"] doubleValue], [bounds[@"south"] doubleValue],
-      [bounds[@"east"] doubleValue], [bounds[@"north"] doubleValue],
-      int(width), int(height), std::move(u), std::move(v), std::move(valid));
+  if (nativeTiles.empty()) return;
+  auto next = std::make_shared<maris::Field>(std::move(nativeTiles));
   _oldField = _field;
   _fieldTransition = maris::WindFade();
   _field = std::move(next);
@@ -422,13 +428,20 @@ static CFTimeInterval gfsSetGridLastLog;
                 vertexCount:_trailMesh.size()];
   }
   if (_measure && _stats.end()) {
+    const auto lookupMetrics = f->consumeLookupMetrics();
     task_vm_info_data_t memory{};
     mach_msg_type_number_t count = TASK_VM_INFO_COUNT;
     task_info(mach_task_self(), TASK_VM_INFO, (task_info_t)&memory, &count);
     NSLog(@"[Wind] render callbacks=%.1f/s cpu=%.3fms atlasBytes=%zu "
-          @"vertices=%zu processFootprintMiB=%.1f",
+          @"vertices=%zu processFootprintMiB=%.1f samples/frame=%.1f "
+          @"directLookups=%llu avgTileLookupMs=%.4f",
           _stats.fps, _stats.averageCpuMs, f->rgba.size(), lines.size(),
-          memory.phys_footprint / 1048576.);
+          memory.phys_footprint / 1048576.,
+          lookupMetrics.samples / std::max(1., _stats.fps * 5.),
+          (unsigned long long)lookupMetrics.directLookups,
+          lookupMetrics.timedLookups
+              ? (double(lookupMetrics.lookupNanos) / lookupMetrics.timedLookups) / 1e6
+              : 0.0);
   }
 }
 - (int)resolutionPenalty { return _quality.zoomPenalty(); }

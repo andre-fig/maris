@@ -8,6 +8,7 @@
 #include <memory>
 #include <mutex>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace maris {
@@ -53,6 +54,19 @@ struct Plan {
            std::to_string(bottom);
   }
 };
+struct GridTile {
+  double west = 0, south = 0, east = 0, north = 0;
+  int width = 0, height = 0;
+  std::vector<float> u, v;
+  std::vector<uint8_t> valid;
+  int z = 0, x = 0, y = 0;
+};
+struct LookupMetrics {
+  uint64_t samples = 0;
+  uint64_t directLookups = 0;
+  uint64_t timedLookups = 0;
+  uint64_t lookupNanos = 0;
+};
 inline Plan plan(double west, double south, double east, double north,
                  double zoom, int maxDimension = 2048) {
   if (east < west)
@@ -75,6 +89,11 @@ struct Field {
   int gridWidth = 0, gridHeight = 0;
   std::vector<float> gridU, gridV;
   std::vector<uint8_t> gridValid;
+  std::vector<GridTile> gridTiles;
+  int tileZoom = 0;
+  std::unordered_map<uint64_t, size_t> tileLookup;
+  bool indexedTiles = false;
+  mutable LookupMetrics lookupMetrics;
   int received = 0;
   explicit Field(Plan p)
       : plan(p), rgba(size_t(p.width()) * p.height() * 4, 0) {}
@@ -84,7 +103,44 @@ struct Field {
       : isGfs(true), west(gridWest), south(gridSouth), east(gridEast),
         north(gridNorth), gridWidth(width), gridHeight(height),
         gridU(std::move(u)), gridV(std::move(v)), gridValid(std::move(valid)),
-        received(width * height) {}
+        received(width * height) {
+    gridTiles.push_back(GridTile{gridWest, gridSouth, gridEast, gridNorth,
+                                 width, height, std::move(gridU), std::move(gridV),
+                                 std::move(gridValid)});
+  }
+  explicit Field(std::vector<GridTile> tiles)
+      : isGfs(true), gridTiles(std::move(tiles)) {
+    indexedTiles = true;
+    received = 0;
+    if (!gridTiles.empty()) {
+      // GFS tiles are Web Mercator XYZ tiles. Recover their XYZ identity once
+      // when the native field is created; sampling then uses one hash lookup.
+      const auto &first = gridTiles.front();
+      const double span = first.east >= first.west
+          ? first.east - first.west
+          : first.east + 360. - first.west;
+      tileZoom = std::clamp(int(std::llround(std::log2(360. / span))), 0, 30);
+      const int n = 1 << tileZoom;
+      for (size_t i = 0; i < gridTiles.size(); ++i) {
+        auto &tile = gridTiles[i];
+        const double wrappedWest = std::fmod(tile.west + 180. + 360., 360.);
+        tile.z = tileZoom;
+        tile.x = std::clamp(int(std::floor(wrappedWest / 360. * n)), 0, n - 1);
+        tile.y = std::clamp(int(std::floor(my(tile.north) * n)), 0, n - 1);
+        tileLookup[tileKey(tile.z, tile.x, tile.y)] = i;
+        received += tile.width * tile.height;
+      }
+    }
+  }
+  static uint64_t tileKey(int z, int x, int y) {
+    return (uint64_t(uint32_t(z)) << 48) |
+           (uint64_t(uint32_t(x)) << 24) | uint64_t(uint32_t(y));
+  }
+  LookupMetrics consumeLookupMetrics() const {
+    LookupMetrics result = lookupMetrics;
+    lookupMetrics = {};
+    return result;
+  }
   bool complete() const { return received == (plan.right-plan.left+1)*(plan.bottom-plan.top+1); }
   void put(int x, int y, const uint8_t *bytes, size_t stride) {
     for (int row = 0; row < 256; ++row)
@@ -97,40 +153,103 @@ struct Field {
   // Bilinear across the *whole* atlas, including adjacent tile boundaries.
   bool sample(double x, double y, float &u, float &v) const {
     if (isGfs) {
-      if (gridWidth <= 0 || gridHeight <= 0 || east == west || north <= south)
-        return false;
+      const uint64_t sampleNumber = lookupMetrics.samples++;
+      const bool measureLookup = (sampleNumber & 63u) == 0;
+      const auto lookupStarted = measureLookup ? std::chrono::steady_clock::now() :
+                                                  std::chrono::steady_clock::time_point{};
+      auto finishLookup = [&](bool result) {
+        if (measureLookup) {
+          lookupMetrics.timedLookups++;
+          lookupMetrics.lookupNanos += uint64_t(std::chrono::duration_cast<std::chrono::nanoseconds>(
+              std::chrono::steady_clock::now() - lookupStarted).count());
+        }
+        return result;
+      };
       double longitude = x * 360. - 180.;
       const double latitude = latitudeFromMy(y);
-      const bool crossesDateline = east < west;
-      if (crossesDateline && longitude < west) longitude += 360.;
-      const double eastForSample = crossesDateline ? east + 360. : east;
-      if (longitude < west || longitude > eastForSample || latitude < south || latitude > north)
-        return false;
-      const double gx = gridWidth == 1 ? 0. :
-          (longitude - west) / (eastForSample - west) * (gridWidth - 1);
-      const double gy = gridHeight == 1 ? 0. :
-          (north - latitude) / (north - south) * (gridHeight - 1);
-      const int x0 = std::clamp(int(std::floor(gx)), 0, gridWidth - 1);
-      const int y0 = std::clamp(int(std::floor(gy)), 0, gridHeight - 1);
-      const int x1 = std::min(gridWidth - 1, x0 + 1);
-      const int y1 = std::min(gridHeight - 1, y0 + 1);
-      const float tx = float(gx - x0), ty = float(gy - y0);
-      auto valid = [&](int ix, int iy) {
-        return gridValid[size_t(iy) * gridWidth + ix] != 0;
+      if (!std::isfinite(longitude) || !std::isfinite(latitude)) return finishLookup(false);
+      if (longitude < -180. || longitude > 180.) {
+        longitude = std::fmod(longitude + 180., 360.);
+        if (longitude < 0.) longitude += 360.;
+        longitude -= 180.;
+      }
+      if (!indexedTiles) {
+        const GridTile &tile = gridTiles.front();
+        // Compatibility path for the legacy single arbitrary grid used by
+        // existing callers and tests. New XYZ fields use the indexed path.
+        const double eastForSample = tile.east < tile.west ? tile.east + 360. : tile.east;
+        double sampleLongitude = longitude;
+        if (tile.east < tile.west && sampleLongitude < tile.west) sampleLongitude += 360.;
+        if (sampleLongitude < tile.west || sampleLongitude > eastForSample ||
+            latitude < tile.south || latitude > tile.north) return false;
+        const double gx = tile.width == 1 ? 0. :
+            (sampleLongitude - tile.west) / (eastForSample - tile.west) * (tile.width - 1);
+        const double gy = tile.height == 1 ? 0. :
+            (tile.north - latitude) / (tile.north - tile.south) * (tile.height - 1);
+        const int x0 = std::clamp(int(std::floor(gx)), 0, tile.width - 1);
+        const int y0 = std::clamp(int(std::floor(gy)), 0, tile.height - 1);
+        const int x1 = std::min(tile.width - 1, x0 + 1);
+        const int y1 = std::min(tile.height - 1, y0 + 1);
+        const float tx = float(gx - x0), ty = float(gy - y0);
+        auto valid = [&](int ix, int iy) {
+          return tile.valid[size_t(iy) * tile.width + ix] != 0;
+        };
+        if (!valid(x0, y0) || !valid(x1, y0) || !valid(x0, y1) || !valid(x1, y1)) return false;
+        auto interpolate = [&](const std::vector<float> &values) {
+          return values[size_t(y0) * tile.width + x0] * (1 - tx) * (1 - ty) +
+                 values[size_t(y0) * tile.width + x1] * tx * (1 - ty) +
+                 values[size_t(y1) * tile.width + x0] * (1 - tx) * ty +
+                 values[size_t(y1) * tile.width + x1] * tx * ty;
+        };
+        u = interpolate(tile.u);
+        v = interpolate(tile.v);
+        return std::isfinite(u) && std::isfinite(v);
+      }
+      const int n = 1 << tileZoom;
+      const int tileX = std::clamp(
+          int(std::floor((longitude + 180.) / 360. * n)), 0, n - 1);
+      const int tileY = std::clamp(int(std::floor(my(latitude) * n)), 0, n - 1);
+      const auto tileIt = tileLookup.find(tileKey(tileZoom, tileX, tileY));
+      if (tileIt == tileLookup.end()) return finishLookup(false);
+      lookupMetrics.directLookups++;
+      const GridTile &tile = gridTiles[tileIt->second];
+      auto sampleTile = [&](const GridTile &tile, float &tileU, float &tileV) {
+        if (tile.width <= 0 || tile.height <= 0 || tile.north <= tile.south)
+          return false;
+        const bool crossesDateline = tile.east < tile.west;
+        double sampleLongitude = longitude;
+        if (crossesDateline && sampleLongitude < tile.west) sampleLongitude += 360.;
+        const double eastForSample = crossesDateline ? tile.east + 360. : tile.east;
+        const bool eastEdge = eastForSample >= 180. && sampleLongitude <= eastForSample;
+        if (sampleLongitude < tile.west || (!eastEdge && sampleLongitude >= eastForSample) ||
+            latitude < tile.south || latitude > tile.north) return false;
+        const double gx = tile.width == 1 ? 0. :
+            (sampleLongitude - tile.west) / (eastForSample - tile.west) * (tile.width - 1);
+        const double gy = tile.height == 1 ? 0. :
+            (tile.north - latitude) / (tile.north - tile.south) * (tile.height - 1);
+        const int x0 = std::clamp(int(std::floor(gx)), 0, tile.width - 1);
+        const int y0 = std::clamp(int(std::floor(gy)), 0, tile.height - 1);
+        const int x1 = std::min(tile.width - 1, x0 + 1);
+        const int y1 = std::min(tile.height - 1, y0 + 1);
+        const float tx = float(gx - x0), ty = float(gy - y0);
+        auto valid = [&](int ix, int iy) {
+          return tile.valid[size_t(iy) * tile.width + ix] != 0;
+        };
+        if (!valid(x0, y0) || !valid(x1, y0) || !valid(x0, y1) || !valid(x1, y1))
+          return false;
+        auto interpolate = [&](const std::vector<float> &values) {
+          const float q11 = values[size_t(y0) * tile.width + x0];
+          const float q21 = values[size_t(y0) * tile.width + x1];
+          const float q12 = values[size_t(y1) * tile.width + x0];
+          const float q22 = values[size_t(y1) * tile.width + x1];
+          return q11 * (1 - tx) * (1 - ty) + q21 * tx * (1 - ty) +
+                 q12 * (1 - tx) * ty + q22 * tx * ty;
+        };
+        tileU = interpolate(tile.u);
+        tileV = interpolate(tile.v);
+        return std::isfinite(tileU) && std::isfinite(tileV);
       };
-      if (!valid(x0, y0) || !valid(x1, y0) || !valid(x0, y1) || !valid(x1, y1))
-        return false;
-      auto interpolate = [&](const std::vector<float> &values) {
-        const float q11 = values[size_t(y0) * gridWidth + x0];
-        const float q21 = values[size_t(y0) * gridWidth + x1];
-        const float q12 = values[size_t(y1) * gridWidth + x0];
-        const float q22 = values[size_t(y1) * gridWidth + x1];
-        return q11 * (1 - tx) * (1 - ty) + q21 * tx * (1 - ty) +
-               q12 * (1 - tx) * ty + q22 * tx * ty;
-      };
-      u = interpolate(gridU);
-      v = interpolate(gridV);
-      return std::isfinite(u) && std::isfinite(v);
+      return finishLookup(sampleTile(tile, u, v));
     }
     const double n = double(1 << plan.z);
     double px = (x * n - plan.left) * 256 - .5,
